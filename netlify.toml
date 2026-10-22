@@ -3,13 +3,6 @@
 [build]
   publish = "."
 
-# Keep exported project data (budget, prices, buyers) off the public site
-[[redirects]]
-  from = "/abuquwa-villas/data/*"
-  to = "/404.html"
-  status = 404
-  force = true
-
 [[redirects]]
   from = "/README.md"
   to = "/404.html"

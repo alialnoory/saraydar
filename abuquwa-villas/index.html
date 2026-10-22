@@ -301,7 +301,7 @@ textarea { min-height: 76px; resize: vertical; }
   const COLLS = ['tasks', 'costs', 'payments', 'units', 'risks', 'log', 'meta'];
   const state = { tasks: [], costs: [], payments: [], units: [], risks: [], log: [], meta: [] };
   const loaded = new Set();
-  let db = null, canWrite = true, dbMissing = false;
+  let db = null, canWrite = true, dbMissing = false, snapshotMode = false, snapshotDate = '';
   let tab = 'overview', taskFilter = 'all', riskFilter = 'open';
 
   const $ = s => document.querySelector(s);
@@ -562,7 +562,7 @@ textarea { min-height: 76px; resize: vertical; }
     const v = $('#view');
     if (dbMissing) { v.innerHTML = `<div class="empty"><strong>Project data is not available in this view</strong>Open this page in Claude while signed in to see and update the project.</div>`; return; }
     if (loaded.size < COLLS.length) { v.innerHTML = `<div class="empty"><strong>Loading project data</strong>Tasks, budget, sales, risks and site log will appear here.</div>`; return; }
-    const ro = canWrite ? '' : `<div class="notice">You can view this project. Ask the owner for Contributor or Editor access to make updates.</div>`;
+    const ro = canWrite ? '' : snapshotMode ? `<div class="notice">Read-only snapshot of the project data${snapshotDate ? ' as of ' + fd(snapshotDate) : ''}. Editing with user logins is coming next.</div>` : `<div class="notice">You can view this project. Ask the owner for Contributor or Editor access to make updates.</div>`;
     v.innerHTML = ro + VIEWS[tab]();
   }
 
@@ -673,11 +673,23 @@ textarea { min-height: 76px; resize: vertical; }
   tab = VIEWS[fromHash] ? fromHash : VIEWS[saved] ? saved : 'overview';
   render();
 
+  async function loadSnapshot() {
+    try {
+      const r = await fetch('data/all-data.json', { cache: 'no-store' });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const all = await r.json();
+      for (const c of COLLS) { state[c] = Array.isArray(all[c]) ? all[c] : []; loaded.add(c); }
+      snapshotDate = all.exportedAt || '';
+      canWrite = false; snapshotMode = true; dbMissing = false;
+    } catch (e) { dbMissing = true; }
+    render();
+  }
+
   (async () => {
     const cl = window.claude;
-    if (!cl || !cl.use) { dbMissing = true; return render(); }
+    if (!cl || !cl.use) return loadSnapshot();
     try { db = await cl.use('db'); } catch (e) { db = null; }
-    if (!db) { dbMissing = true; return render(); }
+    if (!db) return loadSnapshot();
     try {
       const user = await cl.use('user');
       if (user) { const w = await user.can('data.write'); if (w === false) canWrite = false; }
