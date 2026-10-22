@@ -1,0 +1,365 @@
+[
+  {
+    "id": "t01",
+    "due": "2026-11-05",
+    "owner": "Managing Director",
+    "phase": "1 · Mobilisation",
+    "progress": 0,
+    "start": "2026-11-01",
+    "status": "Not started",
+    "title": "Appoint project manager and issue authority letter"
+  },
+  {
+    "id": "t02",
+    "due": "2026-11-12",
+    "owner": "Project Manager",
+    "phase": "1 · Mobilisation",
+    "progress": 0,
+    "start": "2026-11-01",
+    "status": "Not started",
+    "title": "Request proposals from 3 consulting offices"
+  },
+  {
+    "id": "t03",
+    "due": "2026-11-19",
+    "owner": "Project Manager",
+    "phase": "1 · Mobilisation",
+    "progress": 0,
+    "start": "2026-11-12",
+    "status": "Not started",
+    "title": "Appoint design and supervision consultant"
+  },
+  {
+    "id": "t04",
+    "due": "2026-11-15",
+    "notes": "Survey & Land Registration Bureau; setbacks and build ratios",
+    "owner": "Legal",
+    "phase": "1 · Mobilisation",
+    "progress": 0,
+    "start": "2026-11-01",
+    "status": "Not started",
+    "title": "Confirm title deeds and planning regulations for the 4 plots"
+  },
+  {
+    "id": "t05",
+    "due": "2026-11-28",
+    "owner": "Consultant",
+    "phase": "1 · Mobilisation",
+    "progress": 0,
+    "start": "2026-11-15",
+    "status": "Not started",
+    "title": "Topographic survey and soil investigation"
+  },
+  {
+    "id": "t06",
+    "due": "2026-11-26",
+    "owner": "Steering Committee",
+    "phase": "1 · Mobilisation",
+    "progress": 0,
+    "start": "2026-11-01",
+    "status": "Not started",
+    "title": "Decide financing route: equity, bank or off-plan"
+  },
+  {
+    "id": "t07",
+    "due": "2026-11-19",
+    "owner": "Finance",
+    "phase": "1 · Mobilisation",
+    "progress": 0,
+    "start": "2026-11-05",
+    "status": "Not started",
+    "title": "Open dedicated project bank account"
+  },
+  {
+    "id": "t08",
+    "due": "2026-11-20",
+    "owner": "Finance",
+    "phase": "1 · Mobilisation",
+    "progress": 0,
+    "start": "2026-11-05",
+    "status": "Not started",
+    "title": "Update budget: add missing items, raise contingency to 5%"
+  },
+  {
+    "id": "t09",
+    "due": "2026-11-26",
+    "owner": "Managing Director",
+    "phase": "1 · Mobilisation",
+    "progress": 0,
+    "start": "2026-11-26",
+    "status": "Not started",
+    "title": "Steering committee #1: approve baseline budget and schedule"
+  },
+  {
+    "id": "t10",
+    "due": "2026-12-17",
+    "owner": "Consultant",
+    "phase": "2 · Design",
+    "progress": 0,
+    "start": "2026-11-20",
+    "status": "Not started",
+    "title": "Concept design: adapt Villa 400 A to 10.3 × 17 m plots"
+  },
+  {
+    "id": "t11",
+    "due": "2026-12-24",
+    "owner": "Sales",
+    "phase": "2 · Design",
+    "progress": 0,
+    "start": "2026-12-10",
+    "status": "Not started",
+    "title": "Broker review of layout and pricing (2–3 brokers)"
+  },
+  {
+    "id": "t12",
+    "due": "2027-01-28",
+    "owner": "Consultant",
+    "phase": "2 · Design",
+    "progress": 0,
+    "start": "2026-12-20",
+    "status": "Not started",
+    "title": "Detailed design: architectural, structural, MEP"
+  },
+  {
+    "id": "t13",
+    "due": "2027-01-31",
+    "owner": "Consultant",
+    "phase": "2 · Design",
+    "progress": 0,
+    "start": "2027-01-10",
+    "status": "Not started",
+    "title": "Specifications and bill of quantities"
+  },
+  {
+    "id": "t14",
+    "due": "2027-01-31",
+    "notes": "No changes after this without a change order",
+    "owner": "Steering Committee",
+    "phase": "2 · Design",
+    "progress": 0,
+    "start": "2027-01-31",
+    "status": "Not started",
+    "title": "Design freeze"
+  },
+  {
+    "id": "t15",
+    "due": "2027-02-21",
+    "owner": "Consultant",
+    "phase": "3 · Permits",
+    "progress": 0,
+    "start": "2027-02-01",
+    "status": "Not started",
+    "title": "Building permit submission via Benayat"
+  },
+  {
+    "id": "t16",
+    "due": "2027-03-07",
+    "owner": "Consultant",
+    "phase": "3 · Permits",
+    "progress": 0,
+    "start": "2027-02-01",
+    "status": "Not started",
+    "title": "Civil Defence approval"
+  },
+  {
+    "id": "t17",
+    "due": "2027-03-07",
+    "owner": "Consultant",
+    "phase": "3 · Permits",
+    "progress": 0,
+    "start": "2027-02-01",
+    "status": "Not started",
+    "title": "EWA and sewerage approvals"
+  },
+  {
+    "id": "t18",
+    "due": "2027-02-07",
+    "owner": "Project Manager",
+    "phase": "4 · Tender & Contract",
+    "progress": 0,
+    "start": "2027-01-24",
+    "status": "Not started",
+    "title": "Prequalify 4–5 contractors"
+  },
+  {
+    "id": "t19",
+    "due": "2027-02-28",
+    "owner": "Consultant",
+    "phase": "4 · Tender & Contract",
+    "progress": 0,
+    "start": "2027-02-07",
+    "status": "Not started",
+    "title": "Issue tender to at least 3 contractors"
+  },
+  {
+    "id": "t20",
+    "due": "2027-03-07",
+    "owner": "Project Manager",
+    "phase": "4 · Tender & Contract",
+    "progress": 0,
+    "start": "2027-02-28",
+    "status": "Not started",
+    "title": "Technical and financial evaluation of bids"
+  },
+  {
+    "id": "t21",
+    "due": "2027-03-12",
+    "owner": "Managing Director",
+    "phase": "4 · Tender & Contract",
+    "progress": 0,
+    "start": "2027-03-07",
+    "status": "Not started",
+    "title": "Award and sign lump-sum contract (bonds + CAR insurance)"
+  },
+  {
+    "id": "t22",
+    "due": "2027-03-28",
+    "owner": "Contractor",
+    "phase": "5 · Construction",
+    "progress": 0,
+    "start": "2027-03-14",
+    "status": "Not started",
+    "title": "Site mobilisation and hoarding"
+  },
+  {
+    "id": "t23",
+    "due": "2027-05-15",
+    "owner": "Contractor",
+    "phase": "5 · Construction",
+    "progress": 0,
+    "start": "2027-03-28",
+    "status": "Not started",
+    "title": "Foundations"
+  },
+  {
+    "id": "t24",
+    "due": "2027-08-01",
+    "notes": "Frame completion triggers sales launch",
+    "owner": "Contractor",
+    "phase": "5 · Construction",
+    "progress": 0,
+    "start": "2027-05-15",
+    "status": "Not started",
+    "title": "Structural frame: ground, first floor, roof"
+  },
+  {
+    "id": "t25",
+    "due": "2027-10-31",
+    "owner": "Contractor",
+    "phase": "5 · Construction",
+    "progress": 0,
+    "start": "2027-08-01",
+    "status": "Not started",
+    "title": "Blockwork and MEP rough-in"
+  },
+  {
+    "id": "t26",
+    "due": "2028-02-27",
+    "owner": "Contractor",
+    "phase": "5 · Construction",
+    "progress": 0,
+    "start": "2027-11-01",
+    "status": "Not started",
+    "title": "Finishes, façades and external works"
+  },
+  {
+    "id": "t27",
+    "due": "2028-03-20",
+    "owner": "Consultant",
+    "phase": "6 · Handover & Close-out",
+    "progress": 0,
+    "start": "2028-02-28",
+    "status": "Not started",
+    "title": "EWA connection and testing"
+  },
+  {
+    "id": "t28",
+    "due": "2028-03-31",
+    "owner": "Consultant",
+    "phase": "6 · Handover & Close-out",
+    "progress": 0,
+    "start": "2028-03-01",
+    "status": "Not started",
+    "title": "Snagging and initial acceptance"
+  },
+  {
+    "id": "t29",
+    "due": "2028-04-10",
+    "owner": "Consultant",
+    "phase": "6 · Handover & Close-out",
+    "progress": 0,
+    "start": "2028-03-20",
+    "status": "Not started",
+    "title": "Building completion certificate"
+  },
+  {
+    "id": "t30",
+    "due": "2028-04-23",
+    "owner": "Project Manager",
+    "phase": "6 · Handover & Close-out",
+    "progress": 0,
+    "start": "2028-04-01",
+    "status": "Not started",
+    "title": "Unit registration and key handover to buyers"
+  },
+  {
+    "id": "t31",
+    "due": "2029-04-23",
+    "owner": "Project Manager",
+    "phase": "7 · Defects Liability",
+    "progress": 0,
+    "start": "2028-04-23",
+    "status": "Not started",
+    "title": "Defects liability period and retention release"
+  },
+  {
+    "id": "t32",
+    "due": "2026-12-31",
+    "owner": "Steering Committee",
+    "phase": "Sales & Marketing",
+    "progress": 0,
+    "start": "2026-11-26",
+    "status": "Not started",
+    "title": "Decide: sell off-plan (RERA licence + escrow) or on completion"
+  },
+  {
+    "id": "t33",
+    "due": "2027-02-28",
+    "owner": "Naqsh Media",
+    "phase": "Sales & Marketing",
+    "progress": 0,
+    "start": "2027-01-15",
+    "status": "Not started",
+    "title": "Project brand, brochure and 3D visuals"
+  },
+  {
+    "id": "t34",
+    "due": "2027-07-31",
+    "owner": "Sales",
+    "phase": "Sales & Marketing",
+    "progress": 0,
+    "start": "2027-02-01",
+    "status": "Not started",
+    "title": "Pre-registration campaign"
+  },
+  {
+    "id": "t35",
+    "due": "2027-09-30",
+    "owner": "Sales",
+    "phase": "Sales & Marketing",
+    "progress": 0,
+    "start": "2027-08-01",
+    "status": "Not started",
+    "title": "Sales launch at frame completion"
+  },
+  {
+    "id": "t36",
+    "due": "2028-01-31",
+    "owner": "Sales",
+    "phase": "Sales & Marketing",
+    "progress": 0,
+    "start": "2027-12-01",
+    "status": "Not started",
+    "title": "Fit out and furnish show villa"
+  }
+]

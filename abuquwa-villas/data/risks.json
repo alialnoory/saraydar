@@ -1,0 +1,65 @@
+[
+  {
+    "id": "r1",
+    "impact": "High",
+    "likelihood": "Medium",
+    "mitigation": "Lump-sum contract, contingency raised to 5%, design freeze",
+    "owner": "Project Manager",
+    "risk": "Construction cost overrun",
+    "status": "Open"
+  },
+  {
+    "id": "r2",
+    "impact": "High",
+    "likelihood": "Medium",
+    "mitigation": "Test price with brokers before design freeze, pre-registration, flexible pricing",
+    "owner": "Sales",
+    "risk": "Slow sales or lower selling price",
+    "status": "Open"
+  },
+  {
+    "id": "r3",
+    "impact": "Medium",
+    "likelihood": "Medium",
+    "mitigation": "Early Benayat submission, weekly follow-up on EWA application",
+    "owner": "Consultant",
+    "risk": "Delay in permits or utility connections",
+    "status": "Open"
+  },
+  {
+    "id": "r4",
+    "impact": "High",
+    "likelihood": "Low",
+    "mitigation": "Prequalification, 10% performance bond, payments against certified progress",
+    "owner": "Project Manager",
+    "risk": "Contractor default",
+    "status": "Open"
+  },
+  {
+    "id": "r5",
+    "impact": "Medium",
+    "likelihood": "Medium",
+    "mitigation": "Fixed price in contract, early steel purchase if needed",
+    "owner": "Contractor",
+    "risk": "Material price increases",
+    "status": "Open"
+  },
+  {
+    "id": "r6",
+    "impact": "Medium",
+    "likelihood": "Low",
+    "mitigation": "Check setbacks and build ratios before detailed design",
+    "owner": "Consultant",
+    "risk": "Layout does not fit plot or planning rules",
+    "status": "Open"
+  },
+  {
+    "id": "r7",
+    "impact": "High",
+    "likelihood": "Low",
+    "mitigation": "Mandatory safety plan and weekly inspection",
+    "owner": "Contractor",
+    "risk": "Safety incident on site",
+    "status": "Open"
+  }
+]

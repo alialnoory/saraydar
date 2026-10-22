@@ -1,0 +1,11 @@
+[
+  {
+    "id": "p-land",
+    "amount": 250000,
+    "costId": "land",
+    "date": "",
+    "notes": "Purchase completed. Add the actual payment date.",
+    "payee": "Land sellers",
+    "reference": ""
+  }
+]

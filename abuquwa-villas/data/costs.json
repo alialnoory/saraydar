@@ -1,0 +1,78 @@
+[
+  {
+    "id": "build",
+    "budget": 180000,
+    "category": "Construction",
+    "committed": 0,
+    "item": "Construction: 1,000 m² at BD 180/m²",
+    "order": 2
+  },
+  {
+    "id": "contingency",
+    "budget": 8820,
+    "category": "Contingency",
+    "committed": 0,
+    "item": "Contingency (2%)",
+    "notes": "Recommended: raise to 5% of construction",
+    "order": 6
+  },
+  {
+    "id": "design",
+    "budget": 5000,
+    "category": "Professional fees",
+    "committed": 0,
+    "item": "Design and supervision",
+    "notes": "BD 1,250 per unit",
+    "order": 3
+  },
+  {
+    "id": "finance",
+    "budget": 0,
+    "category": "Finance",
+    "committed": 0,
+    "item": "Financing costs",
+    "order": 8
+  },
+  {
+    "id": "land",
+    "budget": 250000,
+    "category": "Land",
+    "committed": 250000,
+    "item": "Land: 4 plots",
+    "order": 1
+  },
+  {
+    "id": "permits",
+    "budget": 2000,
+    "category": "Government & utilities",
+    "committed": 0,
+    "item": "Permits and government fees",
+    "notes": "BD 500 per unit",
+    "order": 4
+  },
+  {
+    "id": "registration",
+    "budget": 0,
+    "category": "Government & utilities",
+    "committed": 0,
+    "item": "Registration, subdivision and escrow fees",
+    "order": 9
+  },
+  {
+    "id": "sales",
+    "budget": 0,
+    "category": "Sales & marketing",
+    "committed": 0,
+    "item": "Sales commission and marketing",
+    "order": 7
+  },
+  {
+    "id": "utilities",
+    "budget": 4000,
+    "category": "Government & utilities",
+    "committed": 0,
+    "item": "Utility connections (EWA)",
+    "notes": "BD 1,000 per unit",
+    "order": 5
+  }
+]

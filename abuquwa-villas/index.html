@@ -1,0 +1,701 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
+</head>
+<body>
+<title>Abuquwa Villas Project Control</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jost:wght@300;400;500;600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Saraydar identity, dark-first: espresso ground, wood-copper glow on the brand band, cream type, open "Λ" wordmark.
+   Layout: sticky brand band with tabs; one working column (max 1200px) of panels; tables scroll inside their own frame on phones */
+:root {
+  --bg: #17100D;
+  --surface: #221813;
+  --sunken: #1C1410;
+  --ink: #F1E6DA;
+  --muted: #AE9C8E;
+  --line: #3A2B23;
+  --accent: #D29466;
+  --accent-ink: #1A110C;
+  --accent-soft: rgba(210, 148, 102, 0.14);
+  --good: #8CC49A;
+  --warn: #E6B05C;
+  --bad: #E9877A;
+  --good-soft: rgba(140, 196, 154, 0.14);
+  --warn-soft: rgba(230, 176, 92, 0.15);
+  --bad-soft: rgba(233, 135, 122, 0.14);
+  --shadow: 0 14px 48px rgba(0, 0, 0, 0.55);
+  --band-bg: #140D0A;
+  --band-ink: #F1E6DA;
+  --band-muted: #B9A595;
+  --band-glow: rgba(196, 128, 84, 0.42);
+  --band-glow2: rgba(120, 62, 34, 0.55);
+  --f-display: "Jost", "Futura", "Century Gothic", "Helvetica Neue", sans-serif;
+  --f-body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  color-scheme: dark;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --bg: #F3ECE5; --surface: #FCF9F6; --sunken: #EDE3DA; --ink: #2A1C15; --muted: #78655A; --line: #E0D2C6;
+    --accent: #8E4F2B; --accent-ink: #FFF8F2; --accent-soft: rgba(142, 79, 43, 0.10);
+    --good: #2F6E45; --warn: #9A600F; --bad: #A6372E;
+    --good-soft: rgba(47, 110, 69, 0.12); --warn-soft: rgba(154, 96, 15, 0.13); --bad-soft: rgba(166, 55, 46, 0.11);
+    --shadow: 0 14px 48px rgba(60, 32, 18, 0.20);
+    color-scheme: light;
+  }
+}
+:root[data-theme="light"] {
+  --bg: #F3ECE5; --surface: #FCF9F6; --sunken: #EDE3DA; --ink: #2A1C15; --muted: #78655A; --line: #E0D2C6;
+  --accent: #8E4F2B; --accent-ink: #FFF8F2; --accent-soft: rgba(142, 79, 43, 0.10);
+  --good: #2F6E45; --warn: #9A600F; --bad: #A6372E;
+  --good-soft: rgba(47, 110, 69, 0.12); --warn-soft: rgba(154, 96, 15, 0.13); --bad-soft: rgba(166, 55, 46, 0.11);
+  --shadow: 0 14px 48px rgba(60, 32, 18, 0.20);
+  color-scheme: light;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font-family: var(--f-body); font-size: 14px; line-height: 1.5; }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 30; background: var(--band-bg); }
+.wrap { max-width: 1200px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+h1, h2, h3 { font-family: var(--f-display); text-wrap: balance; margin: 0; }
+.num, td.n, .mono { font-family: var(--f-mono); font-variant-numeric: tabular-nums; }
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* Header band */
+.band { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20; color: var(--band-ink);
+  background:
+    radial-gradient(120% 180% at 92% 120%, var(--band-glow) 0%, transparent 55%),
+    radial-gradient(80% 140% at 70% 140%, var(--band-glow2) 0%, transparent 60%),
+    var(--band-bg);
+  border-bottom: 1px solid rgba(210, 148, 102, 0.28); }
+.band .wrap { padding-block: 16px 0; }
+.head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 8px 24px; }
+.wordmark { font-family: var(--f-display); font-weight: 400; font-size: 13px; letter-spacing: 0.42em; color: var(--band-ink); margin-bottom: 4px; }
+.eyebrow { font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--band-muted); font-weight: 500; }
+.head h1 { font-size: 26px; font-weight: 400; letter-spacing: 0.04em; color: var(--band-ink); }
+.spec { display: flex; flex-wrap: wrap; gap: 4px 16px; color: var(--band-muted); font-size: 12.5px; }
+.spec b { color: var(--band-ink); font-weight: 500; }
+.tabs { display: flex; gap: 2px; overflow-x: auto; margin-top: 14px; scrollbar-width: none; }
+.tabs::-webkit-scrollbar { display: none; }
+.tab { border: 0; background: none; padding: 10px 14px; font-family: var(--f-display); font-size: 14px; letter-spacing: 0.04em; color: var(--band-muted); border-bottom: 2px solid transparent; white-space: nowrap; }
+.tab:hover { color: var(--band-ink); }
+.tab[aria-selected="true"] { color: var(--band-ink); border-bottom-color: #D29466; }
+
+main.wrap { padding-block: 24px 64px; display: grid; gap: 20px; }
+.bar-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+.bar-row h2 { font-size: 20px; font-weight: 600; }
+.sub { color: var(--muted); font-size: 13px; margin: 2px 0 0; }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 18px; min-width: 0; }
+.panel h3 { font-size: 15px; font-weight: 600; margin-bottom: 12px; }
+.grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px; }
+@media (max-width: 420px) { .grid2 { grid-template-columns: 1fr; } }
+
+/* KPI strip */
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.kpi { background: var(--surface); padding: 16px 18px; display: grid; gap: 4px; min-width: 0; }
+.kpi .lbl { font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+.kpi .val { font-family: var(--f-display); font-size: 27px; font-weight: 500; letter-spacing: 0.01em; font-variant-numeric: tabular-nums; }
+.kpi .note { font-size: 12.5px; color: var(--muted); }
+.meter { height: 6px; background: var(--sunken); border-radius: 3px; position: relative; overflow: hidden; }
+.meter i { position: absolute; inset: 0 auto 0 0; background: var(--accent); border-radius: 3px; }
+.meter i.good { background: var(--good); } .meter i.warn { background: var(--warn); } .meter i.bad { background: var(--bad); }
+.meter s { position: absolute; top: -2px; bottom: -2px; width: 2px; background: var(--ink); opacity: 0.55; }
+
+/* Buttons */
+.btn { border: 1px solid var(--line); background: var(--surface); padding: 8px 14px; border-radius: 8px; font-weight: 500; }
+.btn:hover { border-color: var(--muted); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.btn.primary:hover { filter: brightness(1.08); }
+.btn.danger { color: var(--bad); }
+.btn.danger.armed { background: var(--bad); border-color: var(--bad); color: #fff; }
+.btn.sm { padding: 5px 10px; font-size: 13px; }
+.link { border: 0; background: none; padding: 0; color: var(--accent); font-weight: 500; }
+.tools { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.seg button { border: 0; background: var(--surface); padding: 6px 12px; font-size: 13px; color: var(--muted); }
+.seg button[aria-pressed="true"] { background: var(--accent-soft); color: var(--ink); font-weight: 500; }
+
+/* Tables */
+.tbl-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; min-width: 720px; }
+th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+th { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); font-weight: 600; background: var(--sunken); white-space: nowrap; }
+td.n, th.n { text-align: right; white-space: nowrap; }
+tbody tr:last-child td { border-bottom: 0; }
+tr.click { cursor: pointer; }
+tr.click:hover td { background: var(--accent-soft); }
+tr.phase td { background: var(--sunken); font-family: var(--f-display); font-weight: 600; font-size: 13px; padding-block: 8px; }
+tr.phase td .muted { font-family: var(--f-body); font-weight: 400; }
+tfoot td { font-weight: 600; background: var(--sunken); border-top: 1px solid var(--line); border-bottom: 0; }
+.muted { color: var(--muted); }
+.small { font-size: 12.5px; }
+.title-cell { min-width: 240px; }
+.title-cell .muted { font-size: 12.5px; }
+
+/* Pills */
+.pill { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 500; padding: 2px 9px; border-radius: 999px; white-space: nowrap; background: var(--sunken); color: var(--muted); }
+.pill::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.pill.good { background: var(--good-soft); color: var(--good); }
+.pill.warn { background: var(--warn-soft); color: var(--warn); }
+.pill.bad { background: var(--bad-soft); color: var(--bad); }
+.pill.info { background: var(--accent-soft); color: var(--accent); }
+.late { color: var(--bad); font-weight: 500; }
+
+/* Gantt strip */
+.gantt { position: relative; height: 14px; min-width: 160px; background: repeating-linear-gradient(90deg, transparent 0 calc(100% / 6 - 1px), var(--line) calc(100% / 6 - 1px) calc(100% / 6)); border-radius: 3px; }
+.gantt i { position: absolute; top: 3px; height: 8px; border-radius: 4px; background: var(--accent-soft); border: 1px solid var(--accent); min-width: 4px; overflow: hidden; }
+.gantt i b { position: absolute; inset: 0 auto 0 0; background: var(--accent); }
+.gantt i.done { border-color: var(--good); background: var(--good); }
+.gantt i.blocked { border-color: var(--bad); background: var(--bad-soft); }
+.gantt s { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--bad); opacity: 0.8; }
+
+/* Lists */
+.list { display: grid; gap: 0; }
+.li { display: flex; gap: 12px; align-items: flex-start; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.li:last-child { border-bottom: 0; }
+.li .t { min-width: 0; }
+.li .t div:first-child { font-weight: 500; }
+.phases { display: grid; gap: 12px; }
+.ph { display: grid; grid-template-columns: minmax(0, 1fr) 52px; gap: 4px 12px; align-items: center; }
+.ph .meter { grid-column: 1 / -1; }
+.ph .nm { font-weight: 500; }
+.empty { padding: 28px 18px; text-align: center; color: var(--muted); border: 1px dashed var(--line); border-radius: 10px; background: var(--surface); }
+.empty strong { display: block; color: var(--ink); font-family: var(--f-display); font-size: 16px; margin-bottom: 4px; }
+
+/* Units */
+.units { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 16px; }
+.unit { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 16px; display: grid; gap: 10px; text-align: left; }
+.unit:hover { border-color: var(--accent); }
+.unit .top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.unit h3 { font-size: 18px; }
+.unit dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-size: 13px; }
+.unit dt { color: var(--muted); }
+.unit dd { margin: 0; text-align: right; min-width: 0; overflow-wrap: anywhere; }
+.plan { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; padding: 6px; border: 1px solid var(--line); border-radius: 8px; background: var(--sunken); }
+.plan div { aspect-ratio: 10.3 / 17; border-radius: 3px; display: grid; place-items: center; font-family: var(--f-mono); font-size: 11px; color: var(--muted); border: 1px solid var(--line); background: var(--surface); }
+.plan div.sold { background: var(--good-soft); color: var(--good); border-color: var(--good); }
+.plan div.res { background: var(--warn-soft); color: var(--warn); border-color: var(--warn); }
+.street { font-size: 10.5px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); text-align: center; margin-top: 6px; }
+
+/* Log */
+.log { display: grid; gap: 12px; }
+.entry { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; display: grid; grid-template-columns: 96px minmax(0, 1fr) auto; gap: 4px 16px; }
+.entry .d { font-family: var(--f-mono); font-size: 12.5px; color: var(--muted); }
+.entry .body p { margin: 0 0 4px; white-space: pre-wrap; }
+.entry .body .issue { color: var(--warn); }
+@media (max-width: 560px) { .entry { grid-template-columns: 1fr; } }
+
+/* Modal */
+.overlay { position: fixed; inset: 0; z-index: 50; background: rgba(10, 16, 14, 0.45); display: grid; place-items: center; padding: max(16px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) max(16px, env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); }
+.modal { background: var(--surface); border-radius: 12px; box-shadow: var(--shadow); width: min(560px, 100%); max-height: 100%; overflow: auto; padding: 20px; display: grid; gap: 16px; }
+.modal h2 { font-size: 18px; }
+.fields { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.fields .full { grid-column: 1 / -1; }
+@media (max-width: 480px) { .fields { grid-template-columns: 1fr; } }
+label { display: grid; gap: 4px; font-size: 12.5px; color: var(--muted); font-weight: 500; min-width: 0; }
+input, select, textarea { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; background: var(--bg); width: 100%; min-width: 0; }
+textarea { min-height: 76px; resize: vertical; }
+.mfoot { display: flex; flex-wrap: wrap; gap: 8px; justify-content: space-between; }
+.mfoot .r { display: flex; gap: 8px; margin-left: auto; }
+.err { color: var(--bad); font-size: 13px; min-height: 1em; margin: 0; }
+.toast { position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 8px 16px; border-radius: 8px; font-weight: 500; z-index: 60; }
+.notice { padding: 10px 14px; border-radius: 8px; background: var(--warn-soft); color: var(--ink); font-size: 13px; }
+@media (prefers-reduced-motion: no-preference) { .meter i, .gantt i b { transition: width 0.4s ease; } }
+</style>
+
+<header class="band">
+  <div class="wrap">
+    <div class="head">
+      <div>
+        <div class="wordmark" aria-label="Saraydar">SΛRΛYDΛR</div>
+        <h1 id="hdr-name">Abuquwa Villas</h1>
+        <div class="eyebrow" id="hdr-company">Saraydar Real Estate · Project control</div>
+      </div>
+      <div class="spec" id="hdr-spec">
+        <span><b>4</b> townhouses</span>
+        <span>Plots <b>10.3 × 17 m</b></span>
+        <span><b>1,000 m²</b> built-up</span>
+        <span>Abuquwa, Bahrain</span>
+      </div>
+    </div>
+    <nav class="tabs" role="tablist" aria-label="Sections">
+      <button class="tab" role="tab" data-tab="overview">Overview</button>
+      <button class="tab" role="tab" data-tab="schedule">Schedule</button>
+      <button class="tab" role="tab" data-tab="budget">Budget &amp; Payments</button>
+      <button class="tab" role="tab" data-tab="sales">Sales</button>
+      <button class="tab" role="tab" data-tab="risks">Risks</button>
+      <button class="tab" role="tab" data-tab="log">Site Log</button>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap" id="view">
+  <div class="empty"><strong>Loading project data</strong>Tasks, budget, sales, risks and site log will appear here.</div>
+</main>
+<div id="modal-root"></div>
+
+<script>
+(() => {
+  const PHASES = ['1 · Mobilisation', '2 · Design', '3 · Permits', '4 · Tender & Contract', '5 · Construction', '6 · Handover & Close-out', '7 · Defects Liability', 'Sales & Marketing'];
+  const TASK_STATUS = ['Not started', 'In progress', 'Blocked', 'Done'];
+  const LMH = ['Low', 'Medium', 'High'];
+  const SCHEMAS = {
+    tasks: { label: 'task', fields: [
+      { k: 'title', l: 'Task', t: 'text', req: 1, full: 1 },
+      { k: 'phase', l: 'Phase', t: 'select', o: PHASES },
+      { k: 'owner', l: 'Owner', t: 'text' },
+      { k: 'start', l: 'Start', t: 'date' },
+      { k: 'due', l: 'Due', t: 'date' },
+      { k: 'status', l: 'Status', t: 'select', o: TASK_STATUS },
+      { k: 'progress', l: 'Progress (%)', t: 'number', min: 0, max: 100 },
+      { k: 'notes', l: 'Notes', t: 'textarea', full: 1 } ] },
+    costs: { label: 'cost line', fields: [
+      { k: 'item', l: 'Cost item', t: 'text', req: 1, full: 1 },
+      { k: 'category', l: 'Category', t: 'select', o: ['Land', 'Construction', 'Professional fees', 'Government & utilities', 'Sales & marketing', 'Finance', 'Contingency'] },
+      { k: 'budget', l: 'Budget (BD)', t: 'number', min: 0 },
+      { k: 'committed', l: 'Committed / contracted (BD)', t: 'number', min: 0 },
+      { k: 'notes', l: 'Notes', t: 'textarea', full: 1 } ] },
+    payments: { label: 'payment', fields: [
+      { k: 'date', l: 'Date', t: 'date' },
+      { k: 'amount', l: 'Amount (BD)', t: 'number', min: 0, req: 1 },
+      { k: 'costId', l: 'Against cost line', t: 'costs', full: 1, req: 1 },
+      { k: 'payee', l: 'Paid to', t: 'text' },
+      { k: 'reference', l: 'Reference / invoice no.', t: 'text' },
+      { k: 'notes', l: 'Notes', t: 'textarea', full: 1 } ] },
+    units: { label: 'unit', fields: [
+      { k: 'unit', l: 'Unit', t: 'text', req: 1 },
+      { k: 'status', l: 'Status', t: 'select', o: ['Available', 'Reserved', 'Sold'] },
+      { k: 'price', l: 'Price (BD)', t: 'number', min: 0 },
+      { k: 'collected', l: 'Collected from buyer (BD)', t: 'number', min: 0 },
+      { k: 'buyer', l: 'Buyer', t: 'text' },
+      { k: 'contractDate', l: 'Contract date', t: 'date' },
+      { k: 'notes', l: 'Notes', t: 'textarea', full: 1 } ] },
+    risks: { label: 'risk', fields: [
+      { k: 'risk', l: 'Risk', t: 'text', req: 1, full: 1 },
+      { k: 'likelihood', l: 'Likelihood', t: 'select', o: LMH },
+      { k: 'impact', l: 'Impact', t: 'select', o: LMH },
+      { k: 'owner', l: 'Owner', t: 'text' },
+      { k: 'status', l: 'Status', t: 'select', o: ['Open', 'Monitoring', 'Closed'] },
+      { k: 'mitigation', l: 'Mitigation', t: 'textarea', full: 1 } ] },
+    log: { label: 'site log entry', fields: [
+      { k: 'date', l: 'Date', t: 'date', req: 1 },
+      { k: 'author', l: 'Recorded by', t: 'text' },
+      { k: 'workforce', l: 'Workers on site', t: 'number', min: 0 },
+      { k: 'progress', l: 'Overall progress note (%)', t: 'number', min: 0, max: 100 },
+      { k: 'work', l: 'Work done', t: 'textarea', full: 1, req: 1 },
+      { k: 'issues', l: 'Issues / instructions', t: 'textarea', full: 1 } ] },
+    meta: { label: 'project details', fields: [
+      { k: 'name', l: 'Project name', t: 'text', req: 1 },
+      { k: 'company', l: 'Developer', t: 'text' },
+      { k: 'start', l: 'Project start', t: 'date' },
+      { k: 'handover', l: 'Target handover', t: 'date' } ] }
+  };
+  const COLLS = ['tasks', 'costs', 'payments', 'units', 'risks', 'log', 'meta'];
+  const state = { tasks: [], costs: [], payments: [], units: [], risks: [], log: [], meta: [] };
+  const loaded = new Set();
+  let db = null, canWrite = true, dbMissing = false;
+  let tab = 'overview', taskFilter = 'all', riskFilter = 'open';
+
+  const $ = s => document.querySelector(s);
+  const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const num = v => (typeof v === 'number' && isFinite(v)) ? v : (parseFloat(v) || 0);
+  const bd = v => 'BD ' + Math.round(num(v)).toLocaleString('en-US');
+  const pct = v => Math.round(v * 100) + '%';
+  const iso = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  const TODAY = iso(new Date());
+  const dayN = s => s ? Date.parse(s + 'T00:00:00Z') / 864e5 : NaN;
+  const fd = s => s ? new Date(s + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
+  const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+  const lmh = v => Math.max(1, LMH.indexOf(v) + 1);
+
+  // ---------- derived figures ----------
+  function meta() {
+    const m = state.meta.find(d => d.id === 'project') || {};
+    return { name: m.name || 'Abuquwa Villas', company: m.company || 'Saraydar Real Estate', start: m.start || '', handover: m.handover || '' };
+  }
+  function taskWeight(t) { const d = dayN(t.due) - dayN(t.start); return isFinite(d) ? Math.max(1, d) : 1; }
+  function scheduleStats(tasks) {
+    const list = tasks.filter(t => t.phase !== '7 · Defects Liability');
+    let w = 0, act = 0, plan = 0;
+    const today = dayN(TODAY);
+    for (const t of list) {
+      const wt = taskWeight(t); w += wt;
+      act += wt * (t.status === 'Done' ? 1 : clamp(num(t.progress) / 100, 0, 1));
+      const s = dayN(t.start), e = dayN(t.due);
+      if (isFinite(s) && isFinite(e)) plan += wt * (e <= s ? (today >= e ? 1 : 0) : clamp((today - s) / (e - s), 0, 1));
+    }
+    return { actual: w ? act / w : 0, planned: w ? plan / w : 0 };
+  }
+  function isLate(t) { return t.status !== 'Done' && t.due && t.due < TODAY; }
+  function paidByCost() { const m = {}; for (const p of state.payments) m[p.costId] = (m[p.costId] || 0) + num(p.amount); return m; }
+  function budgetStats() {
+    const paid = paidByCost();
+    let budget = 0, committed = 0, forecast = 0, spent = 0;
+    for (const c of state.costs) {
+      const b = num(c.budget), cm = num(c.committed), p = paid[c.id] || 0;
+      budget += b; committed += cm; spent += p; forecast += Math.max(b, cm, p);
+    }
+    const unassigned = state.payments.filter(p => !state.costs.some(c => c.id === p.costId)).reduce((a, p) => a + num(p.amount), 0);
+    spent += unassigned; forecast += unassigned;
+    return { budget, committed, spent, forecast, paid };
+  }
+  function salesStats() {
+    let list = 0, sold = 0, reserved = 0, collected = 0, nSold = 0, nRes = 0;
+    for (const u of state.units) {
+      list += num(u.price); collected += num(u.collected);
+      if (u.status === 'Sold') { sold += num(u.price); nSold++; }
+      if (u.status === 'Reserved') { reserved += num(u.price); nRes++; }
+    }
+    return { list, sold, reserved, collected, nSold, nRes, n: state.units.length };
+  }
+  function riskScore(r) { return lmh(r.likelihood) * lmh(r.impact); }
+  function riskPill(r) {
+    const s = riskScore(r), cls = s >= 6 ? 'bad' : s >= 3 ? 'warn' : 'good', w = s >= 6 ? 'High' : s >= 3 ? 'Medium' : 'Low';
+    return `<span class="pill ${cls}">${w} · ${s}</span>`;
+  }
+  function statusPill(s) {
+    const cls = { 'Done': 'good', 'In progress': 'info', 'Blocked': 'bad', 'Sold': 'good', 'Reserved': 'warn', 'Available': '', 'Open': 'warn', 'Monitoring': 'info', 'Closed': 'good' }[s] ?? '';
+    return `<span class="pill ${cls}">${esc(s || '—')}</span>`;
+  }
+  const sortTasks = arr => arr.slice().sort((a, b) => (a.start || '9').localeCompare(b.start || '9') || (a.due || '9').localeCompare(b.due || '9') || String(a.title).localeCompare(String(b.title)));
+  const addBtn = (coll, text) => canWrite ? `<button class="btn primary" data-add="${coll}">${text}</button>` : '';
+
+  // ---------- views ----------
+  function vOverview() {
+    const m = meta(), sc = scheduleStats(state.tasks), bs = budgetStats(), ss = salesStats();
+    const profit = ss.list - bs.forecast, margin = bs.forecast ? profit / bs.forecast : 0;
+    const openHigh = state.risks.filter(r => r.status !== 'Closed' && riskScore(r) >= 6);
+    const behind = sc.planned - sc.actual;
+    const schedCls = behind > 0.1 ? 'bad' : behind > 0.03 ? 'warn' : 'good';
+    const spendCls = bs.forecast > bs.budget * 1.03 ? 'bad' : bs.forecast > bs.budget ? 'warn' : 'good';
+
+    const attention = [];
+    state.tasks.filter(isLate).forEach(t => attention.push({ sev: 'bad', tag: 'Overdue', text: t.title, sub: `Due ${fd(t.due)} · ${t.owner || 'No owner'}`, open: ['tasks', t.id] }));
+    state.tasks.filter(t => t.status === 'Blocked').forEach(t => attention.push({ sev: 'bad', tag: 'Blocked', text: t.title, sub: t.notes || t.owner || '', open: ['tasks', t.id] }));
+    openHigh.forEach(r => attention.push({ sev: 'warn', tag: 'High risk', text: r.risk, sub: r.owner ? `Owner: ${r.owner}` : '', open: ['risks', r.id] }));
+    state.costs.forEach(c => {
+      const p = bs.paid[c.id] || 0, b = num(c.budget);
+      if (b === 0) attention.push({ sev: 'warn', tag: 'Not estimated', text: c.item, sub: 'Budget line has no amount yet', open: ['costs', c.id] });
+      else if (Math.max(num(c.committed), p) > b) attention.push({ sev: 'bad', tag: 'Over budget', text: c.item, sub: `${bd(Math.max(num(c.committed), p))} against ${bd(b)}`, open: ['costs', c.id] });
+    });
+
+    const horizon = iso(new Date(Date.now() + 30 * 864e5));
+    const upcoming = sortTasks(state.tasks.filter(t => t.status !== 'Done' && !isLate(t) && ((t.due && t.due <= horizon) || (t.start && t.start <= horizon && t.start >= TODAY)))).slice(0, 8);
+
+    const phaseRows = PHASES.map(ph => {
+      const ts = state.tasks.filter(t => t.phase === ph);
+      if (!ts.length) return '';
+      const s = scheduleStats(ts.map(t => ({ ...t, phase: '' })));
+      const done = ts.filter(t => t.status === 'Done').length;
+      return `<div class="ph"><div class="nm">${esc(ph)} <span class="muted small">${done}/${ts.length} done</span></div><div class="num small" style="text-align:right">${pct(s.actual)}</div><div class="meter"><i class="${s.actual >= 1 ? 'good' : ''}" style="width:${pct(s.actual)}"></i>${s.planned > 0 && s.planned < 1 ? `<s style="left:${pct(s.planned)}" title="Planned by today"></s>` : ''}</div></div>`;
+    }).join('');
+
+    const last = state.log.slice().sort((a, b) => String(b.date).localeCompare(String(a.date)))[0];
+    const hand = m.handover ? Math.round(dayN(m.handover) - dayN(TODAY)) : null;
+
+    return `
+      <div class="bar-row"><div><h2>Project overview</h2><p class="sub">As of ${fd(TODAY)}${m.handover ? ` · target handover ${fd(m.handover)}${hand > 0 ? ` (${hand} days)` : ''}` : ''}</p></div>
+      ${canWrite ? `<button class="btn" data-edit="meta" data-id="project">Edit project details</button>` : ''}</div>
+      <section class="kpis" aria-label="Key figures">
+        <div class="kpi"><span class="lbl">Schedule</span><span class="val">${pct(sc.actual)}</span>
+          <div class="meter"><i class="${schedCls}" style="width:${pct(sc.actual)}"></i>${sc.planned > 0 && sc.planned < 1 ? `<s style="left:${pct(sc.planned)}"></s>` : ''}</div>
+          <span class="note">Planned by today ${pct(sc.planned)}${behind > 0.01 ? ` · <span class="late">${pct(behind)} behind</span>` : ''}</span></div>
+        <div class="kpi"><span class="lbl">Cost forecast</span><span class="val">${bd(bs.forecast)}</span>
+          <div class="meter"><i class="${spendCls}" style="width:${pct(bs.forecast ? clamp(bs.spent / bs.forecast, 0, 1) : 0)}"></i></div>
+          <span class="note">Paid ${bd(bs.spent)} · budget ${bd(bs.budget)}</span></div>
+        <div class="kpi"><span class="lbl">Sales</span><span class="val">${ss.nSold} of ${ss.n} sold</span>
+          <div class="meter"><i class="good" style="width:${pct(ss.list ? (ss.sold) / ss.list : 0)}"></i></div>
+          <span class="note">${ss.nRes} reserved · collected ${bd(ss.collected)}</span></div>
+        <div class="kpi"><span class="lbl">Projected profit</span><span class="val">${bd(profit)}</span>
+          <div class="meter"><i class="${margin >= 0.18 ? 'good' : margin >= 0.12 ? 'warn' : 'bad'}" style="width:${pct(clamp(margin / 0.3, 0, 1))}"></i></div>
+          <span class="note">Margin ${pct(margin)} on cost · target ≥ 18%</span></div>
+      </section>
+      <div class="grid2">
+        <section class="panel"><h3>Needs attention</h3>
+          ${attention.length ? `<div class="list">${attention.slice(0, 10).map(a => `<div class="li"><div class="t"><div>${esc(a.text)}</div><div class="muted small">${esc(a.sub)}</div></div><button class="link small" data-edit="${a.open[0]}" data-id="${a.open[1]}"><span class="pill ${a.sev}">${a.tag}</span></button></div>`).join('')}</div>` : `<p class="muted">Nothing overdue, blocked or over budget.</p>`}
+        </section>
+        <section class="panel"><h3>Next 30 days</h3>
+          ${upcoming.length ? `<div class="list">${upcoming.map(t => `<div class="li"><div class="t"><div>${esc(t.title)}</div><div class="muted small">${esc(t.phase)} · ${esc(t.owner || 'No owner')}</div></div><div class="small mono" style="white-space:nowrap">${fd(t.due)}</div></div>`).join('')}</div>` : `<p class="muted">No tasks start or fall due in the next 30 days.</p>`}
+        </section>
+      </div>
+      <div class="grid2">
+        <section class="panel"><h3>Progress by phase</h3><div class="phases">${phaseRows || '<p class="muted">Add tasks to see phase progress.</p>'}</div>
+          <p class="muted small" style="margin:12px 0 0">The dark tick marks where each phase should be by today.</p></section>
+        <section class="panel"><h3>Latest site log</h3>
+          ${last ? `<div class="mono small muted">${fd(last.date)}${last.author ? ' · ' + esc(last.author) : ''}</div><p style="white-space:pre-wrap;margin:6px 0">${esc(last.work)}</p>${last.issues ? `<p class="small" style="color:var(--warn);white-space:pre-wrap;margin:0">${esc(last.issues)}</p>` : ''}<p style="margin:12px 0 0"><button class="link" data-go="log">Open site log</button></p>` : `<p class="muted">No entries yet.</p>${addBtn('log', 'Add first entry')}`}
+        </section>
+      </div>`;
+  }
+
+  function vSchedule() {
+    const all = sortTasks(state.tasks);
+    const rows = all.filter(t => taskFilter === 'all' ? true : taskFilter === 'open' ? t.status !== 'Done' : taskFilter === 'late' ? isLate(t) || t.status === 'Blocked' : t.status === 'Done');
+    const ranged = all.filter(t => t.phase !== '7 · Defects Liability' && t.start && t.due);
+    const lo = Math.min(...ranged.map(t => dayN(t.start))), hi = Math.max(...ranged.map(t => dayN(t.due)));
+    const span = isFinite(lo) && hi > lo ? hi - lo : 0;
+    const X = s => span ? clamp((dayN(s) - lo) / span, 0, 1) : 0;
+    const todayX = span ? (dayN(TODAY) - lo) / span : -1;
+    const gantt = t => {
+      if (!span || !t.start || !t.due) return '<span class="muted small">No dates</span>';
+      const a = X(t.start), b = Math.max(X(t.due), a + 0.004);
+      const cls = t.status === 'Done' ? 'done' : t.status === 'Blocked' ? 'blocked' : '';
+      return `<div class="gantt"><i class="${cls}" style="left:${(a * 100).toFixed(2)}%;width:${((b - a) * 100).toFixed(2)}%"><b style="width:${clamp(num(t.progress), 0, 100)}%"></b></i>${todayX >= 0 && todayX <= 1 ? `<s style="left:${(todayX * 100).toFixed(2)}%"></s>` : ''}</div>`;
+    };
+    const filters = [['all', 'All'], ['open', 'Open'], ['late', 'Overdue / blocked'], ['done', 'Done']];
+    let body = '';
+    for (const ph of PHASES) {
+      const ts = rows.filter(t => t.phase === ph);
+      if (!ts.length) continue;
+      body += `<tr class="phase"><td colspan="6">${esc(ph)} <span class="muted small">· ${ts.length} task${ts.length > 1 ? 's' : ''}</span></td></tr>`;
+      body += ts.map(t => `<tr class="click" data-edit="tasks" data-id="${t.id}" tabindex="0">
+        <td class="title-cell"><div>${esc(t.title)}</div>${t.notes ? `<div class="muted">${esc(t.notes)}</div>` : ''}</td>
+        <td>${esc(t.owner || '—')}</td>
+        <td class="n ${isLate(t) ? 'late' : ''}">${fd(t.start)}<br><span class="${isLate(t) ? '' : 'muted'}">${fd(t.due)}</span></td>
+        <td>${statusPill(t.status)}</td>
+        <td class="n">${t.status === 'Done' ? 100 : Math.round(num(t.progress))}%</td>
+        <td style="width:30%">${gantt(t)}</td></tr>`).join('');
+    }
+    const other = rows.filter(t => !PHASES.includes(t.phase));
+    if (other.length) body += `<tr class="phase"><td colspan="6">Unassigned</td></tr>` + other.map(t => `<tr class="click" data-edit="tasks" data-id="${t.id}"><td>${esc(t.title)}</td><td>${esc(t.owner || '—')}</td><td class="n">${fd(t.due)}</td><td>${statusPill(t.status)}</td><td class="n">${Math.round(num(t.progress))}%</td><td>${gantt(t)}</td></tr>`).join('');
+    return `
+      <div class="bar-row"><div><h2>Schedule</h2><p class="sub">${all.filter(t => t.status === 'Done').length} of ${all.length} tasks done · tap a task to update status and progress</p></div>
+        <div class="tools"><div class="seg" role="group" aria-label="Filter tasks">${filters.map(([k, l]) => `<button data-tf="${k}" aria-pressed="${taskFilter === k}">${l}</button>`).join('')}</div>${addBtn('tasks', 'Add task')}</div></div>
+      ${all.length ? `<div class="tbl-wrap"><table><thead><tr><th>Task</th><th>Owner</th><th class="n">Start / due</th><th>Status</th><th class="n">Done</th><th>Timeline${span ? ` <span class="muted" style="text-transform:none;letter-spacing:0;font-weight:400">${fd(iso(new Date(lo * 864e5)))} – ${fd(iso(new Date(hi * 864e5)))}</span>` : ''}</th></tr></thead><tbody>${body || `<tr><td colspan="6" class="muted">No tasks match this filter.</td></tr>`}</tbody></table></div>`
+        : `<div class="empty"><strong>No tasks yet</strong>Add the first task to start the project schedule.<br><br>${addBtn('tasks', 'Add task')}</div>`}`;
+  }
+
+  function vBudget() {
+    const bs = budgetStats(), ss = salesStats();
+    const costs = state.costs.slice().sort((a, b) => num(a.order) - num(b.order) || String(a.item).localeCompare(String(b.item)));
+    const rows = costs.map(c => {
+      const b = num(c.budget), cm = num(c.committed), p = bs.paid[c.id] || 0, fc = Math.max(b, cm, p), v = b - fc;
+      return `<tr class="click" data-edit="costs" data-id="${c.id}" tabindex="0">
+        <td class="title-cell"><div>${esc(c.item)}</div>${c.notes ? `<div class="muted">${esc(c.notes)}</div>` : ''}</td>
+        <td class="muted">${esc(c.category || '—')}</td>
+        <td class="n">${b ? bd(b) : '<span class="pill warn">To estimate</span>'}</td>
+        <td class="n">${cm ? bd(cm) : '<span class="muted">—</span>'}</td>
+        <td class="n">${p ? bd(p) : '<span class="muted">—</span>'}</td>
+        <td class="n ${v < 0 ? 'late' : ''}">${v < 0 ? '−' + bd(-v) : b ? bd(v) : '—'}</td>
+        <td style="width:110px"><div class="meter"><i class="${p > b && b ? 'bad' : p >= b && b ? 'good' : ''}" style="width:${pct(fc ? clamp(p / fc, 0, 1) : 0)}"></i></div></td></tr>`;
+    }).join('');
+    const pays = state.payments.slice().sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
+    const costName = id => (state.costs.find(c => c.id === id) || {}).item || 'Unassigned';
+    const profit = ss.list - bs.forecast;
+    return `
+      <div class="bar-row"><div><h2>Budget &amp; payments</h2><p class="sub">Forecast takes the higher of budget, committed and paid on each line</p></div><div class="tools">${addBtn('costs', 'Add cost line')}</div></div>
+      <section class="kpis">
+        <div class="kpi"><span class="lbl">Approved budget</span><span class="val">${bd(bs.budget)}</span><span class="note">${state.costs.length} cost lines</span></div>
+        <div class="kpi"><span class="lbl">Committed</span><span class="val">${bd(bs.committed)}</span><span class="note">Signed contracts and orders</span></div>
+        <div class="kpi"><span class="lbl">Paid to date</span><span class="val">${bd(bs.spent)}</span><span class="note">${state.payments.length} payments recorded</span></div>
+        <div class="kpi"><span class="lbl">Projected profit</span><span class="val">${bd(profit)}</span><span class="note">Sales value ${bd(ss.list)} − forecast cost ${bd(bs.forecast)}</span></div>
+      </section>
+      ${costs.length ? `<div class="tbl-wrap"><table><thead><tr><th>Cost item</th><th>Category</th><th class="n">Budget</th><th class="n">Committed</th><th class="n">Paid</th><th class="n">Remaining</th><th>Paid</th></tr></thead>
+        <tbody>${rows}</tbody><tfoot><tr><td>Total</td><td></td><td class="n">${bd(bs.budget)}</td><td class="n">${bd(bs.committed)}</td><td class="n">${bd(bs.spent)}</td><td class="n ${bs.budget - bs.forecast < 0 ? 'late' : ''}">${bd(bs.budget - bs.forecast)}</td><td></td></tr></tfoot></table></div>`
+        : `<div class="empty"><strong>No cost lines yet</strong>Add the project budget lines to track commitments and payments.</div>`}
+      <div class="bar-row"><div><h2 style="font-size:17px">Payments</h2><p class="sub">Every payment is booked against a cost line</p></div>${state.costs.length ? addBtn('payments', 'Record payment') : ''}</div>
+      ${pays.length ? `<div class="tbl-wrap"><table><thead><tr><th>Date</th><th>Paid to</th><th>Cost line</th><th>Reference</th><th class="n">Amount</th></tr></thead><tbody>
+        ${pays.map(p => `<tr class="click" data-edit="payments" data-id="${p.id}" tabindex="0"><td class="mono small">${p.date ? fd(p.date) : '<span class="pill warn">Add date</span>'}</td><td>${esc(p.payee || '—')}${p.notes ? `<div class="muted small">${esc(p.notes)}</div>` : ''}</td><td class="muted">${esc(costName(p.costId))}</td><td class="mono small">${esc(p.reference || '—')}</td><td class="n">${bd(p.amount)}</td></tr>`).join('')}
+        </tbody></table></div>` : `<div class="empty"><strong>No payments recorded</strong>Record each payment to the contractor, consultant or authorities as it is made.</div>`}`;
+  }
+
+  function vSales() {
+    const ss = salesStats();
+    const units = state.units.slice().sort((a, b) => String(a.unit).localeCompare(String(b.unit), undefined, { numeric: true }));
+    const plan = units.slice(0, 4).map(u => `<div class="${u.status === 'Sold' ? 'sold' : u.status === 'Reserved' ? 'res' : ''}" title="${esc(u.unit)}: ${esc(u.status)}">${esc(String(u.unit).replace(/\D+/g, '') || u.unit)}</div>`).join('');
+    return `
+      <div class="bar-row"><div><h2>Sales</h2><p class="sub">${ss.nSold} sold · ${ss.nRes} reserved · ${ss.n - ss.nSold - ss.nRes} available</p></div><div class="tools">${addBtn('units', 'Add unit')}</div></div>
+      <div class="grid2">
+        <section class="kpis" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr))">
+          <div class="kpi"><span class="lbl">Total sales value</span><span class="val">${bd(ss.list)}</span><span class="note">List prices of all units</span></div>
+          <div class="kpi"><span class="lbl">Sold value</span><span class="val">${bd(ss.sold)}</span><span class="note">Reserved ${bd(ss.reserved)}</span></div>
+          <div class="kpi"><span class="lbl">Collected</span><span class="val">${bd(ss.collected)}</span><span class="note">${ss.sold ? pct(ss.collected / ss.sold) + ' of sold value' : 'From buyers to date'}</span></div>
+        </section>
+        ${units.length ? `<section class="panel"><h3>Site plan · units by status</h3><div class="plan">${plan}</div><div class="street">Street · 10.3 m frontage each</div></section>` : ''}
+      </div>
+      ${units.length ? `<div class="units">${units.map(u => `<button class="unit" data-edit="units" data-id="${u.id}">
+          <div class="top"><h3>${esc(u.unit)}</h3>${statusPill(u.status)}</div>
+          <dl><dt>Price</dt><dd class="num">${bd(u.price)}</dd>
+          <dt>Buyer</dt><dd>${esc(u.buyer || '—')}</dd>
+          <dt>Contract</dt><dd>${fd(u.contractDate)}</dd>
+          <dt>Collected</dt><dd class="num">${bd(u.collected)}</dd></dl>
+          ${u.notes ? `<div class="muted small">${esc(u.notes)}</div>` : ''}</button>`).join('')}</div>`
+        : `<div class="empty"><strong>No units yet</strong>Add the four villas to track reservations and sales.</div>`}`;
+  }
+
+  function vRisks() {
+    const rows = state.risks.filter(r => riskFilter === 'all' ? true : r.status !== 'Closed').sort((a, b) => riskScore(b) - riskScore(a));
+    return `
+      <div class="bar-row"><div><h2>Risk register</h2><p class="sub">Score = likelihood × impact (1–9) · review monthly at the steering committee</p></div>
+        <div class="tools"><div class="seg" role="group" aria-label="Filter risks"><button data-rf="open" aria-pressed="${riskFilter === 'open'}">Open</button><button data-rf="all" aria-pressed="${riskFilter === 'all'}">All</button></div>${addBtn('risks', 'Add risk')}</div></div>
+      ${state.risks.length ? `<div class="tbl-wrap"><table><thead><tr><th>Risk</th><th>Score</th><th>Likelihood</th><th>Impact</th><th>Mitigation</th><th>Owner</th><th>Status</th></tr></thead><tbody>
+        ${rows.map(r => `<tr class="click" data-edit="risks" data-id="${r.id}" tabindex="0"><td class="title-cell">${esc(r.risk)}</td><td>${riskPill(r)}</td><td>${esc(r.likelihood || '—')}</td><td>${esc(r.impact || '—')}</td><td class="small" style="min-width:240px">${esc(r.mitigation || '—')}</td><td>${esc(r.owner || '—')}</td><td>${statusPill(r.status)}</td></tr>`).join('') || `<tr><td colspan="7" class="muted">No open risks.</td></tr>`}
+        </tbody></table></div>` : `<div class="empty"><strong>No risks logged</strong>Add the risks that could affect cost, time or sales.</div>`}`;
+  }
+
+  function vLog() {
+    const entries = state.log.slice().sort((a, b) => String(b.date).localeCompare(String(a.date)));
+    return `
+      <div class="bar-row"><div><h2>Site log</h2><p class="sub">Daily or weekly record of work on site, workforce and issues</p></div><div class="tools">${addBtn('log', 'Add entry')}</div></div>
+      ${entries.length ? `<div class="log">${entries.map(e => `<article class="entry">
+          <div class="d">${fd(e.date)}${e.author ? `<div>${esc(e.author)}</div>` : ''}</div>
+          <div class="body"><p>${esc(e.work)}</p>${e.issues ? `<p class="issue">${esc(e.issues)}</p>` : ''}
+            <div class="muted small">${e.workforce ? `${num(e.workforce)} workers on site` : ''}${e.workforce && e.progress ? ' · ' : ''}${e.progress ? `Progress ${num(e.progress)}%` : ''}</div></div>
+          ${canWrite ? `<div><button class="btn sm" data-edit="log" data-id="${e.id}">Edit</button></div>` : '<div></div>'}</article>`).join('')}</div>`
+        : `<div class="empty"><strong>No site log entries yet</strong>Record what happened on site, how many workers attended and any issues raised.<br><br>${addBtn('log', 'Add entry')}</div>`}`;
+  }
+
+  const VIEWS = { overview: vOverview, schedule: vSchedule, budget: vBudget, sales: vSales, risks: vRisks, log: vLog };
+
+  function render() {
+    const m = meta();
+    $('#hdr-name').textContent = m.name;
+    $('#hdr-company').textContent = `${m.company} · Project control`;
+    document.querySelectorAll('.tab').forEach(b => b.setAttribute('aria-selected', String(b.dataset.tab === tab)));
+    const v = $('#view');
+    if (dbMissing) { v.innerHTML = `<div class="empty"><strong>Project data is not available in this view</strong>Open this page in Claude while signed in to see and update the project.</div>`; return; }
+    if (loaded.size < COLLS.length) { v.innerHTML = `<div class="empty"><strong>Loading project data</strong>Tasks, budget, sales, risks and site log will appear here.</div>`; return; }
+    const ro = canWrite ? '' : `<div class="notice">You can view this project. Ask the owner for Contributor or Editor access to make updates.</div>`;
+    v.innerHTML = ro + VIEWS[tab]();
+  }
+
+  // ---------- form modal ----------
+  let saving = false;
+  function openForm(coll, id) {
+    const sch = SCHEMAS[coll]; if (!sch) return;
+    const rec = id ? state[coll].find(d => d.id === id) : null;
+    if (id && !rec && coll !== 'meta') return;
+    const data = rec ? { ...rec } : defaults(coll);
+    if (coll === 'meta' && !rec) Object.assign(data, meta());
+    const ro = !canWrite;
+    const field = f => {
+      const v = data[f.k] ?? '';
+      const idAttr = `id="f-${coll}-${f.k}" name="${f.k}" ${ro ? 'disabled' : ''} ${f.req ? 'required' : ''}`;
+      let ctl;
+      if (f.t === 'select') ctl = `<select ${idAttr}>${f.o.map(o => `<option ${o === v ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select>`;
+      else if (f.t === 'costs') ctl = `<select ${idAttr}><option value="">Choose a cost line</option>${state.costs.map(c => `<option value="${c.id}" ${c.id === v ? 'selected' : ''}>${esc(c.item)}</option>`).join('')}</select>`;
+      else if (f.t === 'textarea') ctl = `<textarea ${idAttr}>${esc(v)}</textarea>`;
+      else ctl = `<input type="${f.t}" ${idAttr} value="${esc(v)}" ${f.min != null ? `min="${f.min}"` : ''} ${f.max != null ? `max="${f.max}"` : ''} ${f.t === 'number' ? 'step="any" inputmode="decimal"' : ''}>`;
+      return `<label class="${f.full ? 'full' : ''}" for="f-${coll}-${f.k}">${esc(f.l)}${ctl}</label>`;
+    };
+    const canDelete = rec && canWrite && coll !== 'meta';
+    $('#modal-root').innerHTML = `<div class="overlay" data-close="1"><form class="modal" id="form-${coll}" novalidate>
+      <h2>${ro ? '' : rec ? 'Edit ' : 'Add '}${esc(sch.label)}</h2>
+      <div class="fields">${sch.fields.map(field).join('')}</div>
+      <p class="err" id="form-err"></p>
+      <div class="mfoot">${canDelete ? `<button type="button" class="btn danger" id="del-btn">Delete</button>` : ''}
+        <div class="r"><button type="button" class="btn" data-close="1">${ro ? 'Close' : 'Cancel'}</button>${ro ? '' : `<button type="submit" class="btn primary" id="save-btn">Save</button>`}</div></div>
+    </form></div>`;
+    const form = $('.modal');
+    const first = form.querySelector('input,select,textarea'); if (first && !ro) first.focus();
+    form.addEventListener('submit', async e => {
+      e.preventDefault(); if (saving || ro) return;
+      const out = { ...data }; delete out.id;
+      for (const f of sch.fields) {
+        const el = form.elements[f.k]; let v = el.value.trim();
+        if (f.req && !v) { $('#form-err').textContent = `${f.l} is required.`; el.focus(); return; }
+        if (f.t === 'number') { v = v === '' ? 0 : Number(v); if (!isFinite(v)) { $('#form-err').textContent = `${f.l} must be a number.`; el.focus(); return; } if (f.max != null) v = Math.min(v, f.max); if (f.min != null) v = Math.max(v, f.min); }
+        out[f.k] = v;
+      }
+      if (coll === 'tasks') { if (out.status === 'Done') out.progress = 100; if (out.start && out.due && out.due < out.start) { $('#form-err').textContent = 'Due date is before the start date.'; return; } }
+      if (coll === 'log' && out.date && rec == null) out.createdAt = new Date().toISOString();
+      out.updatedAt = new Date().toISOString();
+      saving = true; $('#save-btn').textContent = 'Saving…';
+      try {
+        const ref = rec ? db.collection(coll).doc(rec.id) : coll === 'meta' ? db.collection('meta').doc('project') : db.collection(coll).doc();
+        await ref.set(out);
+        closeModal(); toast(rec ? 'Saved' : 'Added');
+      } catch (err) { handleWriteError(err); }
+      finally { saving = false; const b = $('#save-btn'); if (b) b.textContent = 'Save'; }
+    });
+    const del = $('#del-btn');
+    if (del) del.addEventListener('click', async () => {
+      if (!del.classList.contains('armed')) { del.classList.add('armed'); del.textContent = 'Confirm delete'; return; }
+      if (saving) return; saving = true;
+      try {
+        await db.collection(coll).doc(rec.id).delete();
+        closeModal(); toast('Deleted');
+      } catch (err) { handleWriteError(err); }
+      finally { saving = false; }
+    });
+  }
+  function defaults(coll) {
+    if (coll === 'tasks') return { phase: tab === 'schedule' ? PHASES[0] : PHASES[0], status: 'Not started', progress: 0, start: TODAY };
+    if (coll === 'payments') return { date: TODAY };
+    if (coll === 'units') return { status: 'Available', price: 135000, collected: 0 };
+    if (coll === 'risks') return { likelihood: 'Medium', impact: 'Medium', status: 'Open' };
+    if (coll === 'log') return { date: TODAY };
+    if (coll === 'costs') return { category: 'Construction', budget: 0, committed: 0, order: state.costs.length + 1 };
+    return {};
+  }
+  function handleWriteError(err) {
+    const code = err && err.code;
+    const msg = code === 'invalid_argument' ? 'You do not have permission to change this project. Ask the owner for Contributor or Editor access.'
+      : code === 'quota_exceeded' ? 'The project database is full. Delete old entries and try again.'
+      : code === 'resource_exhausted' ? 'Too many changes at once. Wait a moment and save again.'
+      : 'The change could not be saved. Check your connection and try again.';
+    const e = $('#form-err'); if (e) e.textContent = msg; else toast(msg);
+    if (code === 'invalid_argument') { canWrite = false; render(); }
+  }
+  function closeModal() { $('#modal-root').innerHTML = ''; }
+  let toastT;
+  function toast(t) { let el = $('.toast'); if (!el) { el = document.createElement('div'); el.className = 'toast'; el.setAttribute('role', 'status'); document.body.appendChild(el); } el.textContent = t; clearTimeout(toastT); toastT = setTimeout(() => el.remove(), 2200); }
+
+  // ---------- events ----------
+  function setTab(t) { if (!VIEWS[t]) t = 'overview'; tab = t; try { history.replaceState(null, '', '#' + t); } catch (e) {} try { localStorage.setItem('abq-tab', t); } catch (e) {} render(); window.scrollTo(0, 0); }
+  document.addEventListener('click', e => {
+    const t = e.target.closest('[data-tab],[data-go],[data-add],[data-edit],[data-tf],[data-rf],[data-close]');
+    if (!t) return;
+    if (t.dataset.close && e.target !== t && !e.target.closest('button[data-close]')) return;
+    if (t.dataset.close) return closeModal();
+    if (t.dataset.tab) return setTab(t.dataset.tab);
+    if (t.dataset.go) return setTab(t.dataset.go);
+    if (t.dataset.add) return openForm(t.dataset.add);
+    if (t.dataset.edit) return openForm(t.dataset.edit, t.dataset.id);
+    if (t.dataset.tf) { taskFilter = t.dataset.tf; return render(); }
+    if (t.dataset.rf) { riskFilter = t.dataset.rf; return render(); }
+  });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && $('.overlay')) return closeModal();
+    if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('tr[data-edit]')) { e.preventDefault(); openForm(e.target.dataset.edit, e.target.dataset.id); }
+  });
+
+  // ---------- boot ----------
+  const fromHash = (location.hash || '').slice(1);
+  let saved = ''; try { saved = localStorage.getItem('abq-tab') || ''; } catch (e) {}
+  tab = VIEWS[fromHash] ? fromHash : VIEWS[saved] ? saved : 'overview';
+  render();
+
+  (async () => {
+    const cl = window.claude;
+    if (!cl || !cl.use) { dbMissing = true; return render(); }
+    try { db = await cl.use('db'); } catch (e) { db = null; }
+    if (!db) { dbMissing = true; return render(); }
+    try {
+      const user = await cl.use('user');
+      if (user) { const w = await user.can('data.write'); if (w === false) canWrite = false; }
+    } catch (e) {}
+    for (const c of COLLS) {
+      db.collection(c).onSnapshot(snap => {
+        state[c] = snap.docs.filter(d => d.exists).map(d => ({ id: d.id, ...d.data() }));
+        loaded.add(c);
+        if (!saving || !$('.overlay')) render();
+      }, err => {
+        loaded.add(c);
+        if (err && err.code === 'revoked') { dbMissing = true; }
+        render();
+      });
+    }
+  })();
+})();
+</script>
+
+</body>
+</html>

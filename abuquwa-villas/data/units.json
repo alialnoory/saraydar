@@ -1,0 +1,30 @@
+[
+  {
+    "id": "v1",
+    "collected": 0,
+    "price": 135000,
+    "status": "Available",
+    "unit": "Villa 1"
+  },
+  {
+    "id": "v2",
+    "collected": 0,
+    "price": 135000,
+    "status": "Available",
+    "unit": "Villa 2"
+  },
+  {
+    "id": "v3",
+    "collected": 0,
+    "price": 135000,
+    "status": "Available",
+    "unit": "Villa 3"
+  },
+  {
+    "id": "v4",
+    "collected": 0,
+    "price": 135000,
+    "status": "Available",
+    "unit": "Villa 4"
+  }
+]
