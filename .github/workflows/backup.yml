@@ -1,0 +1,41 @@
+# Nightly encrypted backup of the SarayDar database (attachments are stored inside it).
+# Inactive until the owner adds two repository secrets (Settings → Secrets and variables → Actions):
+#   BACKUP_DATABASE_URL  – the Render database "External Database URL"
+#   BACKUP_PASSPHRASE    – a long passphrase kept somewhere safe offline; without it a backup cannot be opened
+# Each run keeps an encrypted backup as a private workflow artifact for 30 days (download from the run page).
+name: Database backup
+on:
+  schedule:
+    - cron: '30 23 * * *'        # 02:30 Bahrain time every night
+  workflow_dispatch: {}
+permissions:
+  contents: read
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check configuration
+        id: cfg
+        env: { DB: '${{ secrets.BACKUP_DATABASE_URL }}', PP: '${{ secrets.BACKUP_PASSPHRASE }}' }
+        run: |
+          if [ -z "$DB" ] || [ -z "$PP" ]; then echo "Backup secrets are not set; nothing to do."; echo "ready=no" >> "$GITHUB_OUTPUT"; else echo "ready=yes" >> "$GITHUB_OUTPUT"; fi
+      - uses: actions/checkout@v4
+        if: steps.cfg.outputs.ready == 'yes'
+      - name: Install PostgreSQL 17 client
+        if: steps.cfg.outputs.ready == 'yes'
+        run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
+          sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client-17
+          echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
+      - name: Back up and encrypt
+        if: steps.cfg.outputs.ready == 'yes'
+        env: { DATABASE_URL: '${{ secrets.BACKUP_DATABASE_URL }}', BACKUP_PASSPHRASE: '${{ secrets.BACKUP_PASSPHRASE }}' }
+        run: ./server/scripts/backup.sh ./backups
+      - uses: actions/upload-artifact@v4
+        if: steps.cfg.outputs.ready == 'yes'
+        with:
+          name: saraydar-backup-${{ github.run_number }}
+          path: backups/*.gpg
+          retention-days: 30

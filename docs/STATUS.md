@@ -1,6 +1,6 @@
 # SarayDar Management System — Status
 
-Last updated: 2026-10-23
+Last updated: 2026-10-24
 
 ## Live today
 - Abuquwa Villas tracker (single project) at https://saraydar.netlify.app, using the `/api` endpoints of the Render service `saraydar-api`.
@@ -15,10 +15,10 @@ Last updated: 2026-10-23
 | 3 Development projects | **Done, tested locally, pushed** — see below |
 | Agreements & contracts (all sections) | **Done, tested locally, pushed** — see below |
 | People, plots, two-step off (2026-10-23 requests) | **Done, tested locally, pushed** — see below |
-| 4 Client projects | **Done, tested locally, pushed** — see below (external client view comes with Phase 7 portals) |
-| 5 Property management | **Done, tested locally, pushed** — see below (owner/tenant views come with Phase 7 portals) |
-| 6 Sales & Acquisition | **Done, tested locally, pushed** — see below (seller/buyer viewer portals come with Phase 7) |
-| 7 Portals, investors, AI, hardening | Next |
+| 4 Client projects | **Done, tested locally, pushed** — see below |
+| 5 Property management | **Done, tested locally, pushed** — see below |
+| 6 Sales & Acquisition | **Done, tested locally, pushed** — see below |
+| 7 Portals, investors, AI, backups, guides | **Done, tested locally, pushed** — see below |
 
 ## Phase 2 — what exists (server/)
 - Portal served by the same Render service as the old API (`/` portal, `/api/*` old tracker API unchanged).
@@ -57,6 +57,15 @@ Last updated: 2026-10-23
 - Profile photos: each person uploads their own (Account); Super Admin can set anyone's (Administration › Users). Square-cropped, shown in header, user list and Access lists.
 - Creating logins: Administration › Users and each workspace's Access & Invitations (Super Admin) now take full name, email, username, mobile, job title/company, staff role or external viewer type, workspace role, auto-generated or typed temporary password. Details shown once; optional welcome email (address + username only, never the password); forced password change at first sign-in.
 - Land & Plots tab (development projects): any number of plots per project — plot number, title deed, area, frontage × depth, zoning, tenure, registered owner, status, purchase price/date (finance roles), notes, documents per plot; totals; units linked to plots; setup asks number of plots and flags a mismatch; draft plan adds a title/survey check per plot.
+
+## Phase 7 — portals, investors, AI, backups (what exists)
+- Invitations (Access & Invitations in every workspace): contact or name/email, viewer role that fits the workspace, extra grants (statements, offers & deal, downloads, PDF/Excel), mandatory recipient verification note + confirmation; single-use link, 7-day expiry, resend replaces the link, revoke; statuses pending / accepted / expired / revoked / replaced; delivery shown truthfully (emailed only when the mail server accepted it; otherwise the link is shown once to staff). `/invite/…` activates a new login or adds the workspace to an existing external login.
+- External portal `/p/:id` (mobile-first): My Workspaces grouped Projects / Properties / Sales & Acquisitions with filter; per kind: overview, progress & photos (only updates staff chose to show externally), phases & milestones from the approved plan, client approvals marked visible, units (no tenant data), maintenance shown to owner, listing content + client-approved photos, published marketing, owner viewing summaries, buyer criteria and published shortlist, viewings, offers & deal (if granted, buyers unnamed), statements (if granted: client fee statement, owner statement, investor's own statement, seller/buyer own fees), published documents. External users are denied every other page by default (allow-list); `/w/…` links redirect to their portal; export only with the export grant; staff preview of any role.
+- Investors & Funding tab (development projects, finance-visible roles): participations per project (type, currency, commitment, schedule, documented terms — nothing derived), installments, reported → confirmed contributions with ACK-YYYY-NNNN acknowledgments, rejection/reversal, capital returns / distributions / adjustments by Finance with approval reference (distribution needs confirmed profit terms; return ≤ net capital), duplicate reference and repeated submission refused, funding by source, period statement, investor profile across projects, portal access status.
+- AI assistant tab in every workspace (staff only): "not configured" without a key; with a key, context from that workspace only and no amounts, contacts, confidential seller/buyer fields or files; answers labelled as unverified suggestions with source links; audited; 30 per hour. `docs/AI.md`.
+- Backups: `scripts/backup.sh`, `restore.sh`, `verify.js`, `test-restore.sh`; nightly encrypted GitHub workflow (needs secrets). Restore rehearsed 24 Oct: identical fingerprint, attachments intact, app served restored files. `docs/BACKUP.md`.
+- Guides and checklist: `docs/ADMIN_GUIDE.md`, `docs/USER_GUIDE.md`, `docs/REQUIREMENTS.md`. Demo data: `scripts/seed-demo.js` (DEMO-labelled, refuses non-demo databases).
+- Fonts: IBM Plex Sans everywhere (screens and PDFs); the SΛRΛYDΛR logo keeps its original typeface.
 
 ## Phase 6 — Property Sales & Acquisition (what exists)
 - Section dashboard with tabs: Sales Listings, Acquisition Requests, Prospective Buyers, Viewings, Offers & Deals, Fees & Reports; buttons Add Property for Sale, Create Property Search Request, Add Prospective Buyer. Lists show stage, mandate, price/budget, open enquiries and next follow-up.
@@ -108,24 +117,26 @@ Last updated: 2026-10-23
 - Every page that shows data has Export PDF and Excel. The export is made from the page exactly as that user sees it (permissions and field hiding carry over), includes all rows (no paging), keeps money/percentages as numbers in Excel, neutralises formula text, and is recorded in the audit log. Forms, buttons and navigation are left out. The richer project report (with photos) remains under Reports.
 - Workspace tabs wrap onto extra lines (all visible) and are shown as light-bordered buttons; the current tab is filled.
 
-## Tests (actual results, 2026-10-23)
-- Latest full suite: 95 pass, 0 fail (Phase 6 adds 11: matching, seller flow with mandate gating, verification, price history, evidence-only marketing, buyers with duplicate check and required follow-ups, viewing conflicts and feedback, offer versions and external decisions, one deal per property, checklist and evidence before completion, commission calculation and single invoice per side, buyer flow with brief versions, external opportunity, recheck before publishing, both-side fees, isolation). Phase 5: 84 pass (adds 13: rent maths, owner/property/units, overlapping lease refused, opening balances posted once, automatic invoicing idempotent under retries and concurrent runs with real delivery status, payments reported/confirmed/bounced, credits, deposits, maintenance limits and approvals, shared-cost split, recurring tasks without duplicates, owner account limits and single fee deduction, Apartment 13 history across a tenant change with PDF/Excel, isolation). Before that 71 pass (Phase 4 adds 12, incl. VAT-later: proration/fee change/tax maths, client register, onboarding, terms activation by Finance only, once-per-month drafts, issue blocked without tax setting, partial payment/allocation/receipt, duplicate and over-allocation refusal, reversal, credit note limit, statement reconciliation, PDFs, construction spending kept out of fees, review ≠ approval ≠ payment, approvals with evidence, isolation by project and role). Earlier: 59 pass, 0 fail (adds page export/navigation tests) (adds photo, login creation, password generator, plots, MFA-off tests).
+## Tests (actual results)
+- 2026-10-24 full suite: 108 pass, 0 fail (Phase 7 adds 13: investor figure maths; acceptance H — two investors, second project, reported vs confirmed, acknowledgment, duplicate/retry refusal, approved return and distribution; acceptance G — invitation verification, not-emailed status, resend/expiry/revoke, single use, investor portal content and isolation, write attempts refused with unchanged rows, export grant, staff preview, revocation keeping history, one account across four sections with published-only content; AI assistant unconfigured/configured/provider error/external denial). Backup restore rehearsed manually (see BACKUP.md).
+- 2026-10-23: 95 pass, 0 fail (Phase 6 adds 11: matching, seller flow with mandate gating, verification, price history, evidence-only marketing, buyers with duplicate check and required follow-ups, viewing conflicts and feedback, offer versions and external decisions, one deal per property, checklist and evidence before completion, commission calculation and single invoice per side, buyer flow with brief versions, external opportunity, recheck before publishing, both-side fees, isolation). Phase 5: 84 pass (adds 13: rent maths, owner/property/units, overlapping lease refused, opening balances posted once, automatic invoicing idempotent under retries and concurrent runs with real delivery status, payments reported/confirmed/bounced, credits, deposits, maintenance limits and approvals, shared-cost split, recurring tasks without duplicates, owner account limits and single fee deduction, Apartment 13 history across a tenant change with PDF/Excel, isolation). Before that 71 pass (Phase 4 adds 12, incl. VAT-later: proration/fee change/tax maths, client register, onboarding, terms activation by Finance only, once-per-month drafts, issue blocked without tax setting, partial payment/allocation/receipt, duplicate and over-allocation refusal, reversal, credit note limit, statement reconciliation, PDFs, construction spending kept out of fees, review ≠ approval ≠ payment, approvals with evidence, isolation by project and role). Earlier: 59 pass, 0 fail (adds page export/navigation tests) (adds photo, login creation, password generator, plots, MFA-off tests).
 - Agreements add 8 tests (field detection/typing, letterhead validation, per-section templates, required terms, generated PDF/Word contents, cross-workspace URL refused, issue/sign/lock, uploaded Word template filled, company copy without notice). Full suite: 48 pass, 0 fail.
 - Phase 3 adds 12 tests (money, progress maths, import, setup unknowns/conflicts, plan approval/baseline/revision, task loops and cross-workspace IDs, budget not triple-counted / approval ≠ payment / Finance-only confirmation, photo updates and drafts, PDF/xlsx with formula neutralised). Full suite: 40 pass, 0 fail.
 - `cd server && TEST_DATABASE_URL=… npm test` → 28 pass, 0 fail (old API 15, portal 13 groups covering sign-in, MFA, recovery codes, forced password change, workspace isolation, revocation, CSRF/origin, file types, external read-only through direct requests, audit immutability, password reset single use, deactivation, lockout, configurable roles).
 - Browser check (Chromium) at 1366 px and 390 px: sign-in → MFA enrolment → dashboard → section → workspace → upload; no horizontal scroll.
 
-## Not yet built (by phase)
-- Next: Phase 7 — view-only portals for clients, owners, investors, sellers and buyers (invitations, published fields, mobile), project investors and funding, AI assistant path, backups and hardening.
-- Later: email invitations for external viewers, job scheduler, investors & funding, AI assistant.
+## Not yet built
+- Arabic RTL interface (owner decision: English only), tenant self-service portal, payment gateway, configurable sales pipeline stages, currency conversion, automatic monthly fee issuing, object storage for large photo volumes. See docs/REQUIREMENTS.md.
 
 ## External dependencies (not available yet)
 - Outlook SMTP for info@saraydar.com (SMTP_HOST=smtp.office365.com, SMTP_PORT=587, SMTP_USER, SMTP_PASS, MAIL_FROM; Authenticated SMTP must be enabled on the mailbox)
 - Paid Render tier before real use (always-on jobs, non-expiring DB)
 - DNS CNAME portal.saraydar.com → saraydar-api.onrender.com (+ add the custom domain in Render)
-- AI API key (optional)
+- AI API key (optional): ANTHROPIC_API_KEY on Render
+- GitHub secrets BACKUP_DATABASE_URL and BACKUP_PASSPHRASE for the nightly backup
+- Company website button (snippet in ADMIN_GUIDE.md)
 
 ## Known issues
 - Free database expires 2026-11-22.
-- Database password was shared in chat on 2026-10-23 — rotate it.
+- Database password and the admin password were shared in chat on 2026-10-23 — rotate both.
 - Files are stored in Postgres; the free 1 GB database limits photo volume. Move to object storage before heavy photo use.

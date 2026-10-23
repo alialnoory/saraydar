@@ -212,7 +212,8 @@ function mountAdmin(r, ctx) {
         <div><dt>Schema version</dt><dd class="mono">${db.mig}</dd></div>
         <div><dt>Time zone</dt><dd>Asia/Bahrain</dd></div>
         <div><dt>Payment gateway</dt><dd>Not part of this release</dd></div>
-        <div><dt>AI assistant</dt><dd>${env.ANTHROPIC_API_KEY ? 'Key present (assistant arrives in Phase 7)' : 'Not configured'}</dd></div>
+        <div><dt>AI assistant</dt><dd>${env.ANTHROPIC_API_KEY ? html`${pill('Configured', 'ok')} model ${env.AI_MODEL || 'claude-sonnet-5-5'} · staff only, see docs/AI.md` : html`${pill('Not configured', 'muted')} The Assistant tab says so; nothing is simulated.`}</dd></div>
+        <div><dt>Backups</dt><dd>One database backup includes all attachments. Nightly encrypted backup runs from GitHub once its two secrets are set — see docs/BACKUP.md.</dd></div>
       </dl></section>
       <section class="panel"><h2 class="h">Set up Outlook email</h2>
         <p>In Render › saraydar-api › Environment add:</p>

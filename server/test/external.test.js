@@ -87,6 +87,11 @@ test('external portals, invitations and investors', { skip: !URL_ && 'set TEST_D
     assert.equal((await admin.get(`/w/${hidd}/investors/${alphaHidd}/ack/${t1.id}`)).status, 200);
     await add(betaHidd, { kind: 'contribution', amount: '7500', reference: 'BETA-1' });
     const tb = await q1('select id from investor_txns where participation_id = $1', [betaHidd]);
+    // a retried submission of the same form (same idempotency key) never posts twice
+    assert.equal((await add(betaHidd, { kind: 'contribution', amount: '1', reference: 'BETA-RETRY', idem: 'retry-key-1' })).status, 302);
+    const retry = await add(betaHidd, { kind: 'contribution', amount: '1', reference: 'BETA-RETRY-2', idem: 'retry-key-1' });
+    assert.equal(retry.status, 400); assert.match(retry.text, /already submitted/);
+    assert.equal(await n("select count(*)::int as n from investor_txns where idem_key = 'retry-key-1'"), 1);
     await admin.post(`/w/${hidd}/investors/${betaHidd}/txns/${tb.id}/confirm`, {}, `/w/${hidd}/investors/${betaHidd}`);
     // returns and distributions need an approval; a distribution needs confirmed profit terms
     assert.equal((await add(alphaHidd, { kind: 'capital_return', amount: '2000', reference: 'RET-1' })).status, 400);
@@ -250,7 +255,7 @@ test('external portals, invitations and investors', { skip: !URL_ && 'set TEST_D
     await pool.query("insert into units (workspace_id, ref, unit_type, status) values ($1,'101','2BR','occupied'), ($1,'102','2BR','available')", [prop]);
     await pool.query("insert into maint_requests (workspace_id, ref, category, title, reported_on, owner_visible) values ($1,'MR-1','AC','Lobby AC repair',$2,true), ($1,'MR-2','Other','HIDDEN-MAINT',$2,false)", [prop, today]);
     await pool.query("insert into listings (workspace_id, status, description, asking_minor, min_price_minor, access_notes) values ($1,'available','Sea-facing villa',250000000,199999000,'SECRET-KEYBOX 4411') on conflict (workspace_id) do update set status = excluded.status, description = excluded.description, asking_minor = excluded.asking_minor, min_price_minor = excluded.min_price_minor, access_notes = excluded.access_notes", [listing]);
-    await pool.query("insert into files (workspace_id, entity, entity_id, tag, original_name, mime, size, sha256, data, thumb) values ($1,'listing',$3,'published','front.png','image/png',1,'a',$2,$2), ($1,'listing',$3,'internal','title-deed.png','image/png',1,'b',$2,$2)", [listing, png, listing]);
+    await pool.query("insert into files (workspace_id, entity, entity_id, tag, original_name, mime, size, sha256, data, thumb) values ($1,'listing',$3,'published','front.png','image/png',$4,$5,$2,$2), ($1,'listing',$3,'internal','title-deed.png','image/png',$4,$5,$2,$2)", [listing, png, listing, png.length, require('crypto').createHash('sha256').update(png).digest('hex')]);
     await pool.query("insert into marketing_activities (workspace_id, channel, status, published_on, cost_minor) values ($1,'Property portal','published',$2, 99000), ($1,'HIDDEN-CHANNEL','planned',null,null)", [listing, today]);
     await pool.query("insert into request_briefs (workspace_id, version, types, locations, budget_max_minor) values ($1,1,'Villa','Saar, Janabiya',300000000)", [request]);
     await pool.query("insert into shortlist_items (workspace_id, listing_ws, rank, reason, internal_notes, published, status) values ($1,$2,1,'Matches budget and area','SECRET-NOTE seller will drop',true,'shared')", [request, listing]);

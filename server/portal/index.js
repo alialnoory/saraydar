@@ -22,6 +22,7 @@ const { mountAccount } = require('./account');
 const { mountInvitations } = require('./invitations');
 const { mountExternal } = require('./external');
 const { mountInvestors } = require('./investors');
+const { mountAssistant } = require('./assistant');
 const { layout, html } = require('./views');
 const pageExport = require('../lib/page-export');
 
@@ -133,6 +134,7 @@ function createPortal({ pool, secret, mailer, env = process.env }) {
   mountAgreements(r, ctx);
   mountWorkspaces(r, ctx);
   mountAdmin(r, ctx);
+  mountAssistant(r, ctx);           // last: adds its tab to every section
 
   r.use((req, res, next) => next(new NotFound()));
   r.use((err, req, res, next) => {
