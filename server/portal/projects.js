@@ -70,7 +70,7 @@ function mountProjects(r, ctx) {
       ['Agreements', `/w/${id}/agreements`], ['Documents', `/w/${id}/documents`], ['Reports', `/w/${id}/reports`], ['Access & Invitations', `/w/${id}/access`], ['Activity', `/w/${id}/activity`]]
       .map(([l, h]) => [l, h, l === cur]);
     return [['Overview', `/w/${id}`], ['Setup', `/w/${id}/setup`], ['Land & Plots', `/w/${id}/plots`], ['Plan', `/w/${id}/plan`], ['Tasks & Schedule', `/w/${id}/tasks`],
-      ...(a.finance !== false ? [['Budget & Cost', `/w/${id}/budget`]] : []), ['Progress Updates', `/w/${id}/updates`], ['Registers', `/w/${id}/registers`],
+      ...(a.finance !== false ? [['Budget & Cost', `/w/${id}/budget`], ['Investors & Funding', `/w/${id}/investors`]] : []), ['Progress Updates', `/w/${id}/updates`], ['Registers', `/w/${id}/registers`],
       ['Units & Sales', `/w/${id}/units`], ['Agreements', `/w/${id}/agreements`], ['Documents', `/w/${id}/documents`], ['Reports', `/w/${id}/reports`], ['Access & Invitations', `/w/${id}/access`], ['Activity', `/w/${id}/activity`]]
       .map(([l, h]) => [l, h, l === cur]);
   }
@@ -910,6 +910,7 @@ function mountProjects(r, ctx) {
       ${field({ name: 'workforce', label: 'Workers on site', type: 'number', attrs: 'min="0" step="1"' })}
       <label class="field full" for="f-photos"><span>Photos and files</span><input id="f-photos" type="file" name="photos" multiple accept="image/*,.pdf"><small>Up to 12 files. Photos are evidence only; they do not change progress.</small></label>
       ${field({ name: 'caption', label: 'Photo caption' })}${field({ name: 'location', label: 'Location / work area' })}
+      <label class="field check full"><input type="checkbox" name="external_visible" value="1"> <span>When published, also show it to external viewers of this workspace (title, dates, work completed and next, photos — never issues, notes or workforce)</span></label>
       <div class="actions full"><button class="btn" type="submit" name="status" value="draft">Save draft</button><button class="btn primary" type="submit" name="status" value="published">Publish</button></div>
     </form>`));
   });
@@ -938,9 +939,9 @@ function mountProjects(r, ctx) {
       prepared.push({ name: String(f.originalname).replace(/[/\\<>:"|?*\u0000-\u001f]/g, '_').slice(-150), mime: t.mime, size: f.size, sha: crypto.createHash('sha256').update(f.buffer).digest('hex'), data: f.buffer, thumb, width, height });
     }
     const id = await core.inTx(async db => {
-      const uid = (await db.query(`insert into progress_updates (workspace_id, phase_id, task_id, title, observed_on, completed_work, remaining_work, notes, issues, workforce, reported_progress, status, author_id, author_label, published_at)
-        values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14, case when $12 = 'published' then now() end) returning id`,
-        [a.ws.id, phase && phase.id, task && task.id, title, observed, txt(req.body.completed_work, 4000), txt(req.body.remaining_work, 4000), txt(req.body.notes, 4000), txt(req.body.issues, 2000), wf, rp, status, req.user.id, req.user.name || req.user.email])).rows[0].id;
+      const uid = (await db.query(`insert into progress_updates (workspace_id, phase_id, task_id, title, observed_on, completed_work, remaining_work, notes, issues, workforce, reported_progress, status, author_id, author_label, published_at, external_visible)
+        values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14, case when $12 = 'published' then now() end, $15) returning id`,
+        [a.ws.id, phase && phase.id, task && task.id, title, observed, txt(req.body.completed_work, 4000), txt(req.body.remaining_work, 4000), txt(req.body.notes, 4000), txt(req.body.issues, 2000), wf, rp, status, req.user.id, req.user.name || req.user.email, req.body.external_visible === '1'])).rows[0].id;
       for (const p of prepared) {
         await db.query(`insert into files (workspace_id, entity, entity_id, original_name, mime, size, sha256, data, thumb, width, height, caption, location, observed_on, uploaded_by)
           values ($1,'progress_update',$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`, [a.ws.id, uid, p.name, p.mime, p.size, p.sha, p.data, p.thumb, p.width, p.height, txt(req.body.caption, 300), txt(req.body.location, 120), observed, req.user.id]);
@@ -965,7 +966,7 @@ function mountProjects(r, ctx) {
     const tk = u.task_id ? (await pool.query('select title from tasks where id = $1', [u.task_id])).rows[0] : null;
     const comments = (await pool.query(`select c.*, coalesce(nullif(us.name,''), us.email) as who from comments c left join users us on us.id = c.author_id where c.entity = 'progress_update' and c.entity_id = $1 and c.workspace_id = $2 order by c.created_at`, [u.id, a.ws.id])).rows;
     res.send(page(req, a, 'Progress Updates', html`<p><a href="/w/${a.ws.id}/updates">‹ All updates</a></p>
-      <article class="panel"><div class="row-between"><h2 class="h">${u.title}</h2>${u.status === 'draft' ? pill('Draft', 'warn') : pill('Published', 'ok')}</div>
+      <article class="panel"><div class="row-between"><h2 class="h">${u.title}</h2><span>${u.status === 'draft' ? pill('Draft', 'warn') : pill('Published', 'ok')} ${u.external_visible ? pill('Shown to external viewers', 'info') : pill('Staff only', 'muted')}</span></div>
         <p class="muted small">Observed ${fmtDate(u.observed_on)} · by ${u.author_label || ''}${u.published_at ? ` · published ${fmtDateTime(u.published_at)}` : ''}${ph ? ` · ${ph.name}` : ''}${tk ? ` · ${tk.title}` : ''}</p>
         <dl class="details">
           ${u.completed_work ? html`<div><dt>Work completed</dt><dd class="pre-line">${u.completed_work}</dd></div>` : ''}
@@ -977,6 +978,8 @@ function mountProjects(r, ctx) {
         </dl>
         ${files.length ? html`<div class="gallery big-gallery">${files.map(f => f.t ? html`<figure><a href="/files/${f.id}"><img src="/files/${f.id}/thumb" alt="${f.caption || f.original_name}" loading="lazy"></a><figcaption class="small">${[f.caption, f.location].filter(Boolean).join(' · ')}</figcaption></figure>` : html`<figure><a class="thumb doc" href="/files/${f.id}">${f.original_name}</a></figure>`)}</div>` : ''}
         ${u.status === 'draft' && core.canContribute(a) ? html`<form method="post" action="/w/${a.ws.id}/updates/${u.id}/publish">${csrfField(req)}<button class="btn primary" type="submit">Publish</button></form>` : ''}
+        ${core.canEdit(a) ? html`<form method="post" action="/w/${a.ws.id}/updates/${u.id}/external" class="actions">${csrfField(req)}<input type="hidden" name="on" value="${u.external_visible ? '0' : '1'}">
+          <button class="btn small" type="submit">${u.external_visible ? 'Hide from external viewers' : 'Show to external viewers'}</button><span class="muted small">${u.status === 'draft' ? 'Takes effect once published. ' : ''}Issues, notes and workforce are never shown externally.</span></form>` : ''}
       </article>
       <section class="panel"><h2 class="h">Comments and follow-up</h2>
         ${comments.length ? html`<ol class="feed">${comments.map(c => html`<li><div class="pre-line">${c.body}</div><div class="muted small">${c.who || ''} · ${fmtDateTime(c.created_at)}</div></li>`)}</ol>` : html`<p class="muted">No comments.</p>`}
@@ -992,6 +995,17 @@ function mountProjects(r, ctx) {
       const n = (await db.query("update progress_updates set status = 'published', published_at = now(), updated_at = now() where id = $1 and status = 'draft'", [u.id])).rowCount;
       if (n) await core.audit(db, { actor: req.user, workspaceId: a.ws.id, action: 'update.published', entity: 'progress_update', entityId: u.id, summary: `Progress update published: ${u.title}`, ip: req.ip });
       await touch(db, a.ws.id);
+    });
+    res.redirect(`/w/${a.ws.id}/updates/${u.id}?msg=saved`);
+  });
+
+  r.post('/w/:id/updates/:uid/external', async (req, res) => {
+    const a = await access(req, 'edit');
+    const u = await own('progress_updates', req.params.uid, a.ws.id);
+    const on = req.body.on === '1';
+    await core.inTx(async db => {
+      await db.query('update progress_updates set external_visible = $2, updated_at = now() where id = $1', [u.id, on]);
+      await core.audit(db, { actor: req.user, workspaceId: a.ws.id, action: on ? 'update.shared_external' : 'update.unshared_external', entity: 'progress_update', entityId: u.id, summary: `Progress update ${on ? 'shown to' : 'hidden from'} external viewers: ${u.title}`, ip: req.ip });
     });
     res.redirect(`/w/${a.ws.id}/updates/${u.id}?msg=saved`);
   });

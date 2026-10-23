@@ -88,18 +88,7 @@ function mountWorkspaces(r, ctx) {
       </div>` }));
   });
 
-  // ---------- external viewers: My Workspaces ----------
-  r.get('/my', async (req, res) => {
-    const rows = (await pool.query(
-      `select w.id, w.section, w.kind, w.ref, w.name, w.location, w.status, m.role
-         from workspace_members m join workspaces w on w.id = m.workspace_id
-        where m.user_id = $1 and m.revoked_at is null order by w.section, w.name`, [req.user.id])).rows;
-    const groups = SECTION_KEYS.map(k => [k, rows.filter(x => x.section === k)]).filter(g => g[1].length);
-    res.send(layout(req, { title: 'My Workspaces', heading: 'My Workspaces', sub: { below: 'Projects, properties and cases shared with you. View only.' }, body: html`
-      ${groups.length ? groups.map(([k, list]) => html`<section class="panel"><h2 class="h">${SECTIONS[k].name}</h2>
-        <ul class="rows">${list.map(w => html`<li><div class="grow"><a href="/w/${w.id}"><b>${w.name}</b></a><div class="muted small">${w.ref} · ${KIND_LABEL[w.kind]}${w.location ? ` · ${w.location}` : ''}</div></div>${statusPill(w.status)}</li>`)}</ul></section>`)
-        : emptyState('Nothing shared with you yet', 'SarayDar staff will share projects or properties with you when they are ready.')}` }));
-  });
+  // External viewers' My Workspaces page and portal live in external.js.
 
   // ---------- search ----------
   r.get('/search', async (req, res) => {
@@ -374,12 +363,16 @@ function mountWorkspaces(r, ctx) {
 
   async function fileAccess(req) {
     if (!UUID.test(req.params.fid)) throw new NotFound();
-    const f = (await pool.query('select id, workspace_id, original_name, mime, size, visibility, archived_at from files where id = $1', [req.params.fid])).rows[0];
+    const f = (await pool.query('select id, workspace_id, original_name, mime, size, visibility, archived_at, entity, entity_id, tag from files where id = $1', [req.params.fid])).rows[0];
     if (!f) throw new NotFound();
     const a = await core.workspaceAccess(req.user, f.workspace_id);
-    if (!a) throw new NotFound();
-    if (!a.internal && (f.visibility !== 'published' || f.archived_at)) throw new NotFound();
-    return { f, a };
+    if (a && a.internal) return { f, a };
+    if (f.archived_at) throw new NotFound();
+    if (a && f.visibility === 'published' && !f.entity) return { f, a };
+    // published progress photos, approved listing photos, owner-visible maintenance photos (external.js decides)
+    const grants = ctx.externalFile ? await ctx.externalFile(req.user, f, a) : null;
+    if (!grants) throw new NotFound();
+    return { f, a: { ws: a ? a.ws : null, internal: false, role: a ? a.role : null, grants } };
   }
   const INLINE = /^(image\/(jpeg|png|webp)|application\/pdf)$/;
   r.get('/files/:fid', async (req, res) => {
@@ -424,16 +417,18 @@ function mountWorkspaces(r, ctx) {
       `select id, kind, coalesce(nullif(name,''), email) as label, email from users u
         where active and not exists (select 1 from workspace_members m where m.workspace_id = $1 and m.user_id = u.id and m.revoked_at is null) order by kind, 3`, [w.id])).rows : [];
     const roleLabel = r => INTERNAL_MEMBER_ROLES[r] || EXTERNAL_MEMBER_ROLES[r] || r;
+    const invitePanels = ctx.accessExtras ? await ctx.accessExtras(req, a, manage, members) : '';
     res.send(wsLayout(req, a, 'access', html`
       <section class="panel"><h2 class="h">People with access</h2>
         <div class="table-wrap"><table><thead><tr><th>Person</th><th>Type</th><th>Workspace role</th><th>Added</th><th></th></tr></thead><tbody>
         ${members.map(m => html`<tr class="${m.revoked_at ? 'dim' : ''}"><td><div class="person">${avatar({ id: m.user_id, name: m.name, email: m.email, photo_v: m.photo_v })}<div><b>${m.name || m.email}</b><div class="muted small">${m.email}${m.phone ? ` · ${m.phone}` : ''}${m.job_title ? ` · ${m.job_title}` : ''}</div></div></div></td>
-          <td>${m.kind === 'external' ? 'External' : 'Staff'}</td><td>${roleLabel(m.role)}${m.revoked_at ? html` ${pill('Removed', 'muted')}` : ''}</td>
+          <td>${m.kind === 'external' ? 'External' : 'Staff'}</td><td>${roleLabel(m.role)}${m.revoked_at ? html` ${pill('Removed', 'muted')}` : !m.active ? html` ${pill('Deactivated', 'muted')}` : ''}${m.kind === 'external' && !m.revoked_at && ctx.grantSummary ? html`<div class="muted small">${ctx.grantSummary(m.grants)}</div>` : ''}</td>
           <td class="small">${fmtDate(m.added_at)}${m.by ? ` by ${m.by}` : ''}</td>
           <td>${manage && !m.revoked_at && m.user_id !== req.user.id ? html`<form method="post" action="/w/${w.id}/access/revoke">${csrfField(req)}<input type="hidden" name="user" value="${m.user_id}"><button class="btn small" type="submit">Remove</button></form>` : ''}</td></tr>`)}
         </tbody></table></div>
-        <p class="muted small">Super Admins can open every workspace. Everyone else sees only workspaces they are added to. Removing access takes effect on the person's next page load.</p>
+        <p class="muted small">Super Admins can open every workspace. Everyone else sees only workspaces they are added to. Removing access takes effect on the person's next page load. Files they already downloaded cannot be recalled.</p>
       </section>
+      ${invitePanels}
       ${manage ? html`<section class="panel"><h2 class="h">Add a person</h2>
         <form method="post" action="/w/${w.id}/access" class="form-grid">${csrfField(req)}
           ${field({ name: 'user', label: 'Person', required: true, options: [['', 'Choose…'], ...candidates.map(c => [c.id, `${c.label}${c.kind === 'external' ? ' (external)' : ''}`])] })}

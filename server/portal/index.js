@@ -19,12 +19,17 @@ const { mountPeople } = require('./people');
 const { mountPlots } = require('./plots');
 const { mountAdmin } = require('./admin');
 const { mountAccount } = require('./account');
+const { mountInvitations } = require('./invitations');
+const { mountExternal } = require('./external');
+const { mountInvestors } = require('./investors');
 const { layout, html } = require('./views');
 const pageExport = require('../lib/page-export');
 
 const UNSAFE = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
-const PUBLIC_PATHS = [/^\/login$/, /^\/forgot$/, /^\/reset\/[^/]+$/, /^\/static\//, /^\/healthz$/];
+const PUBLIC_PATHS = [/^\/invite\/[^/]+$/, /^\/login$/, /^\/forgot$/, /^\/reset\/[^/]+$/, /^\/static\//, /^\/healthz$/];
 const PRE_MFA_PATHS = [/^\/mfa(\/setup)?$/, /^\/logout$/];
+// external viewers may open only these pages (deny by default); /w/:id links send them to their portal
+const EXTERNAL_READ_OK = [/^\/my$/, /^\/p\/[0-9a-f-]{36}(\/[a-z]+)?$/i, /^\/files\/[0-9a-f-]{36}(\/thumb)?$/i, /^\/account(\/[\w-]+)?$/, /^\/users\/[0-9a-f-]{36}\/photo$/i, /^\/mfa(\/setup)?$/, /^\/logout$/];
 const EXTERNAL_WRITE_OK = [/^\/logout$/, /^\/mfa(\/setup)?$/, /^\/account\/password$/, /^\/account\/sessions$/, /^\/account\/photo(\/remove)?$/];
 
 class Forbidden extends Error { constructor(m = 'You do not have access to this.') { super(m); this.status = 403; } }
@@ -75,6 +80,12 @@ function createPortal({ pool, secret, mailer, env = process.env }) {
     if (u.must_change_password && req.path !== '/account/password') return res.redirect('/account/password?forced=1');
     // external viewers are read-only everywhere except their own account
     if (core.isExternal(u) && UNSAFE.has(req.method) && !EXTERNAL_WRITE_OK.some(p => p.test(req.path))) return next(new Forbidden('Your access is view-only.'));
+    if (core.isExternal(u) && !UNSAFE.has(req.method) && !EXTERNAL_READ_OK.some(p => p.test(req.path))) {
+      const w = /^\/w\/([0-9a-f-]{36})(\/|$)/i.exec(req.path);
+      if (w) return res.redirect(`/p/${w[1]}`);
+      if (req.path === '/' || /^\/(s\/|search)/.test(req.path)) return res.redirect('/my');
+      return next(new NotFound());
+    }
     next();
   });
 
@@ -88,11 +99,12 @@ function createPortal({ pool, secret, mailer, env = process.env }) {
     const send = res.send.bind(res);
     res.send = body => {
       if (res.statusCode !== 200 || typeof body !== 'string' || !body.includes('<main')) return send(body);
+      if (core.isExternal(req.user) && !req.canExport) { res.status(403); return send(layout(req, { title: 'Export not enabled', heading: 'Export not enabled', body: html`<section class="panel"><p>Saving pages as PDF or Excel has not been enabled for your account. You can view everything on screen.</p></section>` })); }
       (async () => {
         const page = pageExport.extract(body);
         const when = new Date(), who = req.user.name || req.user.email;
         const buf = fmt === 'pdf' ? await pageExport.toPdf(page, { user: who, when }) : Buffer.from(await pageExport.toXlsx(page, { user: who, when }));
-        const ws = (/^\/w\/([0-9a-f-]{36})/.exec(req.path) || [])[1] || null;
+        const ws = (/^\/[wp]\/([0-9a-f-]{36})/.exec(req.path) || [])[1] || null;
         await core.audit(null, { actor: req.user, workspaceId: ws, action: `export.${fmt}`, entity: 'page', entityId: req.path.slice(0, 200), summary: `Exported “${page.title}${page.tab && page.tab !== page.title ? ' · ' + page.tab : ''}” as ${fmt === 'pdf' ? 'PDF' : 'Excel'}`, ip: req.ip });
         res.set({ 'Content-Type': fmt === 'pdf' ? 'application/pdf' : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
           'Content-Disposition': `attachment; filename="${pageExport.fileBase(page)}.${fmt}"`, 'Cache-Control': 'private, no-store' });
@@ -103,6 +115,8 @@ function createPortal({ pool, secret, mailer, env = process.env }) {
     next();
   });
   mountAuth(r, ctx);
+  mountInvitations(r, ctx);
+  mountExternal(r, ctx);
   mountAccount(r, ctx);
   mountProperties(r, ctx);          // before projects: shared paths (/units, /reports) fall through for other sections
   mountRent(r, ctx);
@@ -112,6 +126,7 @@ function createPortal({ pool, secret, mailer, env = process.env }) {
   mountSalesCrm(r, ctx);
   const P = mountProjects(r, ctx);
   mountProjectExports(r, ctx, P);
+  mountInvestors(r, ctx, P);
   mountClients(r, ctx, mountFees(r, ctx, P));
   mountPeople(r, ctx);
   mountPlots(r, ctx);

@@ -12,22 +12,23 @@ const PRE_CSRF = 'sd_pre';
 function safeNext(n) { return typeof n === 'string' && /^\/(?!\/)[\w\-./?=&%]*$/.test(n) && !n.startsWith('/login') ? n : null; }
 const homeFor = u => u.kind === 'external' ? '/my' : '/';
 
+// anonymous forms use a double-submit token
+function preToken(req, res) {
+  let t = req.cookies[PRE_CSRF];
+  if (!t || t.length > 100) { t = sec.randomToken(18); res.cookie(PRE_CSRF, t, { httpOnly: true, secure: req.secure, sameSite: 'strict', path: '/' }); }
+  req.csrfToken = t;
+  return t;
+}
+function checkPre(req) {
+  const t = req.cookies[PRE_CSRF];
+  return t && typeof req.body._csrf === 'string' && t === req.body._csrf;
+}
+
 function mountAuth(r, ctx) {
   const { pool, core, mailer, secret, env } = ctx;
   const limiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 30, standardHeaders: 'draft-7', legacyHeaders: false,
     handler: (req, res) => res.status(429).send(layout(req, { title: 'Too many attempts', bare: true, body: html`<div class="auth"><section class="panel"><h2>Too many attempts</h2><p>Wait a few minutes and try again.</p></section></div>` })) });
 
-  // anonymous forms use a double-submit token
-  function preToken(req, res) {
-    let t = req.cookies[PRE_CSRF];
-    if (!t || t.length > 100) { t = sec.randomToken(18); res.cookie(PRE_CSRF, t, { httpOnly: true, secure: req.secure, sameSite: 'strict', path: '/' }); }
-    req.csrfToken = t;
-    return t;
-  }
-  function checkPre(req) {
-    const t = req.cookies[PRE_CSRF];
-    return t && typeof req.body._csrf === 'string' && t === req.body._csrf;
-  }
   const box = (req, title, body, sub = '') => layout(req, { title, bare: true, body: html`<div class="auth"><section class="panel">
       <h2>${title}</h2>${sub ? html`<p class="muted">${sub}</p>` : ''}${body}</section></div>` });
 
@@ -227,4 +228,4 @@ function mountAuth(r, ctx) {
   });
 }
 
-module.exports = { mountAuth, MIN_PW, safeNext, homeFor };
+module.exports = { mountAuth, MIN_PW, safeNext, homeFor, preToken, checkPre };

@@ -192,14 +192,16 @@ test('portal', { skip: !URL_ && 'set TEST_DATABASE_URL to run' }, async t => {
     assert.ok(!my.text.includes('Client Villa'));
     assert.equal((await ext.raw('GET', `/files/${internalFile}`)).status, 404);
     assert.equal((await ext.raw('GET', `/files/${publishedFile}`)).status, 200);
-    const docs = await ext.get(`/w/${projectId}/documents`);
+    assert.equal((await ext.get(`/w/${projectId}/documents`)).location, `/p/${projectId}`);
+    const docs = await ext.get(`/p/${projectId}/documents`);
     assert.ok(docs.text.includes('pub.png') && !docs.text.includes('site.png'));
-    assert.equal((await ext.get(`/w/${projectId}/access`)).status, 404);
+    assert.equal((await ext.get(`/w/${projectId}/access`)).location, `/p/${projectId}`);   // staff pages send externals to their portal
+    assert.equal((await ext.get(`/p/${projectId}/access`)).status, 404);
     assert.equal((await ext.get('/s/dev')).location, '/my');
     assert.equal((await ext.get('/admin/users')).status, 404);
     // every write attempt is refused and nothing changes
     const before = (await pool.query('select name, updated_at from workspaces where id = $1', [projectId])).rows[0];
-    const extPage = await ext.get(`/w/${projectId}`);
+    const extPage = await ext.get(`/p/${projectId}`);
     const extToken = ext.csrfFrom(extPage.text);
     for (const [path, form] of [[`/w/${projectId}/edit`, { name: 'x', status: 'archived' }], [`/w/${projectId}/access`, { user: extId, role: 'client_viewer' }], [`/files/${publishedFile}/archive`, {}], ['/s/dev/new', { name: 'x' }], ['/admin/users', { name: 'x', email: 'x@x.co', password: 'xxxxxxxxxxxx' }]]) {
       const r = await ext.raw('POST', path, { form: { ...form, _csrf: extToken } });

@@ -59,6 +59,18 @@ function mountMaintenance(r, ctx) {
         <div class="actions full"><button class="btn primary" type="submit">Record request</button></div></form></section>` : ''}`));
   });
 
+  // publish a request (title, status, dates and photos — not costs) to owner viewers of this property
+  r.post('/w/:id/maintenance/:mid/owner-visible', async (req, res) => {
+    const a = await PR.access(req, 'edit');
+    const m = await PR.own('maint_requests', req.params.mid, a.ws.id);
+    const on = req.body.on === '1';
+    await core.inTx(async db => {
+      await db.query('update maint_requests set owner_visible = $2, updated_at = now() where id = $1', [m.id, on]);
+      await core.audit(db, { actor: req.user, workspaceId: a.ws.id, action: on ? 'maint.published' : 'maint.unpublished', entity: 'maint_request', entityId: m.id, summary: `${m.ref} ${on ? 'shown to' : 'hidden from'} the owner portal`, ip: req.ip });
+    });
+    res.redirect(`/w/${a.ws.id}/maintenance/${m.id}?msg=saved`);
+  });
+
   r.post('/w/:id/maintenance', upload.array('files', 12), async (req, res) => {
     if (!core.checkCsrf(req)) throw new Forbidden('Your form expired. Reload the page and try again.');
     const a = await PR.access(req, 'contribute');
@@ -115,6 +127,8 @@ function mountMaintenance(r, ctx) {
           ${field({ name: 'tag', label: 'What they show', options: Object.entries(TAGS) })}<label class="field"><span>Files</span><input type="file" name="files" multiple required></label><div class="actions full"><button class="btn" type="submit">Upload</button></div></form></details>` : ''}
       </section>
       <section class="panel grow1"><h2 class="h">Next steps</h2>
+        ${edit ? html`<form method="post" action="/w/${id}/maintenance/${m.id}/owner-visible" class="actions">${csrfField(req)}<input type="hidden" name="on" value="${m.owner_visible ? '0' : '1'}">
+          ${m.owner_visible ? pill('Shown to the owner in the portal', 'ok') : pill('Not shown to the owner', 'muted')}<button class="btn small" type="submit">${m.owner_visible ? 'Hide from owner' : 'Show to owner'}</button></form>` : ''}
         ${edit && !finished ? html`
           ${!approved ? html`<details class="inline-form" open><summary>Provider and estimate</summary><form method="post" action="/w/${id}/maintenance/${m.id}/assign" class="form-grid">${csrfField(req)}
             ${field({ name: 'provider', label: 'Provider', value: m.provider || '' })}${field({ name: 'target_date', label: 'Target date', type: 'date', value: m.target_date ? String(m.target_date) : '' })}

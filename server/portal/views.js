@@ -48,7 +48,7 @@ function layout(req, { title, crumbs = [], heading = null, sub = null, tabs = nu
   const linked = crumbs.filter(c => c[1]);
   const parent = linked.length ? linked[linked.length - 1][1] : home;
   const bodyStr = String(body || '');
-  const exportable = !!u && !bare && !noExport && req.method === 'GET' && !/^\/(mfa|reset|login|forgot)/.test(req.path)
+  const exportable = !!u && !bare && !noExport && !(u.kind === 'external' && !req.canExport) && req.method === 'GET' && !/^\/(mfa|reset|login|forgot)/.test(req.path)
     && /<table|class="(details|stats|kv|card|rows|feed|empty)|<p[ >]/.test(bodyStr.replace(/<form[\s\S]*?<\/form>/g, ''));
   const exportHref = fmt => { const q = new URLSearchParams(req.query); q.delete('msg'); q.delete('page'); q.set('export', fmt); return `${req.path}?${q}`; };
   const I = {
