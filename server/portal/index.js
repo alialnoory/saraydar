@@ -7,6 +7,8 @@ const { mountWorkspaces } = require('./workspaces');
 const { mountProjects } = require('./projects');
 const { mountProjectExports } = require('./project-exports');
 const { mountAgreements } = require('./agreements');
+const { mountPeople } = require('./people');
+const { mountPlots } = require('./plots');
 const { mountAdmin } = require('./admin');
 const { mountAccount } = require('./account');
 const { layout, html } = require('./views');
@@ -14,13 +16,15 @@ const { layout, html } = require('./views');
 const UNSAFE = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 const PUBLIC_PATHS = [/^\/login$/, /^\/forgot$/, /^\/reset\/[^/]+$/, /^\/static\//, /^\/healthz$/];
 const PRE_MFA_PATHS = [/^\/mfa(\/setup)?$/, /^\/logout$/];
-const EXTERNAL_WRITE_OK = [/^\/logout$/, /^\/mfa(\/setup)?$/, /^\/account\/password$/, /^\/account\/sessions$/];
+const EXTERNAL_WRITE_OK = [/^\/logout$/, /^\/mfa(\/setup)?$/, /^\/account\/password$/, /^\/account\/sessions$/, /^\/account\/photo(\/remove)?$/];
 
 class Forbidden extends Error { constructor(m = 'You do not have access to this.') { super(m); this.status = 403; } }
 class NotFound extends Error { constructor(m = 'This page does not exist, or you do not have access to it.') { super(m); this.status = 404; } }
 
 function createPortal({ pool, secret, mailer, env = process.env }) {
   const core = createCore({ pool });
+  // Two-step verification is off unless REQUIRE_MFA=1 (owner decision 2026-10-23).
+  const mfaOn = env.REQUIRE_MFA === '1';
   const r = express.Router();
   r.use(cookieParser());
   r.use(express.urlencoded({ extended: false, limit: '200kb' }));
@@ -55,19 +59,22 @@ function createPortal({ pool, secret, mailer, env = process.env }) {
     if (PUBLIC_PATHS.some(p => p.test(req.path))) return next();
     const u = req.user;
     if (!u) return req.method === 'GET' ? res.redirect('/login' + (req.path !== '/' ? `?next=${encodeURIComponent(req.originalUrl)}` : '')) : res.redirect('/login');
+    if (!mfaOn && /^\/mfa(\/setup)?$/.test(req.path)) return res.redirect('/');
     if (PRE_MFA_PATHS.some(p => p.test(req.path))) return next();
-    if (u.mfa_enabled && !req.session.mfa_ok) return res.redirect('/mfa');
-    if (core.isSuper(u) && !u.mfa_enabled) return res.redirect('/mfa/setup');
+    if (mfaOn && u.mfa_enabled && !req.session.mfa_ok) return res.redirect('/mfa');
+    if (mfaOn && core.isSuper(u) && !u.mfa_enabled) return res.redirect('/mfa/setup');
     if (u.must_change_password && req.path !== '/account/password') return res.redirect('/account/password?forced=1');
     // external viewers are read-only everywhere except their own account
     if (core.isExternal(u) && UNSAFE.has(req.method) && !EXTERNAL_WRITE_OK.some(p => p.test(req.path))) return next(new Forbidden('Your access is view-only.'));
     next();
   });
 
-  const ctx = { pool, core, mailer, secret, env, Forbidden, NotFound };
+  const ctx = { pool, core, mailer, secret, env, mfaOn, Forbidden, NotFound };
   mountAuth(r, ctx);
   mountAccount(r, ctx);
   mountProjectExports(r, ctx, mountProjects(r, ctx));
+  mountPeople(r, ctx);
+  mountPlots(r, ctx);
   mountAgreements(r, ctx);
   mountWorkspaces(r, ctx);
   mountAdmin(r, ctx);

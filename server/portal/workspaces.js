@@ -3,7 +3,7 @@ const crypto = require('crypto');
 const multer = require('multer');
 const sharp = require('sharp');
 const { SECTIONS, SECTION_KEYS, KIND_LABEL, STATUS_LABEL, INTERNAL_MEMBER_ROLES, EXTERNAL_MEMBER_ROLES } = require('./core');
-const { layout, html, raw, statusPill, pill, csrfField, emptyState, field, pager, icons, fmtDate, fmtDateTime, fmtSize, ROLE_LABELS } = require('./views');
+const { layout, html, raw, statusPill, pill, csrfField, emptyState, field, pager, icons, fmtDate, fmtDateTime, fmtSize, ROLE_LABELS, avatar } = require('./views');
 
 const PER_PAGE = 20;
 const MAX_FILE = 25 * 1024 * 1024;
@@ -57,7 +57,7 @@ function mountWorkspaces(r, ctx) {
         where ${vis.replace(/w\.id/g, 'w.id')} order by e.id desc limit 8`, [u.id])).rows;
     const attention = [];
     if (core.isSuper(u) && !mailer.configured) attention.push(['Setup', 'warn', 'Email delivery is not configured', 'Invitations, password resets and invoices stay in the Outbox until Outlook SMTP is set up.', '/admin/system']);
-    if (core.isSuper(u)) {
+    if (core.isSuper(u) && ctx.mfaOn) {
       const n = (await pool.query("select count(*)::int as n from users where active and kind = 'internal' and not mfa_enabled")).rows[0].n;
       if (n) attention.push(['Security', 'info', `${n} staff ${n === 1 ? 'account has' : 'accounts have'} no two-step verification`, 'Recommended for everyone who sees financial records.', '/admin/users']);
     }
@@ -412,7 +412,8 @@ function mountWorkspaces(r, ctx) {
     if (!a.internal) throw new NotFound();
     const w = a.ws;
     const members = (await pool.query(
-      `select m.*, u.email, u.name, u.kind, u.active, coalesce(nullif(b.name,''), b.email) as by
+      `select m.*, u.email, u.name, u.kind, u.active, u.phone, u.job_title, coalesce(nullif(b.name,''), b.email) as by,
+              (select extract(epoch from p.updated_at)::bigint from user_photos p where p.user_id = u.id) as photo_v
          from workspace_members m join users u on u.id = m.user_id left join users b on b.id = m.added_by
         where m.workspace_id = $1 order by m.revoked_at nulls first, u.kind, u.name`, [w.id])).rows;
     const manage = core.canManageAccess(req.user, a);
@@ -423,7 +424,7 @@ function mountWorkspaces(r, ctx) {
     res.send(wsLayout(req, a, 'access', html`
       <section class="panel"><h2 class="h">People with access</h2>
         <div class="table-wrap"><table><thead><tr><th>Person</th><th>Type</th><th>Workspace role</th><th>Added</th><th></th></tr></thead><tbody>
-        ${members.map(m => html`<tr class="${m.revoked_at ? 'dim' : ''}"><td><b>${m.name || m.email}</b><div class="muted small">${m.email}</div></td>
+        ${members.map(m => html`<tr class="${m.revoked_at ? 'dim' : ''}"><td><div class="person">${avatar({ id: m.user_id, name: m.name, email: m.email, photo_v: m.photo_v })}<div><b>${m.name || m.email}</b><div class="muted small">${m.email}${m.phone ? ` · ${m.phone}` : ''}${m.job_title ? ` · ${m.job_title}` : ''}</div></div></div></td>
           <td>${m.kind === 'external' ? 'External' : 'Staff'}</td><td>${roleLabel(m.role)}${m.revoked_at ? html` ${pill('Removed', 'muted')}` : ''}</td>
           <td class="small">${fmtDate(m.added_at)}${m.by ? ` by ${m.by}` : ''}</td>
           <td>${manage && !m.revoked_at && m.user_id !== req.user.id ? html`<form method="post" action="/w/${w.id}/access/revoke">${csrfField(req)}<input type="hidden" name="user" value="${m.user_id}"><button class="btn small" type="submit">Remove</button></form>` : ''}</td></tr>`)}
@@ -436,7 +437,17 @@ function mountWorkspaces(r, ctx) {
           ${field({ name: 'role', label: 'Role in this workspace', options: [...Object.entries(INTERNAL_MEMBER_ROLES), ...Object.entries(EXTERNAL_MEMBER_ROLES).filter(([k]) => k !== 'tenant')], value: 'viewer' })}
           <label class="field full check"><input type="checkbox" name="download_files" value="1"> <span>External viewers may download non-image files</span></label>
           <div class="full actions"><button class="btn primary" type="submit">Add</button></div>
-          <p class="muted small full">External viewers are always view-only and see only items marked “Published”. Email invitations with single-use links come in Phase 7; for now create the external account under Administration › Users.</p>
+          <p class="muted small full">External viewers are always view-only and see only items marked “Published”.</p>
+        </form></section>` : ''}
+      ${core.isSuper(req.user) ? html`<section class="panel"><h2 class="h">Create a new login and add to this ${SECTIONS[w.section].noun}</h2>
+        <form method="post" action="/w/${w.id}/access/new" class="form-grid">${csrfField(req)}
+          ${ctx.userFormFields(await ctx.staffRoles())}
+          <label class="field" for="f-ws_role"><span>Role in this ${SECTIONS[w.section].noun} <i class="req">*</i></span><select id="f-ws_role" name="ws_role" required>
+            <optgroup label="SarayDar staff">${Object.entries(INTERNAL_MEMBER_ROLES).map(([k, l]) => html`<option value="${k}" ${k === 'viewer' ? raw('selected') : ''}>${l}</option>`)}</optgroup>
+            <optgroup label="External viewers (view only)">${Object.entries(EXTERNAL_MEMBER_ROLES).filter(([k]) => k !== 'tenant').map(([k, l]) => html`<option value="${k}">${l}</option>`)}</optgroup></select></label>
+          <label class="field check full"><input type="checkbox" name="download_files" value="1"> <span>External viewer may download non-image files</span></label>
+          <div class="full actions"><button class="btn primary" type="submit">Create login and add</button></div>
+          <p class="muted small full">The login details are shown once on the next screen so you can pass them on. The person must choose their own password at first sign-in.</p>
         </form></section>` : ''}`));
   });
 

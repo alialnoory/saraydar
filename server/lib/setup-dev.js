@@ -29,10 +29,11 @@ const STEPS = [
     { k: 'owner', label: 'Land owner', type: 'text' }
   ] },
   { key: 'land', title: 'Land', fields: [
-    { k: 'plots', label: 'Plot references', type: 'textarea' },
+    { k: 'plots_count', label: 'Number of plots', type: 'number', hint: 'Record each plot (number, title deed, area, dimensions, documents) under Land & Plots.' },
+    { k: 'plots', label: 'Plot references (summary)', type: 'textarea' },
     { k: 'tenure', label: 'Ownership / tenure', type: 'select', options: [['freehold', 'Freehold'], ['leasehold', 'Leasehold'], ['other', 'Other']] },
-    { k: 'land_area', label: 'Land area (m²)', type: 'number' },
-    { k: 'dimensions', label: 'Dimensions', type: 'text', hint: 'For example 10.3 × 17 m per plot.' },
+    { k: 'land_area', label: 'Total land area (m²)', type: 'number', hint: 'All plots together.' },
+    { k: 'dimensions', label: 'Typical plot dimensions', type: 'text', hint: 'For example 10.3 × 17 m per plot.' },
     { k: 'access', label: 'Access and site information', type: 'textarea' }
   ] },
   { key: 'scope', title: 'Development scope', fields: [

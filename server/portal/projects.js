@@ -61,7 +61,7 @@ function mountProjects(r, ctx) {
 
   function tabs(a, cur) {
     const id = a.ws.id;
-    return [['Overview', `/w/${id}`], ['Setup', `/w/${id}/setup`], ['Plan', `/w/${id}/plan`], ['Tasks & Schedule', `/w/${id}/tasks`],
+    return [['Overview', `/w/${id}`], ['Setup', `/w/${id}/setup`], ['Land & Plots', `/w/${id}/plots`], ['Plan', `/w/${id}/plan`], ['Tasks & Schedule', `/w/${id}/tasks`],
       ...(a.finance !== false ? [['Budget & Cost', `/w/${id}/budget`]] : []), ['Progress Updates', `/w/${id}/updates`], ['Registers', `/w/${id}/registers`],
       ['Units & Sales', `/w/${id}/units`], ['Agreements', `/w/${id}/agreements`], ['Documents', `/w/${id}/documents`], ['Reports', `/w/${id}/reports`], ['Access & Invitations', `/w/${id}/access`], ['Activity', `/w/${id}/activity`]]
       .map(([l, h]) => [l, h, l === cur]);
@@ -207,6 +207,9 @@ function mountProjects(r, ctx) {
     const rv = setup.review(d.answers);
     const pl = await plans(a.ws.id);
     const tasks = (await pool.query('select count(*)::int as n from tasks where workspace_id = $1 and archived_at is null', [a.ws.id])).rows[0].n;
+    const plotSum = (await pool.query('select count(*)::int as n, sum(area_m2) as area, count(area_m2)::int as with_area from plots where workspace_id = $1 and archived_at is null', [a.ws.id])).rows[0];
+    const plotsAns = setup.val(d.answers, 'plots_count');
+    if (plotsAns !== undefined && plotSum.n !== Number(plotsAns)) rv.conflicts.push(`Setup says ${plotsAns} plot(s), but ${plotSum.n} are recorded under Land & Plots.`);
     const show = (f, x) => {
       if (!x) return html`<span class="muted">—</span>`;
       if (x.unknown) return pill('Not yet determined', 'info');
@@ -222,6 +225,8 @@ function mountProjects(r, ctx) {
           <div class="grow1"><h3 class="h3">Not yet determined</h3>${rv.unknown.length ? html`<ul>${rv.unknown.map(u => html`<li>${u}</li>`)}</ul>` : html`<p class="muted">None.</p>`}</div>
           <div class="grow1"><h3 class="h3">Conflicts to check</h3>${rv.conflicts.length ? html`<ul>${rv.conflicts.map(c => html`<li class="err">${c}</li>`)}</ul>` : html`<p class="muted">None found.</p>`}</div>
         </div></section>
+      <section class="panel"><div class="row-between"><h2 class="h">Plots</h2><a class="btn small" href="/w/${a.ws.id}/plots">Land &amp; Plots</a></div>
+        <p>${plotSum.n ? `${plotSum.n} plot(s) recorded${plotSum.with_area ? `, ${Number(plotSum.area).toLocaleString('en-US')} m² in total${plotSum.with_area < plotSum.n ? ` (${plotSum.n - plotSum.with_area} without an area)` : ''}` : ''}.` : 'No plots recorded yet. Projects on several plots should list each one.'} Each recorded plot gets its own title and survey check in the draft plan.</p></section>
       ${setup.STEPS.map(s => html`<section class="panel"><div class="row-between"><h2 class="h">${s.title}</h2><a class="btn small" href="/w/${a.ws.id}/setup/${s.key}">Edit</a></div>
         <dl class="details">${s.fields.map(f => html`<div><dt>${f.label}</dt><dd class="pre-line">${show(f, d.answers[f.k])}</dd></div>`)}</dl></section>`)}
       <section class="panel"><h2 class="h">Draft plan</h2>
@@ -298,6 +303,12 @@ function mountProjects(r, ctx) {
         const ph = (await db.query('insert into phases (workspace_id, name, sort, suggested_weight, suggested) values ($1,$2,$3,$4,true) returning id', [a.ws.id, p.name, ps++, p.suggested_weight])).rows[0].id;
         let ts = 0;
         for (const t of p.tasks) await db.query('insert into tasks (workspace_id, phase_id, title, status, progress, is_milestone, suggested, verified, sort) values ($1,$2,$3,$4,$5,$6,true,$7,$8)', [a.ws.id, ph, t.title, t.status, t.progress, t.is_milestone, t.verified, ts++]);
+      }
+      const plotRows = (await db.query('select ref from plots where workspace_id = $1 and archived_at is null order by sort', [a.ws.id])).rows;
+      if (plotRows.length) {
+        const first = (await db.query('select id from phases where workspace_id = $1 order by sort limit 1', [a.ws.id])).rows[0];
+        let ts = 100;
+        if (first) for (const p of plotRows) await db.query('insert into tasks (workspace_id, phase_id, title, suggested, sort) values ($1,$2,$3,true,$4)', [a.ws.id, first.id, `Plot ${p.ref}: confirm title deed, survey and dimensions`, ts++]);
       }
       for (const x of [...g.risks, ...g.permits, ...g.stakeholders]) {
         await db.query('insert into register_items (workspace_id, kind, title, status, suggested, extra, created_by) values ($1,$2,$3,$4,$5,$6,$7)',
@@ -1027,21 +1038,22 @@ function mountProjects(r, ctx) {
   const UNIT_STATUS = { planned: 'Planned', available: 'Available', reserved: 'Reserved', sold: 'Sold', handed_over: 'Handed over', withdrawn: 'Withdrawn' };
   r.get('/w/:id/units', async (req, res) => {
     const a = await access(req);
-    const rows = (await pool.query('select * from dev_units where workspace_id = $1 order by sort, name', [a.ws.id])).rows;
+    const rows = (await pool.query('select u.*, p.ref as plot_ref from dev_units u left join plots p on p.id = u.plot_id where u.workspace_id = $1 order by u.sort, u.name', [a.ws.id])).rows;
+    const plotOpts = [['', 'Not linked to a plot'], ...(await pool.query('select id, ref from plots where workspace_id = $1 and archived_at is null order by sort', [a.ws.id])).rows.map(p => [p.id, `Plot ${p.ref}`])];
     const edit = core.canEdit(a);
     res.send(page(req, a, 'Units & Sales', html`<section class="panel"><h2 class="h">Units</h2>
-      ${rows.length ? html`<div class="table-wrap"><table><thead><tr><th>Unit</th><th>Type</th><th class="n">Area m²</th>${a.finance ? html`<th class="n">List price</th>` : ''}<th>Status</th><th></th></tr></thead><tbody>
-        ${rows.map(u => html`<tr><td><b>${u.name}</b>${u.notes ? html`<div class="muted small">${u.notes}</div>` : ''}</td><td>${u.unit_type || '—'}</td><td class="n">${u.area_m2 === null ? '—' : Number(u.area_m2)}</td>
+      ${rows.length ? html`<div class="table-wrap"><table><thead><tr><th>Unit</th><th>Plot</th><th>Type</th><th class="n">Area m²</th>${a.finance ? html`<th class="n">List price</th>` : ''}<th>Status</th><th></th></tr></thead><tbody>
+        ${rows.map(u => html`<tr><td><b>${u.name}</b>${u.notes ? html`<div class="muted small">${u.notes}</div>` : ''}</td><td>${u.plot_ref || '—'}</td><td>${u.unit_type || '—'}</td><td class="n">${u.area_m2 === null ? '—' : Number(u.area_m2)}</td>
           ${a.finance ? html`<td class="n">${u.list_price_minor === null ? html`<span class="muted">Not set</span>` : fm(num(u.list_price_minor), u.currency)}</td>` : ''}<td>${UNIT_STATUS[u.status]}</td>
           <td>${edit ? html`<details class="inline-form"><summary class="small">Edit</summary><form method="post" action="/w/${a.ws.id}/units/${u.id}" class="form-grid">${csrfField(req)}
-            ${field({ name: 'name', label: 'Unit', value: u.name, required: true })}${field({ name: 'unit_type', label: 'Type', value: u.unit_type || '' })}
+            ${field({ name: 'name', label: 'Unit', value: u.name, required: true })}${field({ name: 'plot_id', label: 'Plot', value: u.plot_id || '', options: plotOpts })}${field({ name: 'unit_type', label: 'Type', value: u.unit_type || '' })}
             ${field({ name: 'area_m2', label: 'Area m²', value: u.area_m2 === null ? '' : Number(u.area_m2), type: 'number', attrs: 'min="0" step="any"' })}
             ${a.finance ? field({ name: 'price', label: 'List price (BHD)', value: toInput(num(u.list_price_minor)) }) : ''}
             ${field({ name: 'status', label: 'Status', value: u.status, options: Object.entries(UNIT_STATUS) })}${field({ name: 'notes', label: 'Notes', value: u.notes || '' })}
             <div class="actions full"><button class="btn small" type="submit">Save</button></div></form></details>` : ''}</td></tr>`)}
       </tbody></table></div>` : html`<p class="muted">No units recorded.</p>`}
       ${edit ? html`<details class="inline-form"><summary>Add unit</summary><form method="post" action="/w/${a.ws.id}/units" class="form-grid">${csrfField(req)}
-        ${field({ name: 'name', label: 'Unit', required: true })}${field({ name: 'unit_type', label: 'Type' })}${field({ name: 'area_m2', label: 'Area m²', type: 'number', attrs: 'min="0" step="any"' })}
+        ${field({ name: 'name', label: 'Unit', required: true })}${field({ name: 'plot_id', label: 'Plot', options: plotOpts })}${field({ name: 'unit_type', label: 'Type' })}${field({ name: 'area_m2', label: 'Area m²', type: 'number', attrs: 'min="0" step="any"' })}
         ${a.finance ? field({ name: 'price', label: 'List price (BHD)' }) : ''}<div class="actions full"><button class="btn primary" type="submit">Add unit</button></div></form></details>` : ''}
       <p class="muted small">Reservations, buyers, offers and collections are handled in Property Sales &amp; Acquisition (Phase 6). Marking a unit sold here requires the sale to be completed there first once that section is live.</p></section>`));
   });
@@ -1050,13 +1062,15 @@ function mountProjects(r, ctx) {
     const area = req.body.area_m2 === '' || req.body.area_m2 === undefined ? null : Number(req.body.area_m2);
     if (area !== null && (!isFinite(area) || area < 0)) throw bad('Area must be a positive number.');
     const status = req.body.status && UNIT_STATUS[req.body.status] ? req.body.status : undefined;
-    return { name, unit_type: txt(req.body.unit_type, 80), area_m2: area, price: a.finance ? parseMoney(req.body.price, 'BHD') : undefined, status, notes: txt(req.body.notes, 300) };
+    const plot = req.body.plot_id ? (await pool.query('select id from plots where id = $1 and workspace_id = $2 and archived_at is null', [UUID.test(req.body.plot_id) ? req.body.plot_id : null, a.ws.id])).rows[0] : null;
+    if (req.body.plot_id && !plot) throw bad('That plot is not part of this project.');
+    return { plot_id: plot ? plot.id : null, name, unit_type: txt(req.body.unit_type, 80), area_m2: area, price: a.finance ? parseMoney(req.body.price, 'BHD') : undefined, status, notes: txt(req.body.notes, 300) };
   }
   r.post('/w/:id/units', async (req, res) => {
     const a = await access(req, 'edit');
     const u = await readUnit(req, a);
     await core.inTx(async db => {
-      const id = (await db.query('insert into dev_units (workspace_id, name, unit_type, area_m2, list_price_minor, notes) values ($1,$2,$3,$4,$5,$6) returning id', [a.ws.id, u.name, u.unit_type, u.area_m2, u.price ?? null, u.notes])).rows[0].id;
+      const id = (await db.query('insert into dev_units (workspace_id, name, unit_type, area_m2, list_price_minor, notes, plot_id) values ($1,$2,$3,$4,$5,$6,$7) returning id', [a.ws.id, u.name, u.unit_type, u.area_m2, u.price ?? null, u.notes, u.plot_id])).rows[0].id;
       await core.audit(db, { actor: req.user, workspaceId: a.ws.id, action: 'unit.added', entity: 'dev_unit', entityId: id, summary: `Unit added: ${u.name}`, ip: req.ip });
     });
     res.redirect(`/w/${a.ws.id}/units?msg=added`);
@@ -1066,8 +1080,8 @@ function mountProjects(r, ctx) {
     const cur = await own('dev_units', req.params.uid, a.ws.id);
     const u = await readUnit(req, a);
     await core.inTx(async db => {
-      await db.query('update dev_units set name = $2, unit_type = $3, area_m2 = $4, list_price_minor = coalesce($5, list_price_minor), status = coalesce($6, status), notes = $7 where id = $1',
-        [cur.id, u.name, u.unit_type, u.area_m2, u.price === undefined ? null : u.price, u.status || null, u.notes]);
+      await db.query('update dev_units set name = $2, unit_type = $3, area_m2 = $4, list_price_minor = coalesce($5, list_price_minor), status = coalesce($6, status), notes = $7, plot_id = $8 where id = $1',
+        [cur.id, u.name, u.unit_type, u.area_m2, u.price === undefined ? null : u.price, u.status || null, u.notes, u.plot_id]);
       if (a.finance && u.price === null && cur.list_price_minor !== null) await db.query('update dev_units set list_price_minor = null where id = $1', [cur.id]);
       await core.audit(db, { actor: req.user, workspaceId: a.ws.id, action: 'unit.updated', entity: 'dev_unit', entityId: cur.id, summary: `Unit updated: ${u.name}`, before: { status: cur.status, price: num(cur.list_price_minor) }, after: { status: u.status, price: u.price }, ip: req.ip });
     });

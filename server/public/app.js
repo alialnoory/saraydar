@@ -21,3 +21,9 @@ document.addEventListener('change', e => {
   const kind = document.getElementById('f-party_kind');
   if (kind) kind.value = p.kind || 'person';
 });
+// "Create a password for me" hides the manual password box
+document.addEventListener('change', e => {
+  const t = e.target.closest('[data-toggle-pw]'); if (!t) return;
+  const f = t.form && t.form.querySelector('[name="password"]'); if (f) f.closest('.field').hidden = t.checked;
+});
+document.querySelectorAll('[data-toggle-pw]').forEach(t => { const f = t.form && t.form.querySelector('[name="password"]'); if (f && t.checked) f.closest('.field').hidden = true; });

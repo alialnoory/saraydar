@@ -2,7 +2,8 @@
 const { hashPassword } = require('../db');
 const { PERMISSIONS } = require('./core');
 const { MIN_PW } = require('./auth');
-const { layout, html, raw, pill, statusPill, csrfField, field, pager, emptyState, fmtDate, fmtDateTime, ROLE_LABELS } = require('./views');
+const { layout, html, raw, pill, statusPill, csrfField, field, pager, emptyState, fmtDate, fmtDateTime, ROLE_LABELS, avatar } = require('./views');
+const { photoForm, userFormFields } = require('./people');
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const USERNAME_RE = /^[a-z0-9._-]{3,40}$/;
@@ -10,7 +11,8 @@ const UUID = /^[0-9a-f-]{36}$/i;
 const PER = 30;
 const bad = m => Object.assign(new Error(m), { status: 400 });
 
-function mountAdmin(r, { pool, core, mailer, env, Forbidden, NotFound }) {
+function mountAdmin(r, ctx) {
+  const { pool, core, mailer, env, Forbidden, NotFound } = ctx;
   r.use('/admin', (req, res, next) => core.isSuper(req.user) ? next() : next(new NotFound()));
 
   const adminTabs = cur => [['Users', '/admin/users', cur === 'users'], ['Roles', '/admin/roles', cur === 'roles'], ['Agreements', '/admin/agreements', false], ['Outbox', '/admin/outbox', cur === 'outbox'], ['Audit log', '/admin/audit', cur === 'audit'], ['System', '/admin/system', cur === 'system']];
@@ -25,63 +27,29 @@ function mountAdmin(r, { pool, core, mailer, env, Forbidden, NotFound }) {
 
   r.get('/admin/users', async (req, res) => {
     const users = (await pool.query(
-      `select u.*, (select count(*)::int from workspace_members m where m.user_id = u.id and m.revoked_at is null) as ws
+      `select u.*, (select count(*)::int from workspace_members m where m.user_id = u.id and m.revoked_at is null) as ws,
+              (select extract(epoch from p.updated_at)::bigint from user_photos p where p.user_id = u.id) as photo_v
          from users u order by u.kind, u.active desc, coalesce(nullif(u.name,''), u.email)`)).rows;
     const roles = await roleOptions('internal');
     res.send(page(req, 'users', 'Users', html`
       <section class="panel"><h2 class="h">Users</h2>
-        <div class="table-wrap"><table><thead><tr><th>Name</th><th>Sign-in</th><th>Type</th><th>Role</th><th>Two-step</th><th>Workspaces</th><th>Last sign-in</th><th>Status</th></tr></thead><tbody>
-        ${users.map(u => html`<tr class="${u.active ? '' : 'dim'}"><td><a href="/admin/users/${u.id}"><b>${u.name || '—'}</b></a></td>
+        <div class="table-wrap"><table><thead><tr><th>Name</th><th>Sign-in</th><th>Type</th><th>Role</th>${ctx.mfaOn ? html`<th>Two-step</th>` : ''}<th>Workspaces</th><th>Last sign-in</th><th>Status</th></tr></thead><tbody>
+        ${users.map(u => html`<tr class="${u.active ? '' : 'dim'}"><td><div class="person">${avatar(u)}<div><a href="/admin/users/${u.id}"><b>${u.name || '—'}</b></a>${u.job_title ? html`<div class="muted small">${u.job_title}</div>` : ''}</div></div></td>
           <td>${u.email}${u.username ? html`<div class="muted small">${u.username}</div>` : ''}</td><td>${u.kind === 'external' ? 'External' : 'Staff'}</td>
-          <td>${ROLE_LABELS[u.system_role] || u.system_role}</td><td>${u.mfa_enabled ? pill('On', 'ok') : pill('Off', 'muted')}</td>
+          <td>${ROLE_LABELS[u.system_role] || u.system_role}</td>${ctx.mfaOn ? html`<td>${u.mfa_enabled ? pill('On', 'ok') : pill('Off', 'muted')}</td>` : ''}
           <td>${u.system_role === 'super_admin' ? 'All' : u.ws}</td><td class="small">${u.last_login_at ? fmtDateTime(u.last_login_at) : 'Never'}</td>
           <td>${u.active ? (u.locked_until && new Date(u.locked_until) > new Date() ? pill('Locked', 'bad') : pill('Active', 'ok')) : pill('Deactivated', 'muted')}</td></tr>`)}
         </tbody></table></div></section>
       <section class="panel"><h2 class="h">Add a user</h2>
         <form method="post" action="/admin/users" class="form-grid">${csrfField(req)}
-          ${field({ name: 'name', label: 'Full name', required: true, attrs: 'maxlength="120"' })}
-          ${field({ name: 'email', label: 'Email', type: 'email', required: true, attrs: 'maxlength="200" autocomplete="off"' })}
-          ${field({ name: 'username', label: 'Username (optional)', attrs: 'maxlength="40" autocomplete="off" autocapitalize="none"', hint: 'Lower-case letters, numbers, dot, dash or underscore. They can also sign in with their email.' })}
-          ${field({ name: 'kind', label: 'Type', value: 'internal', options: [['internal', 'SarayDar staff'], ['external', 'External viewer (client, owner, investor, seller, buyer)']] })}
-          ${field({ name: 'system_role', label: 'Staff role', value: 'viewer', options: roles, hint: 'Ignored for external viewers. Their access is set per workspace.' })}
-          ${field({ name: 'password', label: `Temporary password (${MIN_PW}+ characters)`, required: true, attrs: 'autocomplete="new-password"', hint: 'They must change it at first sign-in.' })}
+          ${userFormFields(roles)}
           <div class="full actions"><button class="btn primary" type="submit">Add user</button></div>
         </form></section>`));
   });
 
-  r.post('/admin/users', async (req, res) => {
-    const name = String(req.body.name || '').trim().slice(0, 120);
-    const email = String(req.body.email || '').trim().toLowerCase();
-    const username = String(req.body.username || '').trim().toLowerCase() || null;
-    const kind = req.body.kind === 'external' ? 'external' : 'internal';
-    const pw = String(req.body.password || '');
-    let role = 'external';
-    if (kind === 'internal') {
-      role = String(req.body.system_role || 'viewer');
-      if (!(await roleOptions('internal')).some(([k]) => k === role)) throw bad('Choose a staff role.');
-    }
-    if (!name) throw bad('Enter the full name.');
-    if (!EMAIL_RE.test(email)) throw bad('Enter a valid email address.');
-    if (username && !USERNAME_RE.test(username)) throw bad('The username can use 3–40 lower-case letters, numbers, dot, dash or underscore.');
-    if (pw.length < MIN_PW) throw bad(`The temporary password needs at least ${MIN_PW} characters.`);
-    const legacyRole = role === 'super_admin' ? 'admin' : role === 'project_manager' ? 'editor' : role === 'engineer' ? 'site' : 'viewer';
-    try {
-      await core.inTx(async db => {
-        const u = (await db.query(
-          `insert into users (email, username, name, kind, system_role, role, password_hash, must_change_password) values ($1,$2,$3,$4,$5,$6,$7,true) returning id`,
-          [email, username, name, kind, role, legacyRole, await hashPassword(pw)])).rows[0];
-        await core.audit(db, { actor: req.user, action: 'user.created', entity: 'user', entityId: u.id, summary: `Added ${kind === 'external' ? 'external viewer' : ROLE_LABELS[role]} ${name}`, after: { email, username, kind, role }, ip: req.ip });
-      });
-    } catch (e) {
-      if (e.code === '23505') throw bad('A user with that email or username already exists.');
-      throw e;
-    }
-    res.redirect('/admin/users?msg=user_created');
-  });
-
   async function loadUser(id) {
     if (!UUID.test(id)) throw new NotFound();
-    const u = (await pool.query('select * from users where id = $1', [id])).rows[0];
+    const u = (await pool.query('select u.*, (select extract(epoch from p.updated_at)::bigint from user_photos p where p.user_id = u.id) as photo_v from users u where u.id = $1', [id])).rows[0];
     if (!u) throw new NotFound();
     return u;
   }
@@ -99,18 +67,21 @@ function mountAdmin(r, { pool, core, mailer, env, Forbidden, NotFound }) {
           <form method="post" action="/admin/users/${u.id}" class="form-grid">${csrfField(req)}
             ${field({ name: 'name', label: 'Full name', value: u.name, required: true, attrs: 'maxlength="120"' })}
             ${field({ name: 'username', label: 'Username', value: u.username || '', attrs: 'maxlength="40" autocapitalize="none"' })}
+            ${field({ name: 'phone', label: 'Mobile number', type: 'tel', value: u.phone || '', attrs: 'maxlength="40"' })}
+            ${field({ name: 'job_title', label: 'Job title / company', value: u.job_title || '', attrs: 'maxlength="80"' })}
             ${u.kind === 'internal' ? field({ name: 'system_role', label: 'Staff role', value: u.system_role, options: roles, attrs: own ? 'disabled' : '' }) : html`<p class="full muted">External viewer · access is set per workspace.</p>`}
             ${field({ name: 'active', label: 'Account', value: u.active ? '1' : '0', options: [['1', 'Active'], ['0', 'Deactivated']], attrs: own ? 'disabled' : '' })}
             <div class="full actions"><button class="btn primary" type="submit">Save</button></div>
             ${own ? html`<p class="muted small full">You cannot change your own role or deactivate yourself.</p>` : ''}
           </form></section>
+        <section class="panel grow1"><h2 class="h">Photo</h2>${photoForm(req, `/admin/users/${u.id}/photo`, u, `/admin/users/${u.id}/photo`)}</section>
         <section class="panel grow1"><h2 class="h">Security</h2>
-          <p>Email: <b>${u.email}</b><br>Two-step verification: ${u.mfa_enabled ? 'on' : 'off'}<br>Last sign-in: ${u.last_login_at ? fmtDateTime(u.last_login_at) : 'never'}</p>
+          <p>Email: <b>${u.email}</b><br>${ctx.mfaOn ? `Two-step verification: ${u.mfa_enabled ? 'on' : 'off'}` : ''}<br>Last sign-in: ${u.last_login_at ? fmtDateTime(u.last_login_at) : 'never'}</p>
           <form method="post" action="/admin/users/${u.id}/password" class="stack">${csrfField(req)}
             ${field({ name: 'password', label: `New temporary password (${MIN_PW}+ characters)`, attrs: 'autocomplete="new-password"' })}
             <button class="btn" type="submit">Set temporary password</button>
             <small class="muted">Signs them out everywhere. They must choose a new password at next sign-in.</small></form>
-          ${u.mfa_enabled && !own ? html`<form method="post" action="/admin/users/${u.id}/mfa-reset">${csrfField(req)}<button class="btn" type="submit">Reset two-step verification</button></form>` : ''}
+          ${ctx.mfaOn && u.mfa_enabled && !own ? html`<form method="post" action="/admin/users/${u.id}/mfa-reset">${csrfField(req)}<button class="btn" type="submit">Reset two-step verification</button></form>` : ''}
         </section>
       </div>
       <section class="panel"><h2 class="h">Workspaces</h2>
@@ -135,11 +106,13 @@ function mountAdmin(r, { pool, core, mailer, env, Forbidden, NotFound }) {
       }
       if (req.body.active === '0' || req.body.active === '1') active = req.body.active === '1';
     }
-    const before = { name: u.name, username: u.username, system_role: u.system_role, active: u.active };
-    const after = { name, username, system_role: role, active };
+    const phone = String(req.body.phone || '').trim().slice(0, 40) || null, jobTitle = String(req.body.job_title || '').trim().slice(0, 80) || null;
+    if (phone && !/^[+()\d\s-]{6,40}$/.test(phone)) throw bad('Enter the phone number with digits only (and +, spaces or dashes).');
+    const before = { name: u.name, username: u.username, system_role: u.system_role, active: u.active, phone: u.phone, job_title: u.job_title };
+    const after = { name, username, system_role: role, active, phone, job_title: jobTitle };
     try {
       await core.inTx(async db => {
-        await db.query('update users set name = $2, username = $3, system_role = $4, active = $5, token_version = token_version + case when $5 then 0 else 1 end where id = $1', [u.id, name, username, role, active]);
+        await db.query('update users set name = $2, username = $3, system_role = $4, active = $5, phone = $6, job_title = $7, token_version = token_version + case when $5 then 0 else 1 end where id = $1', [u.id, name, username, role, active, phone, jobTitle]);
         if (!active) await core.endAllSessions(db, u.id);
         await core.audit(db, { actor: req.user, action: active ? 'user.updated' : 'user.deactivated', entity: 'user', entityId: u.id, summary: `Updated ${name}`, before, after, ip: req.ip });
       });

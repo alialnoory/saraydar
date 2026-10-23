@@ -47,7 +47,7 @@ test('portal', { skip: !URL_ && 'set TEST_DATABASE_URL to run' }, async t => {
   await db.migrate(pool);
   await db.seed(pool);
   await db.ensureAdmin(pool, { ADMIN_EMAIL: 'ali@example.com', ADMIN_PASSWORD: 'admin-pass-123' });
-  const server = createApp({ pool, jwtSecret: SECRET, corsOrigins: [], env: {} }).listen(0);
+  const server = createApp({ pool, jwtSecret: SECRET, corsOrigins: [], env: { REQUIRE_MFA: '1' } }).listen(0);
   const base = `http://127.0.0.1:${server.address().port}`;
   t.after(async () => { server.close(); await pool.end(); });
 
@@ -100,7 +100,8 @@ test('portal', { skip: !URL_ && 'set TEST_DATABASE_URL to run' }, async t => {
 
   const mkUser = async (form) => {
     const r = await admin.post('/admin/users', form, '/admin/users');
-    assert.equal(r.location, '/admin/users?msg=user_created', r.text.slice(0, 300));
+    assert.equal(r.status, 200, r.text.slice(0, 300));
+    assert.match(r.text, /Login created/);
     return (await pool.query('select id from users where email = $1', [form.email])).rows[0].id;
   };
   let pm, eng, ext, pmId, engId, extId, projectId;

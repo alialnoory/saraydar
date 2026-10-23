@@ -14,6 +14,7 @@ Last updated: 2026-10-23
 | 2 Foundation | **Done, tested locally, pushed** — see below |
 | 3 Development projects | **Done, tested locally, pushed** — see below |
 | Agreements & contracts (all sections) | **Done, tested locally, pushed** — see below |
+| People, plots, two-step off (2026-10-23 requests) | **Done, tested locally, pushed** — see below |
 | 4 Client projects | Next |
 | 5 Property management | Not started |
 | 6 Sales & Acquisition | Not started |
@@ -51,7 +52,14 @@ Last updated: 2026-10-23
 - Preparing an agreement: system fills project/property and company details and the reference; asks for the other party (existing or new; updates the party record) and the template's terms; save with blanks, generate only when required answers are complete; blanks print as lines for hand completion, never invented.
 - Every generation is a numbered version (PDF + Word for text templates); issue for signature; record signing date + signed copy (PDF/photo); signed/cancelled agreements are locked; all steps audited.
 
+## Owner requests 2026-10-23 (evening)
+- Two-step verification removed: off by default; sign-in is username/email + password. Can be re-enabled with Render variable REQUIRE_MFA=1 (code and tests kept). This departs from spec §3/§12 (Super Admin MFA) by owner decision.
+- Profile photos: each person uploads their own (Account); Super Admin can set anyone's (Administration › Users). Square-cropped, shown in header, user list and Access lists.
+- Creating logins: Administration › Users and each workspace's Access & Invitations (Super Admin) now take full name, email, username, mobile, job title/company, staff role or external viewer type, workspace role, auto-generated or typed temporary password. Details shown once; optional welcome email (address + username only, never the password); forced password change at first sign-in.
+- Land & Plots tab (development projects): any number of plots per project — plot number, title deed, area, frontage × depth, zoning, tenure, registered owner, status, purchase price/date (finance roles), notes, documents per plot; totals; units linked to plots; setup asks number of plots and flags a mismatch; draft plan adds a title/survey check per plot.
+
 ## Tests (actual results, 2026-10-23)
+- Latest full suite: 54 pass, 0 fail (adds photo, login creation, password generator, plots, MFA-off tests).
 - Agreements add 8 tests (field detection/typing, letterhead validation, per-section templates, required terms, generated PDF/Word contents, cross-workspace URL refused, issue/sign/lock, uploaded Word template filled, company copy without notice). Full suite: 48 pass, 0 fail.
 - Phase 3 adds 12 tests (money, progress maths, import, setup unknowns/conflicts, plan approval/baseline/revision, task loops and cross-workspace IDs, budget not triple-counted / approval ≠ payment / Finance-only confirmation, photo updates and drafts, PDF/xlsx with formula neutralised). Full suite: 40 pass, 0 fail.
 - `cd server && TEST_DATABASE_URL=… npm test` → 28 pass, 0 fail (old API 15, portal 13 groups covering sign-in, MFA, recovery codes, forced password change, workspace isolation, revocation, CSRF/origin, file types, external read-only through direct requests, audit immutability, password reset single use, deactivation, lockout, configurable roles).

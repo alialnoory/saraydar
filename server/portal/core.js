@@ -122,7 +122,8 @@ function createCore({ pool }) {
     const token = req.cookies && req.cookies[SESSION_COOKIE];
     if (!token || typeof token !== 'string' || token.length > 200) return null;
     const { rows } = await pool.query(
-      `select s.id as sid, s.csrf, s.mfa_ok, s.last_seen_at, u.*
+      `select s.id as sid, s.csrf, s.mfa_ok, s.last_seen_at, u.*,
+              (select extract(epoch from p.updated_at)::bigint from user_photos p where p.user_id = u.id) as photo_v
          from sessions s join users u on u.id = s.user_id
         where s.id = $1 and s.expires_at > now() and s.last_seen_at > now() - interval '${IDLE_MINUTES} minutes' and u.active`,
       [sha256(token)]);

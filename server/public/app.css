@@ -183,3 +183,10 @@ td .inline-form { margin: 0; } td .inline-form form { min-width: 520px; }
 @media (max-width: 640px) { td .inline-form form { min-width: 0; } }
 .letterhead-preview { width: 100%; max-width: 260px; border: 1px solid var(--line); border-radius: 8px; display: block; background: #fff; }
 textarea.mono { font-family: var(--f-mono); font-size: 13px; line-height: 1.5; }
+img.avatar { object-fit: cover; display: block; background: var(--sunken); }
+.big-avatar { width: 96px; height: 96px; font-size: 36px; }
+.photo-row { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; }
+.person { display: flex; align-items: center; gap: 10px; } .person .avatar { flex-shrink: 0; }
+.creds { font-size: 18px; letter-spacing: .06em; background: var(--sunken); padding: 6px 10px; border-radius: 8px; display: inline-block; user-select: all; }
+tr.sub td { border-top: 0; padding-top: 0; }
+[hidden] { display: none !important; }

@@ -3,24 +3,27 @@ const { hashPassword, verifyPassword } = require('../db');
 const sec = require('../lib/security');
 const { MIN_PW, homeFor } = require('./auth');
 const { layout, html, pill, csrfField, field, fmtDateTime, ROLE_LABELS } = require('./views');
+const { photoForm } = require('./people');
 
-function mountAccount(r, { pool, core, secret }) {
+function mountAccount(r, ctx) {
+  const { pool, core, secret } = ctx;
   r.get('/account', async (req, res) => {
     const u = req.user;
     const sessions = (await pool.query('select id, created_at, last_seen_at, ip, user_agent from sessions where user_id = $1 and expires_at > now() order by last_seen_at desc', [u.id])).rows;
     res.send(layout(req, { title: 'Account', heading: 'Account & security', crumbs: [[u.kind === 'external' ? 'My Workspaces' : 'Home', homeFor(u)], ['Account']], body: html`
       <div class="split">
+        <section class="panel grow1"><h2 class="h">Photo</h2>${photoForm(req, '/account/photo', u, '/account/photo/remove')}</section>
         <section class="panel grow1"><h2 class="h">Profile</h2>
           <dl class="details"><div><dt>Name</dt><dd>${u.name || '—'}</dd></div><div><dt>Email</dt><dd>${u.email}</dd></div>
-            <div><dt>Username</dt><dd>${u.username || '—'}</dd></div><div><dt>Role</dt><dd>${ROLE_LABELS[u.system_role] || u.system_role}</dd></div></dl>
+            <div><dt>Username</dt><dd>${u.username || '—'}</dd></div><div><dt>Mobile</dt><dd>${u.phone || '—'}</dd></div><div><dt>Job title</dt><dd>${u.job_title || '—'}</dd></div><div><dt>Role</dt><dd>${ROLE_LABELS[u.system_role] || u.system_role}</dd></div></dl>
           <a class="btn" href="/account/password">Change password</a></section>
-        <section class="panel grow1"><h2 class="h">Two-step verification</h2>
+        ${ctx.mfaOn ? html`<section class="panel grow1"><h2 class="h">Two-step verification</h2>
           ${u.mfa_enabled ? html`<p>${pill('On', 'ok')} ${(u.mfa_recovery || []).length} recovery codes left.</p>
             <form method="post" action="/account/mfa/recovery">${csrfField(req)}<button class="btn" type="submit">Make new recovery codes</button></form>
             ${core.isSuper(u) ? html`<p class="muted small">Required for Super Admin accounts.</p>` : html`<form method="post" action="/account/mfa/disable" class="stack">${csrfField(req)}
               ${field({ name: 'password', label: 'Current password to turn it off', type: 'password', attrs: 'autocomplete="current-password"' })}<button class="btn" type="submit">Turn off</button></form>`}`
             : html`<p>${pill('Off', 'muted')} Adds a code from your phone at every sign-in.</p><a class="btn primary" href="/mfa/setup">Turn on</a>`}
-        </section>
+        </section>` : ''}
       </div>
       <section class="panel"><h2 class="h">Where you are signed in</h2>
         <ul class="rows">${sessions.map(s => html`<li><div class="grow"><b>${s.id === req.session.id ? 'This device' : (s.user_agent || 'Unknown device').slice(0, 80)}</b><div class="muted small">Last active ${fmtDateTime(s.last_seen_at)} · ${s.ip || ''}</div></div></li>`)}</ul>

@@ -22,6 +22,10 @@ const fmtDateTime = d => d ? new Date(d).toLocaleString('en-GB', { day: 'numeric
 const fmtSize = n => n < 1024 ? `${n} B` : n < 1048576 ? `${(n / 1024).toFixed(0)} KB` : `${(n / 1048576).toFixed(1)} MB`;
 
 const STATUS_TONE = { active: 'ok', on_hold: 'warn', completed: 'info', archived: 'muted', sent: 'ok', queued: 'warn', unconfigured: 'muted', failed: 'bad' };
+// Profile photo or initial. `u` needs id, name/email and photo_v (photo timestamp, or null).
+const avatar = (u, cls = '') => u && u.photo_v
+  ? html`<img class="avatar ${cls}" src="/users/${u.id}/photo?v=${u.photo_v}" alt="" width="36" height="36">`
+  : html`<span class="avatar ${cls}" aria-hidden="true">${((u && (u.name || u.email)) || '?').trim().charAt(0).toUpperCase()}</span>`;
 const pill = (text, tone = 'muted') => html`<span class="pill pill-${tone}">${text}</span>`;
 const statusPill = s => pill(STATUS_LABEL[s] || s, STATUS_TONE[s] || 'muted');
 
@@ -48,7 +52,7 @@ function layout(req, { title, crumbs = [], heading = null, sub = null, tabs = nu
         ${u && u.kind !== 'external' ? html`<form class="band-search" action="/search" method="get" role="search">
           ${icons.search}<input type="search" name="q" placeholder="Search projects, properties, clients" aria-label="Search" value="${req.path === '/search' ? (req.query.q || '') : ''}"></form>` : ''}
         ${u ? html`<details class="usermenu">
-          <summary><span class="avatar" aria-hidden="true">${(u.name || u.email || '?').trim().charAt(0).toUpperCase()}</span>
+          <summary>${avatar(u)}
             <span class="who"><b>${u.name || u.email}</b><small>${ROLE_LABELS[u.system_role] || u.system_role}</small></span></summary>
           <div class="menu">
             <a href="/account">Account &amp; security</a>
@@ -87,4 +91,4 @@ function pager(req, total, page, per) {
   return html`<nav class="pager" aria-label="Pages">${page > 1 ? html`<a class="btn" href="${link(page - 1)}">Previous</a>` : ''}<span>Page ${page} of ${pages} · ${total} total</span>${page < pages ? html`<a class="btn" href="${link(page + 1)}">Next</a>` : ''}</nav>`;
 }
 
-module.exports = { layout, html, raw, pill, statusPill, csrfField, emptyState, field, pager, icons, fmtDate, fmtDateTime, fmtSize, ROLE_LABELS, MESSAGES };
+module.exports = { avatar, layout, html, raw, pill, statusPill, csrfField, emptyState, field, pager, icons, fmtDate, fmtDateTime, fmtSize, ROLE_LABELS, MESSAGES };

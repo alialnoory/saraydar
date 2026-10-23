@@ -33,7 +33,7 @@ test('agreements', { skip: !URL_ && 'set TEST_DATABASE_URL to run' }, async t =>
   await pool.query('drop schema public cascade; create schema public;');
   await db.migrate(pool); await db.seed(pool);
   await db.ensureAdmin(pool, { ADMIN_EMAIL: 'ali@example.com', ADMIN_PASSWORD: 'admin-pass-123' });
-  const server = createApp({ pool, jwtSecret: SECRET, corsOrigins: [], env: {} }).listen(0);
+  const server = createApp({ pool, jwtSecret: SECRET, corsOrigins: [], env: { REQUIRE_MFA: '1' } }).listen(0);
   const base = `http://127.0.0.1:${server.address().port}`;
   t.after(async () => { server.close(); await pool.end(); });
   const login = (c, i, p) => c.post('/login', { identifier: i, password: p }, '/login');

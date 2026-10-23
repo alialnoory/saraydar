@@ -12,7 +12,8 @@ const PRE_CSRF = 'sd_pre';
 function safeNext(n) { return typeof n === 'string' && /^\/(?!\/)[\w\-./?=&%]*$/.test(n) && !n.startsWith('/login') ? n : null; }
 const homeFor = u => u.kind === 'external' ? '/my' : '/';
 
-function mountAuth(r, { pool, core, mailer, secret, env }) {
+function mountAuth(r, ctx) {
+  const { pool, core, mailer, secret, env } = ctx;
   const limiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 30, standardHeaders: 'draft-7', legacyHeaders: false,
     handler: (req, res) => res.status(429).send(layout(req, { title: 'Too many attempts', bare: true, body: html`<div class="auth"><section class="panel"><h2>Too many attempts</h2><p>Wait a few minutes and try again.</p></section></div>` })) });
 
@@ -42,7 +43,7 @@ function mountAuth(r, { pool, core, mailer, secret, env }) {
     </form>`, 'SarayDar Management System');
 
   r.get('/login', (req, res) => {
-    if (req.user && req.session.mfa_ok !== false) return res.redirect(homeFor(req.user));
+    if (req.user && (!ctx.mfaOn || req.session.mfa_ok !== false)) return res.redirect(homeFor(req.user));
     preToken(req, res);
     res.send(loginPage(req));
   });
@@ -73,8 +74,8 @@ function mountAuth(r, { pool, core, mailer, secret, env }) {
     await core.createSession(res, req, u.id);
     await core.audit(null, { actor: u, action: 'login', entity: 'user', entityId: u.id, ip: req.ip });
     const next = safeNext(req.body.next);
-    if (u.mfa_enabled) return res.redirect('/mfa' + (next ? `?next=${encodeURIComponent(next)}` : ''));
-    if (core.isSuper(u)) return res.redirect('/mfa/setup');
+    if (ctx.mfaOn && u.mfa_enabled) return res.redirect('/mfa' + (next ? `?next=${encodeURIComponent(next)}` : ''));
+    if (ctx.mfaOn && core.isSuper(u)) return res.redirect('/mfa/setup');
     if (u.must_change_password) return res.redirect('/account/password?forced=1');
     res.redirect(next || homeFor(u));
   });
