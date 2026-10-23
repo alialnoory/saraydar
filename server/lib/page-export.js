@@ -128,7 +128,7 @@ function toPdf(page, { user, when }) {
     const chunks = []; doc.on('data', c => chunks.push(c)); doc.on('end', () => resolve(Buffer.concat(chunks))); doc.on('error', reject);
     doc.registerFont('body', path.join(FONT_DIR, 'ibm-plex-sans-latin-400-normal.ttf'));
     doc.registerFont('bold', path.join(FONT_DIR, 'ibm-plex-sans-latin-600-normal.ttf'));
-    doc.registerFont('display', path.join(FONT_DIR, 'jost-latin-500-normal.ttf'));
+    doc.registerFont('display', path.join(FONT_DIR, 'ibm-plex-sans-latin-600-normal.ttf'));
     const INK = '#2A1C15', MUTED = '#6E5B50', ACC = '#8E4F2B', LINE = '#E0D2C6';
     const W = doc.page.width - 80, X = 40, bottom = () => doc.page.height - 50;
     const ensure = h => { if (doc.y + h > bottom()) doc.addPage(); };

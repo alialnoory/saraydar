@@ -105,7 +105,7 @@ function renderPdf({ text, ref, letterhead, marginTop = 45, marginBottom = 30, n
     const chunks = []; doc.on('data', c => chunks.push(c)); doc.on('end', () => resolve(Buffer.concat(chunks))); doc.on('error', reject);
     doc.registerFont('body', path.join(FONT_DIR, 'ibm-plex-sans-latin-400-normal.ttf'));
     doc.registerFont('bold', path.join(FONT_DIR, 'ibm-plex-sans-latin-600-normal.ttf'));
-    doc.registerFont('display', path.join(FONT_DIR, 'jost-latin-500-normal.ttf'));
+    doc.registerFont('display', path.join(FONT_DIR, 'ibm-plex-sans-latin-600-normal.ttf'));
     const bg = () => { if (letterhead) { const { x, y } = doc; doc.image(letterhead, 0, 0, { width: doc.page.width, height: doc.page.height }); doc.x = x; doc.y = y; } };
     bg(); doc.on('pageAdded', bg);
     const W = doc.page.width - mm(44);
@@ -134,7 +134,7 @@ async function renderDocx({ text, ref, letterhead, letterheadType, marginTop = 4
   const children = [];
   for (const b of blocks(text)) {
     if (b.k === 'title') {
-      children.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 200 }, children: [new TextRun({ text: b.t, font: 'Jost', size: 36 })] }));
+      children.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 200 }, children: [new TextRun({ text: b.t, font: 'IBM Plex Sans', size: 36, bold: true })] }));
       if (notice) children.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 240 }, children: [new TextRun({ text: NOTICE, bold: true, size: 16, color: '7A4F0C' })] }));
     } else if (b.k === 'h') children.push(new Paragraph({ spacing: { before: 200, after: 80 }, keepNext: true, children: [new TextRun({ text: b.t, bold: true, font: 'IBM Plex Sans', size: 22 })] }));
     else if (b.k === 'li') children.push(new Paragraph({ bullet: { level: 0 }, children: runs(b.t) }));

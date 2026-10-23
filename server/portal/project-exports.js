@@ -110,7 +110,7 @@ function mountProjectExports(r, ctx, P) {
     const doc = new PDFDocument({ size: 'A4', margin: 48, bufferPages: true, info: { Title: `${a.ws.name} — project report`, Author: 'SarayDar Management System' } });
     doc.registerFont('body', path.join(FONT_DIR, 'ibm-plex-sans-latin-400-normal.ttf'));
     doc.registerFont('bold', path.join(FONT_DIR, 'ibm-plex-sans-latin-600-normal.ttf'));
-    doc.registerFont('display', path.join(FONT_DIR, 'jost-latin-500-normal.ttf'));
+    doc.registerFont('display', path.join(FONT_DIR, 'ibm-plex-sans-latin-600-normal.ttf'));
     res.set({ 'Content-Type': 'application/pdf', 'Content-Disposition': `attachment; filename="${a.ws.ref}-report.pdf"`, 'Cache-Control': 'private, no-store' });
     doc.pipe(res);
     const W = doc.page.width - 96, INK = '#2A1C15', MUTED = '#6E5B50', ACC = '#8E4F2B', LINE = '#E0D2C6';

@@ -17,7 +17,8 @@ function render({ title, number, company = {}, letterhead = null, marginTop = 45
     const chunks = []; doc.on('data', c => chunks.push(c)); doc.on('end', () => resolve(Buffer.concat(chunks))); doc.on('error', reject);
     doc.registerFont('body', path.join(FONT_DIR, 'ibm-plex-sans-latin-400-normal.ttf'));
     doc.registerFont('bold', path.join(FONT_DIR, 'ibm-plex-sans-latin-600-normal.ttf'));
-    doc.registerFont('display', path.join(FONT_DIR, 'jost-latin-500-normal.ttf'));
+    doc.registerFont('display', path.join(FONT_DIR, 'ibm-plex-sans-latin-600-normal.ttf'));
+    doc.registerFont('logo', path.join(FONT_DIR, 'jost-latin-500-normal.ttf'));      // the logo keeps its own typeface
     const bg = () => { if (letterhead) { const { x, y } = doc; doc.image(letterhead, 0, 0, { width: doc.page.width, height: doc.page.height }); doc.x = x; doc.y = y; } };
     bg(); doc.on('pageAdded', bg);
     const L = mm(18), W = doc.page.width - mm(36);
@@ -26,7 +27,7 @@ function render({ title, number, company = {}, letterhead = null, marginTop = 45
     // heading
     const y0 = doc.y;
     if (!letterhead) {
-      doc.font('display').fontSize(20).fillColor(INK).text('S A R A Y D A R', L, y0, { characterSpacing: 2 });
+      doc.font('logo').fontSize(20).fillColor(INK).text('S A R A Y D A R', L, y0, { characterSpacing: 2 });
       const lines = [company.legal_name || company.trade_name, company.address, [company.phone, company.email].filter(Boolean).join(' · '), company.cr_number ? `CR ${company.cr_number}` : null].filter(Boolean);
       doc.font('body').fontSize(8).fillColor(MUTED).text(lines.join('\n'), L, doc.y + 2, { width: W / 2 });
     }
