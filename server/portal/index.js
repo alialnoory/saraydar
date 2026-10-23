@@ -12,6 +12,8 @@ const { mountProperties } = require('./properties');
 const { mountRent } = require('./rent');
 const { mountMaintenance } = require('./maintenance');
 const { mountOwner } = require('./owner');
+const { mountSalesCases } = require('./sales-cases');
+const { mountSalesCrm } = require('./sales-crm');
 const { mountClients } = require('./clients');
 const { mountPeople } = require('./people');
 const { mountPlots } = require('./plots');
@@ -106,6 +108,8 @@ function createPortal({ pool, secret, mailer, env = process.env }) {
   mountRent(r, ctx);
   mountMaintenance(r, ctx);
   mountOwner(r, ctx);
+  mountSalesCases(r, ctx);
+  mountSalesCrm(r, ctx);
   const P = mountProjects(r, ctx);
   mountProjectExports(r, ctx, P);
   mountClients(r, ctx, mountFees(r, ctx, P));

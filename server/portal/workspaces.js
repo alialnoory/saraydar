@@ -140,8 +140,8 @@ function mountWorkspaces(r, ctx) {
     const partyLabel = (s.create[kind || s.kinds[0]] || {}).party;
     const qs = extra => { const p = new URLSearchParams({ ...(kind ? { kind } : {}), ...(q ? { q } : {}), status, ...extra }); return `?${p}`; };
     res.send(layout(req, { title: s.name, heading: s.name, crumbs: [['Home', '/'], [s.name]],
-      tabs: s.tabs ? s.tabs.map(([k, l]) => [l, `/s/${s.key}?kind=${k}`, k === kind]) : null,
-      actions: createKinds.length || s.key === 'cpm' ? html`<div class="actions">${s.key === 'cpm' && (core.isSuper(req.user) || createKinds.length || await core.can(req.user, 'finance:post')) ? html`<a class="btn" href="/clients">Clients</a>` : ''}${createKinds.map(([k, c]) => html`<a class="btn accent" href="/s/${s.key}/new?kind=${k}">+ ${c.label}</a>`)}</div>` : null,
+      tabs: ctx.sectionTabs && ctx.sectionTabs[s.key] ? ctx.sectionTabs[s.key]((s.tabs.find(t => t[0] === kind) || [])[1]) : s.tabs ? s.tabs.map(([k, l]) => [l, `/s/${s.key}?kind=${k}`, k === kind]) : null,
+      actions: createKinds.length || s.key === 'cpm' || s.key === 'sales' ? html`<div class="actions">${s.key === 'cpm' && (core.isSuper(req.user) || createKinds.length || await core.can(req.user, 'finance:post')) ? html`<a class="btn" href="/clients">Clients</a>` : ''}${s.key === 'sales' && createKinds.length ? html`<a class="btn accent" href="/sales/buyers/new">+ Add Prospective Buyer</a>` : ''}${createKinds.map(([k, c]) => html`<a class="btn accent" href="/s/${s.key}/new?kind=${k}">+ ${c.label}</a>`)}</div>` : null,
       body: html`
       <form class="filters" method="get">${kind ? html`<input type="hidden" name="kind" value="${kind}">` : ''}
         <label class="searchbox">${icons.search}<input type="search" name="q" value="${q}" placeholder="Search name, reference, location, client" aria-label="Search this section"></label>

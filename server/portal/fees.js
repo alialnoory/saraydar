@@ -35,7 +35,7 @@ function mountFees(r, ctx, P) {
   async function access(req, need = 'view') {
     if (!UUID.test(req.params.id || '')) throw new NotFound();
     const w = (await pool.query('select section from workspaces where id = $1', [req.params.id])).rows[0];
-    const impl = w && w.section === 'cpm' ? P : w && w.section === 'props' ? ctx.PR : null;
+    const impl = w && w.section === 'cpm' ? P : w && w.section === 'props' ? ctx.PR : w && w.section === 'sales' ? ctx.SL : null;
     if (!impl) throw new NotFound();
     const a = await impl.access(req, need === 'finance-edit' ? 'edit' : need);
     a.impl = impl;
@@ -139,6 +139,7 @@ function mountFees(r, ctx, P) {
 
   r.get('/w/:id/client', async (req, res) => {
     const a = await access(req);
+    if (a.ws.section === 'sales') return res.redirect(`/w/${a.ws.id}/mandate`);
     const client = await clientOf(a.ws);
     const all = await termsAll(a.ws.id);
     const draft = all.find(t => t.status === 'draft');
@@ -311,7 +312,7 @@ function mountFees(r, ctx, P) {
     const billed = new Set(L.invoices.filter(i => i.kind === 'monthly' && i.status !== 'void').map(i => iso(i.period_start).slice(0, 7)));
     const idem = crypto.randomBytes(12).toString('hex');
     res.send(page(req, a, 'Fee Billing', html`
-      ${a.ws.section === 'props' ? html`<div class="notice info">SarayDar's own management-fee account for this property, addressed to the owner. Rent, deposits and property expenses are kept separately and never counted here.${(await ctx.PR.profileOf(id)).fee_deduction_allowed ? html` Fees may be deducted from collected rent under <a href="/w/${id}/owner">Owner Account</a>.` : ''}</div>`
+      ${a.ws.section === 'sales' ? html`<div class="notice info">SarayDar's brokerage fees for this case, from its mandate. Commission invoices are prepared from the deal; the property price and any deposits are never counted here.</div>` : a.ws.section === 'props' ? html`<div class="notice info">SarayDar's own management-fee account for this property, addressed to the owner. Rent, deposits and property expenses are kept separately and never counted here.${(await ctx.PR.profileOf(id)).fee_deduction_allowed ? html` Fees may be deducted from collected rent under <a href="/w/${id}/owner">Owner Account</a>.` : ''}</div>`
         : html`<div class="notice info">SarayDar's own management-fee account for this project. The client's construction spending is kept separately under <a href="/w/${id}/budget">Client Budget &amp; Payments</a> and is never counted here.</div>`}
       <section class="grid-cards" aria-label="Fee account">
         <div class="card"><div class="muted small">Invoiced (issued)</div><div class="big">${fm(L.t.invoiced)}</div><div class="muted small">Credited ${fm(L.t.credited)}</div></div>
@@ -319,18 +320,18 @@ function mountFees(r, ctx, P) {
         <div class="card"><div class="muted small">Outstanding</div><div class="big ${L.t.overdue.length ? 'err' : ''}">${fm(L.t.outstanding)}</div><div class="muted small">${L.t.overdue.length ? html`<span class="err">${L.t.overdue.length} overdue · ${fm(L.t.overdueAmount)}</span>` : 'Nothing overdue'}</div></div>
         <div class="card"><div class="muted small">Account balance</div><div class="big">${fm(L.t.balance)}</div><div class="muted small">${L.t.balance < 0 ? 'Credit in the client\'s favour' : 'Invoiced − credited − collected'} · <a href="/w/${id}/fees/statement">Statement</a></div></div>
       </section>
-      ${!act ? html`<div class="notice warn">No management-agreement terms are in force. <a href="/w/${id}/client">Record and activate them</a> before preparing monthly invoices.</div>`
+      ${a.ws.section === 'sales' ? '' : !act ? html`<div class="notice warn">No management-agreement terms are in force. <a href="/w/${id}/client">Record and activate them</a> before preparing monthly invoices.</div>`
         : act.tax_mode === 'not_configured' ? html`<div class="notice warn">Tax treatment is not configured in the terms. Drafts can be prepared, but invoices cannot be issued until it is set under <a href="/w/${id}/client">Client &amp; Agreement</a>.</div>` : ''}
       <section class="panel"><h2 class="h">Invoices</h2>
         ${L.invoices.length ? html`<div class="table-wrap"><table><thead><tr><th>Invoice</th><th>Period / description</th><th>Issued</th><th>Due</th><th class="n">Total</th><th class="n">Credited</th><th class="n">Paid</th><th class="n">Outstanding</th><th>Status</th></tr></thead><tbody>
           ${L.invoices.map(i => { const od = i.status === 'issued' && i.outstanding > 0 && i.due_date && iso(i.due_date) < L.today; return html`<tr>
             <td class="nowrap"><a href="/w/${id}/fees/invoices/${i.id}"><b>${i.number || 'Draft'}</b></a></td>
-            <td class="small">${i.period_start ? `${fmtDate(i.period_start)} – ${fmtDate(i.period_end)}` : 'Additional charges'}</td>
+            <td class="small">${i.period_start ? `${fmtDate(i.period_start)} – ${fmtDate(i.period_end)}` : i.kind === 'commission' ? 'Brokerage fee' : 'Additional charges'}</td>
             <td class="small">${fmtDate(i.issue_date) || '—'}</td><td class="small ${od ? 'err' : ''}">${fmtDate(i.due_date) || '—'}</td>
             <td class="n">${fm(i.total, i.currency)}</td><td class="n">${i.credited ? fm(i.credited) : '—'}</td><td class="n">${i.allocated ? fm(i.allocated) : '—'}</td><td class="n">${i.status === 'issued' ? fm(i.outstanding) : '—'}</td>
             <td>${pill(od ? 'Overdue' : i.status === 'issued' && i.outstanding === 0 ? 'Paid' : i.status === 'issued' && i.allocated + i.credited > 0 ? 'Part paid' : i.status[0].toUpperCase() + i.status.slice(1), od ? 'bad' : i.status === 'issued' && i.outstanding === 0 ? 'ok' : INV_TONE[i.status])}</td></tr>`; })}</tbody></table></div>`
           : html`<p class="muted">No fee invoices yet.</p>`}
-        ${edit ? html`<div class="split">
+        ${edit && a.ws.section !== 'sales' ? html`<div class="split">
           <form method="post" action="/w/${id}/fees/drafts" class="panel-inner grow1">${csrfField(req)}<h3 class="h3">Prepare a monthly invoice draft</h3>
             <div class="form-grid">${field({ name: 'month', label: 'Billing month', options: monthsAround().map(m => [m, `${fees.monthOf(m).label}${billed.has(m) ? ' — already billed' : ''}`]), value: todayBH().slice(0, 7) })}
             <div class="actions full"><button class="btn primary" type="submit" ${act ? '' : raw('disabled')}>Prepare draft</button></div></div>
@@ -425,7 +426,8 @@ function mountFees(r, ctx, P) {
       <section class="panel"><div class="row-between"><h2 class="h">${i.number ? `Invoice ${i.number}` : 'Invoice draft'} ${pill(i.status, INV_TONE[i.status])}</h2>
         <a class="btn small" href="/w/${id}/fees/invoices/${i.id}/invoice.pdf">${draft ? 'Preview PDF' : 'Download PDF'}</a></div>
         <dl class="details">
-          <div><dt>Type</dt><dd>${i.kind === 'monthly' ? 'Monthly management fee' : 'Additional charges'}</dd></div>
+          <div><dt>Type</dt><dd>${i.kind === 'monthly' ? 'Monthly management fee' : i.kind === 'commission' ? 'Brokerage fee (commission)' : 'Additional charges'}</dd></div>
+          ${i.calc_note ? html`<div><dt>Calculation</dt><dd>${i.calc_note}</dd></div>` : ''}
           ${i.period_start ? html`<div><dt>Billing period</dt><dd>${fmtDate(i.period_start)} – ${fmtDate(i.period_end)}</dd></div>` : ''}
           <div><dt>Issue date</dt><dd>${fmtDate(i.issue_date) || '—'}</dd></div><div><dt>Due date</dt><dd>${fmtDate(i.due_date) || '—'}</dd></div>
           <div><dt>Terms used</dt><dd>${terms ? termLabel(terms) : '—'}</dd></div>
@@ -531,7 +533,7 @@ function mountFees(r, ctx, P) {
       if (i.tax_mode === 'rate' && !(await db.query('select vat_number from company_profile where id = 1')).rows[0]?.vat_number) throw bad('Add SarayDar\'s VAT registration number under Admin › Agreements (company details) before issuing a VAT invoice.');
       const t = await recalc(db, i.id);
       if (t.total <= 0) throw bad('The invoice total must be more than zero.');
-      const terms = i.terms_id ? (await db.query('select payment_terms_days from mgmt_terms where id = $1', [i.terms_id])).rows[0] : null;
+      const terms = i.terms_id ? (await db.query('select payment_terms_days from mgmt_terms where id = $1', [i.terms_id])).rows[0] : i.mandate_id ? (await db.query('select payment_terms_days from sale_mandates where id = $1', [i.mandate_id])).rows[0] : null;
       const due = fees.addDays(issue, terms ? terms.payment_terms_days : 30);
       const year = issue.slice(0, 4);
       const number = `INV-${year}-${String(await core.nextNumber(db, `INV-${year}`)).padStart(4, '0')}`;
@@ -717,7 +719,7 @@ function mountFees(r, ctx, P) {
       const ws = (await pool.query('select id, ref, name from workspaces where id = $1', [wsId])).rows[0];
       const inv = (await pool.query("select * from fee_invoices where workspace_id = $1 and number is not null", [wsId])).rows;
       for (const i of inv) {
-        ev.push({ date: iso(i.issue_date), at: i.issued_at, ws, doc: i.number, text: i.period_start ? `Invoice — management fee ${fmtDate(i.period_start)} – ${fmtDate(i.period_end)}` : 'Invoice — additional charges', debit: num(i.total_minor), credit: 0 });
+        ev.push({ date: iso(i.issue_date), at: i.issued_at, ws, doc: i.number, text: i.period_start ? `Invoice — management fee ${fmtDate(i.period_start)} – ${fmtDate(i.period_end)}` : i.kind === 'commission' ? 'Invoice — brokerage fee' : 'Invoice — additional charges', debit: num(i.total_minor), credit: 0 });
         if (i.status === 'void') ev.push({ date: bhDay(i.voided_at), at: i.voided_at, ws, doc: i.number, text: `Invoice voided: ${i.void_reason}`, debit: 0, credit: num(i.total_minor) });
       }
       for (const c of (await pool.query('select c.*, i.number as inv from fee_credit_notes c join fee_invoices i on i.id = c.invoice_id where c.workspace_id = $1', [wsId])).rows)
@@ -783,7 +785,7 @@ function mountFees(r, ctx, P) {
       tables: [{ head: ['Description', 'Amount'], widths: [0.75, 0.25], align: ['left', 'right'], rows: i.lines.map(l => [l.description, docs.money(l.amount, i.currency)]) }],
       totals: [['Subtotal', docs.money(t.subtotal, i.currency)], ...(i.tax_mode === 'rate' ? [[`${i.tax_label || 'Tax'} ${fees.pctLabel(i.tax_rate_bp || 0)}`, docs.money(t.tax, i.currency)]] : []), ['Total due', docs.money(t.total, i.currency), true],
         ...(i.status === 'issued' && (i.credited || i.allocated) ? [['Credited', docs.money(i.credited)], ['Paid', docs.money(i.allocated)], ['Outstanding', docs.money(i.outstanding), true]] : [])],
-      notes: ['This invoice requests payment of SarayDar\'s project management fee under the management agreement. It is not a receipt.', i.tax_mode === 'none' ? 'No VAT has been charged on this fee.' : null, b.company.legal_name ? `${b.company.legal_name}${b.company.cr_number ? ` · CR ${b.company.cr_number}` : ''}${i.tax_mode === 'rate' && b.company.vat_number ? ` · VAT registration ${b.company.vat_number}` : ''}` : null] });
+      notes: [i.kind === 'commission' ? `This invoice requests payment of SarayDar's brokerage fee under the mandate. ${i.calc_note || ''} The property price is not part of this invoice. It is not a receipt.` : 'This invoice requests payment of SarayDar\'s management fee under the management agreement. It is not a receipt.', i.tax_mode === 'none' ? 'No VAT has been charged on this fee.' : null, b.company.legal_name ? `${b.company.legal_name}${b.company.cr_number ? ` · CR ${b.company.cr_number}` : ''}${i.tax_mode === 'rate' && b.company.vat_number ? ` · VAT registration ${b.company.vat_number}` : ''}` : null] });
     await core.audit(null, { actor: req.user, workspaceId: a.ws.id, action: 'fee.invoice_pdf', entity: 'fee_invoice', entityId: i.id, summary: `Invoice PDF downloaded: ${i.number || 'draft'}`, ip: req.ip });
     sendPdf(res, buf, i.number || `draft-invoice-${a.ws.ref}`);
   });
