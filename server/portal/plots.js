@@ -8,7 +8,7 @@ const { parseMoney, formatMoney, toInput, num } = require('../lib/money');
 const { sniff } = require('./workspaces');
 
 const UUID = /^[0-9a-f-]{36}$/i;
-const PLOT_SECTIONS = new Set(['dev']);
+const PLOT_SECTIONS = new Set(['dev', 'cpm']);
 const bad = m => Object.assign(new Error(m), { status: 400 });
 const txt = (v, n = 200) => { const s = String(v ?? '').trim().slice(0, n); return s || null; };
 const STATUS = { owned: 'Owned', under_purchase: 'Being purchased', option: 'Option / under negotiation', client_owned: 'Owned by client', sold: 'Sold' };

@@ -225,3 +225,14 @@ tr.sub td { border-top: 0; padding-top: 0; }
 .brand { display: inline-flex; flex-direction: column; align-items: flex-start; gap: 9px; text-decoration: none; }
 .brand .band-sub { font-size: 12px; letter-spacing: .32em; text-transform: uppercase; color: #C9B6A6; padding-left: 2px; }
 @media (max-width: 640px) { .brand { gap: 7px; } .brand .band-sub { font-size: 10px; letter-spacing: .26em; } }
+/* Clients Projects Management */
+.notice.info { background: var(--sunken); color: var(--ink); }
+.notice + .panel, .notice + section, section + .notice { margin-top: 0; }
+.client-banner { display: flex; flex-wrap: wrap; gap: 14px 36px; align-items: flex-end; background: var(--surface); border: 1px solid var(--line); border-left: 4px solid var(--copper); border-radius: var(--radius); padding: 16px 20px; }
+.client-name { font-family: var(--f-display); font-size: 24px; font-weight: 500; line-height: 1.2; margin: 0; }
+.client-name a { color: inherit; text-decoration: none; } .client-name a:hover { text-decoration: underline; }
+.client-cell { font-weight: 600; }
+.panel-inner { border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; background: #fff; }
+.panel-inner .h3 { margin-top: 0; }
+fieldset { border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; }
+.nowrap { white-space: nowrap; }

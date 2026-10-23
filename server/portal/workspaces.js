@@ -56,6 +56,7 @@ function mountWorkspaces(r, ctx) {
          from audit_events e join workspaces w on w.id = e.workspace_id
         where ${vis.replace(/w\.id/g, 'w.id')} order by e.id desc limit 8`, [u.id])).rows;
     const attention = [];
+    for (const fn of ctx.attention || []) attention.push(...await fn(u));
     if (core.isSuper(u) && !mailer.configured) attention.push(['Setup', 'warn', 'Email delivery is not configured', 'Invitations, password resets and invoices stay in the Outbox until Outlook SMTP is set up.', '/admin/system']);
     if (core.isSuper(u) && ctx.mfaOn) {
       const n = (await pool.query("select count(*)::int as n from users where active and kind = 'internal' and not mfa_enabled")).rows[0].n;
@@ -132,22 +133,22 @@ function mountWorkspaces(r, ctx) {
     const from = `from workspaces w left join parties p on p.id = w.party_id left join users mu on mu.id = w.manager_id where ${where.join(' and ')}`;
     const total = (await pool.query(`select count(*)::int as n ${from}`, vals)).rows[0].n;
     const rows = (await pool.query(`select w.*, p.name as party_name, coalesce(mu.name, mu.email) as manager_name ${from} order by ${sort} limit ${req.exportAll ? 5000 : PER_PAGE} offset ${req.exportAll ? 0 : (page - 1) * PER_PAGE}`, vals)).rows;
-    const extra = ctx.portfolioExtras && ctx.portfolioExtras[s.key] && rows.length ? await ctx.portfolioExtras[s.key](rows.map(x => x.id)) : null;
+    const extra = ctx.portfolioExtras && ctx.portfolioExtras[s.key] && rows.length ? await ctx.portfolioExtras[s.key](rows.map(x => x.id), req.user) : null;
     const createKinds = [];
     for (const [k, c] of Object.entries(s.create)) if (await core.can(req.user, `create:${s.key}`)) createKinds.push([k, c]);
     const partyLabel = (s.create[kind || s.kinds[0]] || {}).party;
     const qs = extra => { const p = new URLSearchParams({ ...(kind ? { kind } : {}), ...(q ? { q } : {}), status, ...extra }); return `?${p}`; };
     res.send(layout(req, { title: s.name, heading: s.name, crumbs: [['Home', '/'], [s.name]],
       tabs: s.tabs ? s.tabs.map(([k, l]) => [l, `/s/${s.key}?kind=${k}`, k === kind]) : null,
-      actions: createKinds.length ? html`<div class="actions">${createKinds.map(([k, c]) => html`<a class="btn accent" href="/s/${s.key}/new?kind=${k}">+ ${c.label}</a>`)}</div>` : null,
+      actions: createKinds.length || s.key === 'cpm' ? html`<div class="actions">${s.key === 'cpm' && (core.isSuper(req.user) || createKinds.length || await core.can(req.user, 'finance:post')) ? html`<a class="btn" href="/clients">Clients</a>` : ''}${createKinds.map(([k, c]) => html`<a class="btn accent" href="/s/${s.key}/new?kind=${k}">+ ${c.label}</a>`)}</div>` : null,
       body: html`
       <form class="filters" method="get">${kind ? html`<input type="hidden" name="kind" value="${kind}">` : ''}
         <label class="searchbox">${icons.search}<input type="search" name="q" value="${q}" placeholder="Search name, reference, location, client" aria-label="Search this section"></label>
         <select name="status" aria-label="Status">${[['open', 'Active & on hold'], ['active', 'Active'], ['on_hold', 'On hold'], ['completed', 'Completed'], ['archived', 'Archived'], ['all', 'All']].map(([v, l]) => html`<option value="${v}" ${v === status ? raw('selected') : ''}>${l}</option>`)}</select>
         <select name="sort" aria-label="Sort">${[['updated', 'Recently updated'], ['name', 'Name'], ['ref', 'Reference'], ['created', 'Newest']].map(([v, l]) => html`<option value="${v}" ${v === (req.query.sort || 'updated') ? raw('selected') : ''}>${l}</option>`)}</select>
         <button class="btn" type="submit">Apply</button></form>
-      ${rows.length ? html`<div class="table-wrap"><table><thead><tr><th>Name</th><th>Reference</th>${partyLabel ? html`<th>${partyLabel.label}</th>` : ''}<th>Location</th><th>Manager</th>${extra ? html`<th>Progress</th><th>Next milestone</th><th>Alerts</th>` : ''}<th>Status</th><th>Updated</th></tr></thead><tbody>
-        ${rows.map(w => html`<tr><td><a href="/w/${w.id}"><b>${w.name}</b></a>${w.stage ? html`<div class="muted small">${w.stage}</div>` : ''}</td><td class="mono">${w.ref}</td>${partyLabel ? html`<td>${w.party_name || '—'}</td>` : ''}<td>${w.location || '—'}</td><td>${w.manager_name || '—'}</td>${extra ? html`<td>${extra[w.id].progress}</td><td class="small">${extra[w.id].next}</td><td>${extra[w.id].alerts ? pill(String(extra[w.id].alerts), 'bad') : '—'}</td>` : ''}<td>${statusPill(w.status)}</td><td class="small">${fmtDate(w.updated_at)}</td></tr>`)}
+      ${rows.length ? html`<div class="table-wrap"><table><thead><tr>${s.key === 'cpm' ? html`<th>Client</th>` : ''}<th>Name</th><th>Reference</th>${partyLabel && s.key !== 'cpm' ? html`<th>${partyLabel.label}</th>` : ''}<th>Location</th><th>Manager</th>${extra ? html`<th>Progress</th><th>Next milestone</th>${s.key === 'cpm' ? html`<th>Unpaid fees</th>` : ''}<th>Alerts</th>` : ''}<th>Status</th><th>Updated</th></tr></thead><tbody>
+        ${rows.map(w => html`<tr>${s.key === 'cpm' ? html`<td class="client-cell">${w.party_name || html`<span class="muted">Not linked</span>`}</td>` : ''}<td><a href="/w/${w.id}"><b>${w.name}</b></a>${w.stage ? html`<div class="muted small">${w.stage}</div>` : ''}</td><td class="mono">${w.ref}</td>${partyLabel && s.key !== 'cpm' ? html`<td>${w.party_name || '—'}</td>` : ''}<td>${w.location || '—'}</td><td>${w.manager_name || '—'}</td>${extra ? html`<td>${extra[w.id].progress}</td><td class="small">${extra[w.id].next}</td>${s.key === 'cpm' ? html`<td class="n">${extra[w.id].fees}</td>` : ''}<td>${extra[w.id].alerts ? pill(String(extra[w.id].alerts), 'bad') : '—'}</td>` : ''}<td>${statusPill(w.status)}</td><td class="small">${fmtDate(w.updated_at)}</td></tr>`)}
         </tbody></table></div>${pager(req, total, page, PER_PAGE)}`
         : emptyState(q || status !== 'open' ? 'Nothing matches these filters' : s.empty, createKinds.length && !q ? 'Use the button above to add the first one.' : 'Items appear here when you are added to them.')}` }));
   });
@@ -165,7 +166,7 @@ function mountWorkspaces(r, ctx) {
         ${field({ name: 'location', label: 'Location', value: vals.location || '', attrs: 'maxlength="200"', hint: 'Leave empty if not yet determined.' })}
         ${field({ name: 'manager', label: 'Responsible manager', value: vals.manager || req.user.id, options: [['', 'Not yet assigned'], ...users.map(x => [x.id, x.label])] })}
         ${field({ name: 'stage', label: 'Current stage', value: vals.stage || '', attrs: 'maxlength="80"', hint: 'Free text for now, e.g. Feasibility, Design, Construction.' })}
-        <p class="muted small full">The guided setup questionnaire for this section is added in a later phase. Everything entered here can be edited later.</p>
+        <p class="muted small full">${['dev', 'cpm'].includes(s.key) ? 'After creating it, the guided setup asks the remaining questions. Everything entered here can be edited later.' : 'The guided setup questionnaire for this section is added in a later phase. Everything entered here can be edited later.'}${s.key === 'cpm' ? html` New clients get a basic record; complete their profile under <a href="/clients">Clients</a>.` : ''}</p>
         ${err ? html`<p class="err full" role="alert">${err}</p>` : ''}
         <div class="full actions"><button class="btn primary" type="submit">Create</button><a class="btn" href="/s/${s.key}">Cancel</a></div>
       </form>` }));
@@ -175,7 +176,8 @@ function mountWorkspaces(r, ctx) {
     const s = sectionOf(req.params.section);
     const kind = s.create[req.query.kind] ? req.query.kind : Object.keys(s.create)[0];
     if (!(await core.can(req.user, `create:${s.key}`))) throw new Forbidden('Your role cannot create items in this section.');
-    await createForm(req, res, s, kind);
+    const pre = UUID.test(req.query.client || '') ? (await pool.query('select name from parties where id = $1', [req.query.client])).rows[0] : null;
+    await createForm(req, res, s, kind, '', pre ? { party: pre.name } : {});
   });
 
   r.post('/s/:section/new', async (req, res) => {

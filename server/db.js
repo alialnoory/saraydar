@@ -6,6 +6,10 @@ const { promisify } = require('util');
 
 const scrypt = promisify(crypto.scrypt);
 
+// Calendar dates (SQL DATE) stay as 'YYYY-MM-DD' text. Converting them to JavaScript Date objects would
+// place them at local midnight and shift them by a day wherever the server clock is not UTC.
+require('pg').types.setTypeParser(1082, v => v);
+
 const COLLECTIONS = ['tasks', 'costs', 'payments', 'units', 'risks', 'log', 'meta'];
 const ROLES = ['admin', 'editor', 'site', 'viewer'];
 

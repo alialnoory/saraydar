@@ -9,11 +9,11 @@ const { layout, html, raw, pill, statusPill, csrfField, emptyState, field, fmtDa
 const { SECTIONS, KIND_LABEL } = require('./core');
 const { parseMoney, formatMoney, toInput, num } = require('../lib/money');
 const progress = require('../lib/progress');
-const setup = require('../lib/setup-dev');
+const SETUPS = { dev: require('../lib/setup-dev'), cpm: require('../lib/setup-cpm') };
 const { sniff } = require('./workspaces');
 
 const UUID = /^[0-9a-f-]{36}$/i;
-const PROJECT_SECTIONS = new Set(['dev']);
+const PROJECT_SECTIONS = new Set(['dev', 'cpm']);
 const bad = m => Object.assign(new Error(m), { status: 400 });
 const txt = (v, n = 300) => { const s = String(v ?? '').trim().slice(0, n); return s || null; };
 const dateOrNull = v => /^\d{4}-\d{2}-\d{2}$/.test(String(v || '')) ? v : null;
@@ -35,6 +35,9 @@ const REG = {
   meeting: { label: 'Meetings', one: 'meeting', statuses: ['scheduled', 'held', 'cancelled'] },
   handover: { label: 'Handover & defects', one: 'item', statuses: ['open', 'fixed', 'verified', 'closed'] }
 };
+const COMMIT_KIND = { contract: 'Contract', order: 'Purchase order', appointment: 'Consultant appointment', variation: 'Approved variation' };
+const DOC_TYPE = { invoice: 'Invoice', payment_application: 'Contractor payment application', consultant_fee: 'Consultant fee', variation: 'Variation' };
+const PAYER = { client: 'Client (direct)', on_behalf: 'SarayDar on the client\'s behalf (exceptional)', other: 'Other party' };
 const humanize = s => String(s || '').replace(/_/g, ' ').replace(/^./, c => c.toUpperCase());
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024, files: 12, fields: 30 } });
 
@@ -59,8 +62,13 @@ function mountProjects(r, ctx) {
   };
   const touch = (db, wsId) => db.query('update workspaces set updated_at = now() where id = $1', [wsId]);
 
+  const budgetTab = a => a.ws.section === 'cpm' ? 'Client Budget & Payments' : 'Budget & Cost';
   function tabs(a, cur) {
     const id = a.ws.id;
+    if (a.ws.section === 'cpm') return [['Overview', `/w/${id}`], ['Client & Agreement', `/w/${id}/client`], ['Setup', `/w/${id}/setup`], ['Land & Plots', `/w/${id}/plots`], ['Plan', `/w/${id}/plan`], ['Tasks & Schedule', `/w/${id}/tasks`],
+      ...(a.finance !== false ? [['Client Budget & Payments', `/w/${id}/budget`], ['Fee Billing', `/w/${id}/fees`]] : []), ['Client Approvals', `/w/${id}/approvals`], ['Progress Updates', `/w/${id}/updates`], ['Registers', `/w/${id}/registers`],
+      ['Agreements', `/w/${id}/agreements`], ['Documents', `/w/${id}/documents`], ['Reports', `/w/${id}/reports`], ['Access & Invitations', `/w/${id}/access`], ['Activity', `/w/${id}/activity`]]
+      .map(([l, h]) => [l, h, l === cur]);
     return [['Overview', `/w/${id}`], ['Setup', `/w/${id}/setup`], ['Land & Plots', `/w/${id}/plots`], ['Plan', `/w/${id}/plan`], ['Tasks & Schedule', `/w/${id}/tasks`],
       ...(a.finance !== false ? [['Budget & Cost', `/w/${id}/budget`]] : []), ['Progress Updates', `/w/${id}/updates`], ['Registers', `/w/${id}/registers`],
       ['Units & Sales', `/w/${id}/units`], ['Agreements', `/w/${id}/agreements`], ['Documents', `/w/${id}/documents`], ['Reports', `/w/${id}/reports`], ['Access & Invitations', `/w/${id}/access`], ['Activity', `/w/${id}/activity`]]
@@ -76,6 +84,7 @@ function mountProjects(r, ctx) {
 
   ctx.tabsFor = ctx.tabsFor || {};
   ctx.tabsFor.dev = (a, cur) => tabs(a, cur);
+  ctx.tabsFor.cpm = (a, cur) => tabs(a, cur);
 
   // ---------- shared loaders ----------
   async function plans(wsId) {
@@ -154,7 +163,7 @@ function mountProjects(r, ctx) {
         <div class="card"><div class="muted small">Open risks</div><div class="big">${m.risks.open}</div><div class="muted small">${m.risks.high} with high impact</div></div>
       </section>
       <div class="split">
-        ${finance ? html`<section class="panel grow1"><h2 class="h">Budget &amp; cost</h2>
+        ${finance ? html`<section class="panel grow1"><h2 class="h">${a.ws.section === 'cpm' ? 'Client budget & payments' : raw('Budget &amp; cost')}</h2>
           <table class="kv"><tbody>
             <tr><th>Approved budget (baseline)</th><td>${bs.total.original === null ? html`<span class="muted">No baseline yet</span>` : fm(bs.total.original)}</td></tr>
             <tr><th>Current budget</th><td>${bs.total.revised === null ? html`<span class="muted">Incomplete: ${bs.rows.filter(x => x.revised === null).length} lines not set</span>` : fm(bs.total.revised)}</td></tr>
@@ -190,11 +199,13 @@ function mountProjects(r, ctx) {
   r.get('/w/:id/setup', async (req, res) => {
     const a = await access(req);
     const d = await loadDraft(a.ws.id);
+    const setup = SETUPS[a.ws.section];
     const next = setup.STEPS.find(s => !s.fields.some(f => f.k in d.answers));
     res.redirect(`/w/${a.ws.id}/setup/${d.status === 'reviewed' || !next ? 'review' : next.key}`);
   });
 
   function stepNav(a, d, cur) {
+    const setup = SETUPS[a.ws.section];
     return html`<nav class="steps-nav" aria-label="Setup steps"><ol>${[...setup.STEPS, { key: 'review', title: 'Review' }].map((s, i) => {
       const done = s.key !== 'review' && s.fields.some(f => f.k in d.answers);
       return html`<li class="${s.key === cur ? 'on' : done ? 'done' : ''}"><a href="/w/${a.ws.id}/setup/${s.key}" ${s.key === cur ? raw('aria-current="step"') : ''}><span>${i + 1}</span>${s.title}</a></li>`;
@@ -204,7 +215,9 @@ function mountProjects(r, ctx) {
   r.get('/w/:id/setup/review', async (req, res) => {
     const a = await access(req);
     const d = await loadDraft(a.ws.id);
-    const rv = setup.review(d.answers);
+    const setup = SETUPS[a.ws.section];
+    const noTerms = a.ws.section === 'cpm' && !(await pool.query("select 1 from mgmt_terms where workspace_id = $1 and status = 'active'", [a.ws.id])).rowCount;
+    const rv = setup.review(d.answers, { noTerms });
     const pl = await plans(a.ws.id);
     const tasks = (await pool.query('select count(*)::int as n from tasks where workspace_id = $1 and archived_at is null', [a.ws.id])).rows[0].n;
     const plotSum = (await pool.query('select count(*)::int as n, sum(area_m2) as area, count(area_m2)::int as with_area from plots where workspace_id = $1 and archived_at is null', [a.ws.id])).rows[0];
@@ -221,7 +234,7 @@ function mountProjects(r, ctx) {
     res.send(page(req, a, 'Setup', html`${stepNav(a, d, 'review')}
       <section class="panel"><h2 class="h">Review</h2>
         <div class="split">
-          <div class="grow1"><h3 class="h3">Missing</h3>${rv.missing.length ? html`<ul>${rv.missing.map(m => html`<li>${m.label}${m.required ? html` ${pill('Required', 'bad')}` : ''} <a href="/w/${a.ws.id}/setup/${m.step}">add</a></li>`)}</ul>` : html`<p class="muted">Nothing missing.</p>`}</div>
+          <div class="grow1"><h3 class="h3">Missing</h3>${rv.missing.length ? html`<ul>${rv.missing.map(m => html`<li>${m.label}${m.required ? html` ${pill('Required', 'bad')}` : ''} <a href="/w/${a.ws.id}/${m.href || `setup/${m.step}`}">add</a></li>`)}</ul>` : html`<p class="muted">Nothing missing.</p>`}</div>
           <div class="grow1"><h3 class="h3">Not yet determined</h3>${rv.unknown.length ? html`<ul>${rv.unknown.map(u => html`<li>${u}</li>`)}</ul>` : html`<p class="muted">None.</p>`}</div>
           <div class="grow1"><h3 class="h3">Conflicts to check</h3>${rv.conflicts.length ? html`<ul>${rv.conflicts.map(c => html`<li class="err">${c}</li>`)}</ul>` : html`<p class="muted">None found.</p>`}</div>
         </div></section>
@@ -239,6 +252,7 @@ function mountProjects(r, ctx) {
 
   r.get('/w/:id/setup/:step', async (req, res) => {
     const a = await access(req);
+    const setup = SETUPS[a.ws.section];
     const step = setup.STEPS.find(s => s.key === req.params.step);
     if (!step) throw new NotFound();
     const d = await loadDraft(a.ws.id);
@@ -266,6 +280,7 @@ function mountProjects(r, ctx) {
 
   r.post('/w/:id/setup/:step', async (req, res) => {
     const a = await access(req, 'edit');
+    const setup = SETUPS[a.ws.section];
     const step = setup.STEPS.find(s => s.key === req.params.step);
     if (!step) throw new NotFound();
     const vals = setup.readStep(step, req.body);
@@ -290,6 +305,7 @@ function mountProjects(r, ctx) {
   r.post('/w/:id/plan/generate', async (req, res) => {
     const a = await access(req, 'edit');
     const d = await loadDraft(a.ws.id);
+    const setup = SETUPS[a.ws.section];
     if (!setup.review(d.answers).ready) throw bad('Answer the required setup questions first.');
     const g = setup.generate(d.answers);
     await core.inTx(async db => {
@@ -646,8 +662,10 @@ function mountProjects(r, ctx) {
     const canConfirm = core.isSuper(req.user) || await core.can(req.user, 'finance:post');
     const lineOpts = [['', 'Not assigned to a line'], ...b.rows.map(l => [l.id, `${l.category} · ${l.description}`])];
     const id = a.ws.id;
-    res.send(page(req, a, 'Budget & Cost', html`
-      <section class="panel"><h2 class="h">Budget lines <span class="muted small">BHD</span></h2>
+    const cpm = a.ws.section === 'cpm';
+    res.send(page(req, a, budgetTab(a), html`
+      ${cpm ? html`<div class="notice info">These are the <b>client's</b> construction budget and payments. They are never SarayDar revenue or expense. SarayDar's own management fees are kept separately under <a href="/w/${id}/fees">Fee Billing</a>.</div>` : ''}
+      <section class="panel"><h2 class="h">${cpm ? 'Client budget lines' : 'Budget lines'} <span class="muted small">BHD</span></h2>
         <div class="table-wrap"><table class="nums"><thead><tr><th>Line</th><th class="n">Baseline</th><th class="n">Current budget</th><th class="n">Committed</th><th class="n">Incurred</th><th class="n">Paid</th><th class="n">Open commitments</th><th class="n">Forecast uncommitted</th><th class="n">Est. at completion</th><th class="n">Variance</th></tr></thead><tbody>
           ${b.rows.map(l => html`<tr><td><b>${l.description}</b><div class="muted small">${l.category}${l.source !== 'entered' ? ` · ${humanize(l.source)}` : ''}${!l.verified ? ' · unverified' : ''}</div></td>
             <td class="n">${fm(l.original)}</td><td class="n">${l.revised === null ? html`<span class="muted">Not set</span>` : fm(l.revised)}</td><td class="n">${fm(l.committed)}</td><td class="n">${fm(l.incurred)}</td>
@@ -671,34 +689,35 @@ function mountProjects(r, ctx) {
           ${field({ name: 'category', label: 'Category', required: true })}${field({ name: 'description', label: 'Description', required: true })}
           ${field({ name: 'revised', label: 'Budget (BHD)', attrs: 'inputmode="decimal"' })}<div class="actions full"><button class="btn" type="submit">Add line</button></div></form>
       </section>` : ''}
-      <section class="panel"><h2 class="h">Commitments (contracts and orders)</h2>
+      <section class="panel"><h2 class="h">Commitments (contracts, orders, appointments and variations)</h2>
         ${commits.length ? html`<div class="table-wrap"><table><thead><tr><th>Counterparty</th><th>Line</th><th>Reference</th><th>Date</th><th class="n">Value</th><th>Status</th></tr></thead><tbody>
-          ${commits.map(c => html`<tr><td>${c.counterparty}${c.description ? html`<div class="muted small">${c.description}</div>` : ''}</td><td class="small">${c.line || '—'}</td><td class="small">${c.reference || '—'}</td><td class="small">${fmtDate(c.committed_on) || '—'}</td><td class="n">${fm(num(c.value_minor), c.currency)}</td><td>${humanize(c.status)}</td></tr>`)}</tbody></table></div>` : html`<p class="muted">None yet.</p>`}
+          ${commits.map(c => html`<tr><td>${c.counterparty} ${c.kind !== 'contract' ? pill(COMMIT_KIND[c.kind] || c.kind, 'info') : ''}${c.description ? html`<div class="muted small">${c.description}</div>` : ''}</td><td class="small">${c.line || '—'}</td><td class="small">${c.reference || '—'}</td><td class="small">${fmtDate(c.committed_on) || '—'}</td><td class="n">${fm(num(c.value_minor), c.currency)}</td><td>${humanize(c.status)}</td></tr>`)}</tbody></table></div>` : html`<p class="muted">None yet.</p>`}
         ${edit ? html`<details class="inline-form"><summary>Add commitment</summary><form method="post" action="/w/${id}/budget/commitments" class="form-grid">${csrfField(req)}
-          ${field({ name: 'counterparty', label: 'Contractor / supplier', required: true })}${field({ name: 'budget_line_id', label: 'Budget line', options: lineOpts })}
+          ${field({ name: 'counterparty', label: 'Contractor / supplier / consultant', required: true })}${field({ name: 'kind', label: 'Type', options: Object.entries(COMMIT_KIND) })}${field({ name: 'budget_line_id', label: 'Budget line', options: lineOpts })}
           ${field({ name: 'value', label: 'Value (BHD)', required: true, attrs: 'inputmode="decimal"' })}${field({ name: 'committed_on', label: 'Date', type: 'date' })}
           ${field({ name: 'reference', label: 'Contract / order reference' })}${field({ name: 'description', label: 'Scope' })}
           <div class="actions full"><button class="btn primary" type="submit">Add commitment</button></div></form></details>` : ''}
       </section>
-      <section class="panel"><h2 class="h">Supplier invoices</h2>
+      <section class="panel"><h2 class="h">${cpm ? 'Contractor payment applications, consultant fees and invoices' : 'Supplier invoices'}</h2>
         ${invoices.length ? html`<div class="table-wrap"><table><thead><tr><th>Supplier</th><th>Invoice</th><th>Line</th><th class="n">Amount</th><th>Status</th><th></th></tr></thead><tbody>
-          ${invoices.map(i => html`<tr><td>${i.supplier}${i.commit_to ? html`<div class="muted small">against ${i.commit_to}</div>` : ''}</td><td class="small">${i.invoice_no || '—'} · ${fmtDate(i.invoice_date) || 'no date'}</td><td class="small">${i.line || '—'}</td><td class="n">${fm(num(i.amount_minor), i.currency)}</td>
-            <td>${pill(humanize(i.status), i.status === 'approved' ? 'ok' : i.status === 'rejected' ? 'bad' : 'warn')}</td>
-            <td>${edit && i.status === 'submitted' ? html`<form method="post" action="/w/${id}/budget/invoices/${i.id}" class="actions">${csrfField(req)}<button class="btn small" name="decision" value="approved">Approve</button><button class="btn small" name="decision" value="rejected">Reject</button></form>` : ''}</td></tr>`)}</tbody></table></div>` : html`<p class="muted">None yet.</p>`}
+          ${invoices.map(i => html`<tr><td>${i.supplier} ${i.doc_type !== 'invoice' ? pill(DOC_TYPE[i.doc_type] || i.doc_type, 'info') : ''}${i.commit_to ? html`<div class="muted small">against ${i.commit_to}</div>` : ''}</td><td class="small">${i.invoice_no || '—'} · ${fmtDate(i.invoice_date) || 'no date'}</td><td class="small">${i.line || '—'}</td><td class="n">${fm(num(i.amount_minor), i.currency)}</td>
+            <td>${pill(humanize(i.status), i.status === 'approved' ? 'ok' : i.status === 'rejected' ? 'bad' : i.status === 'reviewed' ? 'info' : 'warn')}</td>
+            <td>${edit && ['submitted', 'reviewed'].includes(i.status) ? html`<form method="post" action="/w/${id}/budget/invoices/${i.id}" class="actions">${csrfField(req)}${i.status === 'submitted' ? html`<button class="btn small" name="decision" value="reviewed">Mark reviewed</button>` : ''}${!cpm || i.status === 'reviewed' ? html`<button class="btn small" name="decision" value="approved">Approve</button>` : ''}<button class="btn small" name="decision" value="rejected">Reject</button></form>` : ''}</td></tr>`)}</tbody></table></div>` : html`<p class="muted">None yet.</p>`}
         ${edit ? html`<details class="inline-form"><summary>Record an invoice</summary><form method="post" action="/w/${id}/budget/invoices" class="form-grid">${csrfField(req)}
-          ${field({ name: 'supplier', label: 'Supplier', required: true })}${field({ name: 'invoice_no', label: 'Invoice number' })}
+          ${field({ name: 'supplier', label: cpm ? 'Contractor / consultant / supplier' : 'Supplier', required: true })}${field({ name: 'doc_type', label: 'Document', options: Object.entries(DOC_TYPE) })}${field({ name: 'invoice_no', label: 'Invoice / application number' })}
           ${field({ name: 'amount', label: 'Amount (BHD)', required: true, attrs: 'inputmode="decimal"' })}${field({ name: 'invoice_date', label: 'Invoice date', type: 'date' })}
           ${field({ name: 'budget_line_id', label: 'Budget line', options: lineOpts })}${field({ name: 'commitment_id', label: 'Against commitment', options: [['', 'None'], ...commits.map(c => [c.id, `${c.counterparty} · ${fm(num(c.value_minor))}`])] })}
-          <div class="actions full"><button class="btn primary" type="submit">Record invoice</button></div><p class="muted small full">Recording is not approval; approval is not payment.</p></form></details>` : ''}
+          <div class="actions full"><button class="btn primary" type="submit">Record invoice</button></div><p class="muted small full">Submitted → reviewed → approved → paid are separate steps.${cpm ? ' Client projects need a review before approval.' : ''} Recording is not approval; approval is not payment.</p></form></details>` : ''}
       </section>
       <section class="panel"><h2 class="h">Payments</h2>
         ${payments.length ? html`<div class="table-wrap"><table><thead><tr><th>Payee</th><th>For</th><th>Paid on</th><th>Reference</th><th class="n">Amount</th><th>Status</th><th></th></tr></thead><tbody>
-          ${payments.map(p => html`<tr><td>${p.payee}<div class="muted small">Payer: ${p.payer}</div></td><td class="small">${p.invoice_no ? `Invoice ${p.invoice_no}` : p.line || '—'}${p.notes ? html`<div class="muted">${p.notes}</div>` : ''}</td><td class="small">${fmtDate(p.paid_on) || html`<span class="warn-text">date missing</span>`}</td><td class="small">${p.reference || '—'}</td>
+          ${payments.map(p => html`<tr><td>${p.payee}<div class="muted small">Payer: ${p.payer}${p.on_behalf ? html` ${pill('On behalf of client', 'warn')}` : ''}${p.approval_ref ? ` · approval ${p.approval_ref}` : ''}</div></td><td class="small">${p.invoice_no ? `Invoice ${p.invoice_no}` : p.line || '—'}${p.notes ? html`<div class="muted">${p.notes}</div>` : ''}</td><td class="small">${fmtDate(p.paid_on) || html`<span class="warn-text">date missing</span>`}</td><td class="small">${p.reference || '—'}</td>
             <td class="n">${fm(num(p.amount_minor), p.currency)}</td><td>${pill(p.status === 'pending' ? 'Awaiting confirmation' : humanize(p.status), p.status === 'confirmed' ? 'ok' : p.status === 'reversed' ? 'muted' : 'warn')}</td>
             <td>${canConfirm && p.status === 'pending' ? html`<form method="post" action="/w/${id}/budget/payments/${p.id}/confirm" class="actions">${csrfField(req)}<input type="date" name="paid_on" aria-label="Paid on" value="${iso(p.paid_on) || ''}" required><button class="btn small" type="submit">Confirm</button></form>` : ''}
               ${canConfirm && p.status === 'confirmed' ? html`<form method="post" action="/w/${id}/budget/payments/${p.id}/reverse" class="actions">${csrfField(req)}<input name="reason" aria-label="Reason" placeholder="Reason" required><button class="btn small" type="submit">Reverse</button></form>` : ''}</td></tr>`)}</tbody></table></div>` : html`<p class="muted">None yet.</p>`}
         ${edit ? html`<details class="inline-form"><summary>Record a payment</summary><form method="post" action="/w/${id}/budget/payments" class="form-grid">${csrfField(req)}
           ${field({ name: 'payee', label: 'Payee', required: true })}${field({ name: 'amount', label: 'Amount (BHD)', required: true, attrs: 'inputmode="decimal"' })}
+          ${cpm ? html`${field({ name: 'payer', label: 'Paid by', options: Object.entries(PAYER) })}${field({ name: 'approval_ref', label: 'Client approval for a payment on the client\'s behalf', hint: 'Required only when SarayDar pays on the client\'s behalf: reference of the recorded client approval.' })}` : ''}
           ${field({ name: 'invoice_id', label: 'For invoice', options: [['', 'No invoice'], ...invoices.filter(i => i.status === 'approved').map(i => [i.id, `${i.supplier} ${i.invoice_no || ''} · ${fm(num(i.amount_minor))}`])] })}
           ${field({ name: 'budget_line_id', label: 'Budget line (if no invoice)', options: lineOpts })}
           ${field({ name: 'paid_on', label: 'Paid on', type: 'date' })}${field({ name: 'method', label: 'Method' })}${field({ name: 'reference', label: 'Bank / cheque reference' })}${field({ name: 'notes', label: 'Notes' })}
@@ -745,8 +764,8 @@ function mountProjects(r, ctx) {
     const value = moneyField(req.body.value, 'the value', true);
     const line = await lineOf(req.body.budget_line_id, a.ws.id);
     await core.inTx(async db => {
-      const id = (await db.query('insert into commitments (workspace_id, budget_line_id, counterparty, description, reference, committed_on, value_minor, created_by) values ($1,$2,$3,$4,$5,$6,$7,$8) returning id',
-        [a.ws.id, line, counterparty, txt(req.body.description, 300), txt(req.body.reference, 80), dateOrNull(req.body.committed_on), value, req.user.id])).rows[0].id;
+      const id = (await db.query('insert into commitments (workspace_id, budget_line_id, counterparty, description, reference, committed_on, value_minor, created_by, kind) values ($1,$2,$3,$4,$5,$6,$7,$8,$9) returning id',
+        [a.ws.id, line, counterparty, txt(req.body.description, 300), txt(req.body.reference, 80), dateOrNull(req.body.committed_on), value, req.user.id, COMMIT_KIND[req.body.kind] ? req.body.kind : 'contract'])).rows[0].id;
       await core.audit(db, { actor: req.user, workspaceId: a.ws.id, action: 'cost.commitment_added', entity: 'commitment', entityId: id, summary: `Commitment: ${counterparty} ${formatMoney(value)}`, ip: req.ip });
       await touch(db, a.ws.id);
     });
@@ -762,8 +781,8 @@ function mountProjects(r, ctx) {
     if (commit && !line) line = commit.budget_line_id;
     try {
       await core.inTx(async db => {
-        const id = (await db.query('insert into cost_invoices (workspace_id, budget_line_id, commitment_id, supplier, invoice_no, invoice_date, amount_minor, created_by) values ($1,$2,$3,$4,$5,$6,$7,$8) returning id',
-          [a.ws.id, line, commit && commit.id, supplier, txt(req.body.invoice_no, 60), dateOrNull(req.body.invoice_date), amount, req.user.id])).rows[0].id;
+        const id = (await db.query('insert into cost_invoices (workspace_id, budget_line_id, commitment_id, supplier, invoice_no, invoice_date, amount_minor, created_by, doc_type) values ($1,$2,$3,$4,$5,$6,$7,$8,$9) returning id',
+          [a.ws.id, line, commit && commit.id, supplier, txt(req.body.invoice_no, 60), dateOrNull(req.body.invoice_date), amount, req.user.id, DOC_TYPE[req.body.doc_type] ? req.body.doc_type : 'invoice'])).rows[0].id;
         await core.audit(db, { actor: req.user, workspaceId: a.ws.id, action: 'cost.invoice_recorded', entity: 'cost_invoice', entityId: id, summary: `Invoice recorded: ${supplier} ${formatMoney(amount)}`, ip: req.ip });
         await touch(db, a.ws.id);
       });
@@ -774,11 +793,14 @@ function mountProjects(r, ctx) {
   r.post('/w/:id/budget/invoices/:iid', async (req, res) => {
     const a = await financeAccess(req, 'edit');
     const i = await own('cost_invoices', req.params.iid, a.ws.id);
-    const decision = ['approved', 'rejected'].includes(req.body.decision) ? req.body.decision : null;
-    if (!decision) throw bad('Choose approve or reject.');
+    const decision = ['reviewed', 'approved', 'rejected'].includes(req.body.decision) ? req.body.decision : null;
+    if (!decision) throw bad('Choose review, approve or reject.');
+    const from = decision === 'reviewed' ? ['submitted'] : decision === 'approved' && a.ws.section === 'cpm' ? ['reviewed'] : ['submitted', 'reviewed'];
     await core.inTx(async db => {
-      const n = (await db.query("update cost_invoices set status = $2, decided_by = $3, decided_at = now() where id = $1 and status = 'submitted'", [i.id, decision, req.user.id])).rowCount;
-      if (!n) throw bad('This invoice has already been decided.');
+      const n = decision === 'reviewed'
+        ? (await db.query("update cost_invoices set status = 'reviewed', reviewed_by = $2, reviewed_at = now() where id = $1 and status = 'submitted'", [i.id, req.user.id])).rowCount
+        : (await db.query('update cost_invoices set status = $2, decided_by = $3, decided_at = now() where id = $1 and status = any($4::text[])', [i.id, decision, req.user.id, from])).rowCount;
+      if (!n) throw bad(decision === 'approved' && a.ws.section === 'cpm' && i.status === 'submitted' ? 'Review this item before approving it.' : 'This item is not at a stage where that can be done.');
       await core.audit(db, { actor: req.user, workspaceId: a.ws.id, action: `cost.invoice_${decision}`, entity: 'cost_invoice', entityId: i.id, summary: `Invoice ${decision}: ${i.supplier} ${formatMoney(num(i.amount_minor))}`, ip: req.ip });
       await touch(db, a.ws.id);
     });
@@ -792,14 +814,19 @@ function mountProjects(r, ctx) {
     const inv = req.body.invoice_id ? await own('cost_invoices', req.body.invoice_id, a.ws.id) : null;
     if (inv && inv.status !== 'approved') throw bad('Only approved invoices can be paid.');
     let line = inv ? inv.budget_line_id : await lineOf(req.body.budget_line_id, a.ws.id);
+    const cpm = a.ws.section === 'cpm';
+    const payerKey = cpm ? (PAYER[req.body.payer] ? req.body.payer : 'client') : null;
+    const approvalRef = txt(req.body.approval_ref, 120);
+    if (payerKey === 'on_behalf' && !approvalRef) throw bad('A payment on the client\'s behalf needs the reference of the client\'s approval.');
+    const payer = cpm ? (payerKey === 'client' ? 'Client' : payerKey === 'on_behalf' ? 'SarayDar (on behalf of the client)' : 'Other party') : 'SarayDar';
     await core.inTx(async db => {
       if (inv) {
         await db.query('select id from cost_invoices where id = $1 for update', [inv.id]);
         const paid = num((await db.query("select coalesce(sum(amount_minor),0) as s from cost_payments where invoice_id = $1 and status in ('pending','confirmed')", [inv.id])).rows[0].s);
         if (paid + amount > num(inv.amount_minor)) throw bad(`That would pay more than the invoice. Remaining: ${formatMoney(num(inv.amount_minor) - paid)}.`);
       }
-      const id = (await db.query('insert into cost_payments (workspace_id, budget_line_id, invoice_id, commitment_id, payee, amount_minor, paid_on, method, reference, notes, created_by) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) returning id',
-        [a.ws.id, line, inv && inv.id, inv && inv.commitment_id, payee, amount, dateOrNull(req.body.paid_on), txt(req.body.method, 60), txt(req.body.reference, 80), txt(req.body.notes, 300), req.user.id])).rows[0].id;
+      const id = (await db.query('insert into cost_payments (workspace_id, budget_line_id, invoice_id, commitment_id, payee, amount_minor, paid_on, method, reference, notes, created_by, payer, on_behalf, approval_ref) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) returning id',
+        [a.ws.id, line, inv && inv.id, inv && inv.commitment_id, payee, amount, dateOrNull(req.body.paid_on), txt(req.body.method, 60), txt(req.body.reference, 80), txt(req.body.notes, 300), req.user.id, payer, payerKey === 'on_behalf', payerKey === 'on_behalf' ? approvalRef : null])).rows[0].id;
       await core.audit(db, { actor: req.user, workspaceId: a.ws.id, action: 'cost.payment_recorded', entity: 'cost_payment', entityId: id, summary: `Payment recorded (awaiting confirmation): ${payee} ${formatMoney(amount)}`, ip: req.ip });
       await touch(db, a.ws.id);
     });
@@ -1036,8 +1063,9 @@ function mountProjects(r, ctx) {
 
   // ---------- units & sales ----------
   const UNIT_STATUS = { planned: 'Planned', available: 'Available', reserved: 'Reserved', sold: 'Sold', handed_over: 'Handed over', withdrawn: 'Withdrawn' };
+  const devOnly = a => { if (a.ws.section !== 'dev') throw new NotFound(); return a; };
   r.get('/w/:id/units', async (req, res) => {
-    const a = await access(req);
+    const a = devOnly(await access(req));
     const rows = (await pool.query('select u.*, p.ref as plot_ref from dev_units u left join plots p on p.id = u.plot_id where u.workspace_id = $1 order by u.sort, u.name', [a.ws.id])).rows;
     const plotOpts = [['', 'Not linked to a plot'], ...(await pool.query('select id, ref from plots where workspace_id = $1 and archived_at is null order by sort', [a.ws.id])).rows.map(p => [p.id, `Plot ${p.ref}`])];
     const edit = core.canEdit(a);
@@ -1067,7 +1095,7 @@ function mountProjects(r, ctx) {
     return { plot_id: plot ? plot.id : null, name, unit_type: txt(req.body.unit_type, 80), area_m2: area, price: a.finance ? parseMoney(req.body.price, 'BHD') : undefined, status, notes: txt(req.body.notes, 300) };
   }
   r.post('/w/:id/units', async (req, res) => {
-    const a = await access(req, 'edit');
+    const a = devOnly(await access(req, 'edit'));
     const u = await readUnit(req, a);
     await core.inTx(async db => {
       const id = (await db.query('insert into dev_units (workspace_id, name, unit_type, area_m2, list_price_minor, notes, plot_id) values ($1,$2,$3,$4,$5,$6,$7) returning id', [a.ws.id, u.name, u.unit_type, u.area_m2, u.price ?? null, u.notes, u.plot_id])).rows[0].id;
@@ -1076,7 +1104,7 @@ function mountProjects(r, ctx) {
     res.redirect(`/w/${a.ws.id}/units?msg=added`);
   });
   r.post('/w/:id/units/:uid', async (req, res) => {
-    const a = await access(req, 'edit');
+    const a = devOnly(await access(req, 'edit'));
     const cur = await own('dev_units', req.params.uid, a.ws.id);
     const u = await readUnit(req, a);
     await core.inTx(async db => {
@@ -1088,7 +1116,7 @@ function mountProjects(r, ctx) {
     res.redirect(`/w/${a.ws.id}/units?msg=saved`);
   });
 
-  return { metrics, budgetSummary, access, page, plans };
+  return { metrics, budgetSummary, access, page, plans, own, touch, budgetTab };
 }
 
 module.exports = { mountProjects, PROJECT_SECTIONS, TASK_STATUS, REG };

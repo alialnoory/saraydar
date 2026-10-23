@@ -15,8 +15,8 @@ Last updated: 2026-10-23
 | 3 Development projects | **Done, tested locally, pushed** — see below |
 | Agreements & contracts (all sections) | **Done, tested locally, pushed** — see below |
 | People, plots, two-step off (2026-10-23 requests) | **Done, tested locally, pushed** — see below |
-| 4 Client projects | Next |
-| 5 Property management | Not started |
+| 4 Client projects | **Done, tested locally, pushed** — see below (external client view comes with Phase 7 portals) |
+| 5 Property management | Next |
 | 6 Sales & Acquisition | Not started |
 | 7 Portals (invitations), investors, exports, AI, hardening | Not started |
 
@@ -58,20 +58,32 @@ Last updated: 2026-10-23
 - Creating logins: Administration › Users and each workspace's Access & Invitations (Super Admin) now take full name, email, username, mobile, job title/company, staff role or external viewer type, workspace role, auto-generated or typed temporary password. Details shown once; optional welcome email (address + username only, never the password); forced password change at first sign-in.
 - Land & Plots tab (development projects): any number of plots per project — plot number, title deed, area, frontage × depth, zoning, tenure, registered owner, status, purchase price/date (finance roles), notes, documents per plot; totals; units linked to plots; setup asks number of plots and flags a mismatch; draft plan adds a title/survey check per plot.
 
+## Phase 4 — Clients Projects Management (what exists)
+- Client register (`/clients`): individual/company, main contact, authorised representatives, phone, email, address, preferred contact, billing details, tax number, reference, approval authorities, communication responsibilities; linked projects, agreements, correspondence log, fees outstanding, statement across the client's projects. One client can have several projects.
+- Client projects use the full project engine (setup, plots, plan/baseline, tasks, registers, progress updates with photos, agreements, documents, reports, exports). The section list shows the client name first, progress, next milestone and unpaid fees.
+- Guided onboarding for client projects: project & objectives, site/designs/approvals, current stage, client budget, timeline, contractors/consultants/team, risks. The draft plan uses client-project phases (onboarding, design coordination, approvals, procurement & appointments, construction supervision, handover, defects). The client's approved total is kept as one "unallocated" budget line until split.
+- Client & Agreement tab: management-agreement terms as versions (reference, dates, scope, responsibilities, exclusions, monthly fee, billing in advance/arrears, part-month rule, payment days, tax treatment, client approvers). Drafted by the project manager, activated by Finance; old versions kept; a fee change applies from its effective date and cannot rewrite periods already invoiced.
+- Fee Billing (SarayDar's own ledger, separate tables from the client's construction spending): monthly draft per month (once per month, calculated day by day from the terms in force, prorated if agreed), authorised extra lines, issue by Finance (INV-YYYY-NNNN, due date from terms), void with reason (only without payments/credits), credit notes (CN-…, never above the outstanding amount), confirmed client payments (duplicate bank reference and repeated form submission refused), allocation across invoices (never above payment or invoice balance), unapplied credit, receipts as a separate step (RCT-…), payment and allocation reversals that keep history, statement with opening/closing balance and period filter, overdue alerts on the home page. PDFs: invoice / tax invoice, receipt, credit note, statement, on the letterhead when uploaded.
+- Tax is never assumed: until the terms say "no tax" or give a rate, drafts can be prepared but not issued.
+- Client Budget & Payments: commitments (contract, order, consultant appointment, approved variation), contractor payment applications / consultant fees / invoices with submitted → reviewed → approved steps (client projects must be reviewed before approval), payments recorded with who paid (client direct, SarayDar on the client's behalf with a client-approval reference, other) and confirmed only by Finance. None of it is counted as SarayDar revenue or cost.
+- Client Approvals: requests and externally obtained decisions (budget, appointment, material, variation, payment, design) with approver, date, method, notes, evidence files and linked version; decisions are final (a change needs a new request); "client can see status" flag ready for the Phase 7 portal.
+- Fixed with this phase: calendar dates are now read from the database as plain dates, so they no longer shift by a day when the server clock is not UTC.
+- Not done in Phase 4: automatic monthly issuing (terms record the flag, nothing issues automatically — needs the paid tier/job scheduler), emailing invoices (needs Outlook SMTP), configurable approval thresholds, SarayDar VAT registration number on tax invoices (add to company details before charging VAT), the external client view (Phase 7).
+
 ## Navigation and exports (owner requests 2026-10-23)
 - Every signed-in page has a button bar in the top-right corner: previous/next tab, Back (previous page, or the parent page), Home, and Export PDF / Excel where the page has data. On a phone the buttons wrap onto two right-aligned rows.
 - Every page that shows data has Export PDF and Excel. The export is made from the page exactly as that user sees it (permissions and field hiding carry over), includes all rows (no paging), keeps money/percentages as numbers in Excel, neutralises formula text, and is recorded in the audit log. Forms, buttons and navigation are left out. The richer project report (with photos) remains under Reports.
 - Workspace tabs wrap onto extra lines (all visible) and are shown as light-bordered buttons; the current tab is filled.
 
 ## Tests (actual results, 2026-10-23)
-- Latest full suite: 59 pass, 0 fail (adds page export/navigation tests) (adds photo, login creation, password generator, plots, MFA-off tests).
+- Latest full suite: 70 pass, 0 fail (Phase 4 adds 11: proration/fee change/tax maths, client register, onboarding, terms activation by Finance only, once-per-month drafts, issue blocked without tax setting, partial payment/allocation/receipt, duplicate and over-allocation refusal, reversal, credit note limit, statement reconciliation, PDFs, construction spending kept out of fees, review ≠ approval ≠ payment, approvals with evidence, isolation by project and role). Earlier: 59 pass, 0 fail (adds page export/navigation tests) (adds photo, login creation, password generator, plots, MFA-off tests).
 - Agreements add 8 tests (field detection/typing, letterhead validation, per-section templates, required terms, generated PDF/Word contents, cross-workspace URL refused, issue/sign/lock, uploaded Word template filled, company copy without notice). Full suite: 48 pass, 0 fail.
 - Phase 3 adds 12 tests (money, progress maths, import, setup unknowns/conflicts, plan approval/baseline/revision, task loops and cross-workspace IDs, budget not triple-counted / approval ≠ payment / Finance-only confirmation, photo updates and drafts, PDF/xlsx with formula neutralised). Full suite: 40 pass, 0 fail.
 - `cd server && TEST_DATABASE_URL=… npm test` → 28 pass, 0 fail (old API 15, portal 13 groups covering sign-in, MFA, recovery codes, forced password change, workspace isolation, revocation, CSRF/origin, file types, external read-only through direct requests, audit immutability, password reset single use, deactivation, lockout, configurable roles).
 - Browser check (Chromium) at 1366 px and 390 px: sign-in → MFA enrolment → dashboard → section → workspace → upload; no horizontal scroll.
 
 ## Not yet built (by phase)
-- Next: Phase 4 Clients Projects Management (client projects reuse the Phase 3 project engine; agreements, fee invoices, receipts, statements).
+- Next: Phase 5 Clients Properties Management (owners, properties, units, leases, automated rent invoicing, maintenance, owner statements, unit history).
 - Later: email invitations for external viewers, job scheduler, investors & funding, AI assistant.
 
 ## External dependencies (not available yet)
