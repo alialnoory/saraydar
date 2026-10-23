@@ -248,3 +248,9 @@ fieldset { border: 1px solid var(--line); border-radius: 10px; padding: 10px 14p
 .band-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 10px; margin-left: auto; }
 @media (max-width: 640px) { .band-actions { margin-left: 0; justify-content: flex-start; width: 100%; } }
 .band-badge { display: inline-block; margin-left: 8px; vertical-align: 1px; }
+/* Page-specific buttons (Create, Clients…) on the breadcrumb row; Back / Home / PDF / Excel always alone at the far right of the title row */
+.band-top .page-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+.band-top .page-actions .btn { min-height: 38px; }
+.band-actions { flex: 0 0 auto; }
+@media (max-width: 640px) { .band-top .page-actions { justify-content: flex-start; } }
+.band .page-actions .btn:not(.accent):not(.primary) { background: rgba(255, 255, 255, 0.04); border-color: rgba(241, 230, 218, 0.28); color: var(--band-ink); }
