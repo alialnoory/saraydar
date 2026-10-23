@@ -134,10 +134,10 @@ Testing: `node --test` + Supertest against a real Postgres (embedded in CI), Pla
 
 ## 8. Questions and assumptions
 
-- **[Q1] Hosting tier** — upgrade Render before real use (always-on web + paid DB), or stay free during build.
-- **[Q2] Brand assets** — official logo files (SVG/PNG, Arabic + English variants) and brand colours. The name in the spec is "SarayDar / سراي دار"; the current site uses the "SARAYDAR" wordmark and copper/espresso palette derived from the image you sent earlier — treated as **temporary** until confirmed.
-- **[Q3] Email provider** — needed for invitations, password recovery and invoice delivery (any SMTP: Google Workspace, Microsoft 365, Resend…). Until then everything goes to the in-app Outbox and shows "not configured".
-- **[Q4] Portal address** — e.g. `portal.saraydar.com`; and where saraydar.com is hosted, for the Company Portal button.
+- **[Q1] Hosting tier** — ANSWERED: free tier while building; upgrade before real staff/client use.
+- **[Q2] Brand assets** — ANSWERED: use the current copper/espresso SARAYDAR theme as the approved identity. Original note: official logo files (SVG/PNG, Arabic + English variants) and brand colours. The name in the spec is "SarayDar / سراي دار"; the current site uses the "SARAYDAR" wordmark and copper/espresso palette derived from the image you sent earlier — treated as **temporary** until confirmed.
+- **[Q3] Email provider** — ANSWERED: send from info@saraydar.com; SMTP host/credentials still needed (who hosts that mailbox?). Original note: needed for invitations, password recovery and invoice delivery (any SMTP: Google Workspace, Microsoft 365, Resend…). Until then everything goes to the in-app Outbox and shows "not configured".
+- **[Q4] Portal address** — ANSWERED: portal.saraydar.com (needs a CNAME where saraydar.com DNS is managed). Original note: e.g. `portal.saraydar.com`; and where saraydar.com is hosted, for the Company Portal button.
 - [A] Login uses username **or** email + password.
 - [A] Timezone Asia/Bahrain; currency default BHD (3 decimals); other currencies allowed but never mixed in totals.
 - [A] Tax is "not configured" until Finance sets it.

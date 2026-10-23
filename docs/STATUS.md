@@ -9,8 +9,8 @@ Last updated: 2026-10-23
 ## Phase status
 | Phase | State |
 |---|---|
-| 1 Architecture, data model, screen map, questions | Written (`docs/ARCHITECTURE.md`); awaiting answers to Q1–Q4 |
-| Design preview | Not started — waiting on brand assets (Q2) |
+| 1 Architecture, data model, screen map, questions | Done (`docs/ARCHITECTURE.md`); Q1–Q4 answered |
+| Design preview | In progress — current theme approved as identity |
 | 2 Foundation | Not started |
 | 3 Development projects | Not started |
 | 4 Client projects | Not started |
@@ -20,10 +20,10 @@ Last updated: 2026-10-23
 
 ## External dependencies (not available yet)
 - Paid Render tier (always-on jobs, non-expiring DB)
-- SMTP credentials for email
+- SMTP host + credentials for info@saraydar.com
 - Official logo + brand colours
 - AI API key (optional)
-- DNS for the portal subdomain
+- DNS CNAME for portal.saraydar.com
 
 ## Known issues
 - Free database expires 2026-11-22.
