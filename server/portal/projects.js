@@ -79,7 +79,7 @@ function mountProjects(r, ctx) {
     return layout(req, { title: `${cur} · ${w.name}`, heading: w.name, tabs: tabs(a, cur),
       crumbs: [['Home', '/'], [s.name, `/s/${w.section}`], [w.name, `/w/${w.id}`], [cur]],
       sub: { above: `${w.ref} · ${KIND_LABEL[w.kind]}`, below: [w.location, w.stage ? `Stage: ${w.stage}` : null].filter(Boolean).join(' · ') },
-      actions: statusPill(w.status), body });
+      body });
   }
 
   ctx.tabsFor = ctx.tabsFor || {};

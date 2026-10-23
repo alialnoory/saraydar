@@ -58,7 +58,7 @@ function mountAgreements(r, ctx) {
     const tabs = ctx.tabsFor && ctx.tabsFor[w.section] ? ctx.tabsFor[w.section](a, 'Agreements')
       : [['Overview', `/w/${w.id}`], ['Agreements', `/w/${w.id}/agreements`], ['Documents', `/w/${w.id}/documents`], ['Access & Invitations', `/w/${w.id}/access`], ['Activity', `/w/${w.id}/activity`]].map(([l, h]) => [l, h, l === 'Agreements']);
     return layout(req, { title: `Agreements · ${w.name}`, heading: w.name, tabs, crumbs: [['Home', '/'], [s.name, `/s/${w.section}`], [w.name, `/w/${w.id}`], ['Agreements']],
-      sub: { above: `${w.ref} · ${KIND_LABEL[w.kind]}`, below: w.location || '' }, actions: statusPill(w.status), body });
+      sub: { above: `${w.ref} · ${KIND_LABEL[w.kind]}`, below: w.location || '' }, body });
   }
 
   // ---------- list ----------

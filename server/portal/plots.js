@@ -37,7 +37,7 @@ function mountPlots(r, ctx) {
     const w = a.ws, s = SECTIONS[w.section];
     return layout(req, { title: `Land & Plots · ${w.name}`, heading: w.name, tabs: ctx.tabsFor[w.section](a, 'Land & Plots'),
       crumbs: [['Home', '/'], [s.name, `/s/${w.section}`], [w.name, `/w/${w.id}`], ['Land & Plots']],
-      sub: { above: `${w.ref} · ${KIND_LABEL[w.kind]}`, below: w.location || '' }, actions: statusPill(w.status), body });
+      sub: { above: `${w.ref} · ${KIND_LABEL[w.kind]}`, below: w.location || '' }, body });
   }
 
   function read(body, finance) {

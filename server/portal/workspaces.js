@@ -223,7 +223,7 @@ function mountWorkspaces(r, ctx) {
     return layout(req, { title: w.name, heading: w.name, tabs,
       crumbs: external ? [['My Workspaces', '/my'], [w.name]] : [['Home', '/'], [s.name, `/s/${w.section}${s.tabs ? `?kind=${w.kind}` : ''}`], [w.name]],
       sub: { above: `${w.ref} · ${KIND_LABEL[w.kind]}${external ? ' · View only' : ''}`, below: [w.location, w.stage ? `Stage: ${w.stage}` : null].filter(Boolean).join(' · ') },
-      actions: html`${statusPill(w.status)}`, body, ...extra });
+      body, ...extra });
   }
 
   r.get('/w/:id', async (req, res) => {
