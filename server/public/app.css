@@ -212,3 +212,7 @@ tr.sub td { border-top: 0; padding-top: 0; }
 .navbtn { border-radius: 8px; gap: 6px; padding: 0 12px; min-height: 36px; font-weight: 500; }
 .navbtn svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2; flex-shrink: 0; }
 @media (max-width: 640px) { .navgroup + .navgroup { padding-left: 0; border-left: 0; } }
+/* Tabs: equal-size buttons on a grid */
+.tabs { display: grid; grid-template-columns: repeat(auto-fill, minmax(168px, 1fr)); gap: 6px; }
+.tabs a { display: flex; align-items: center; justify-content: center; text-align: center; min-height: 40px; padding: 6px 10px; white-space: normal; line-height: 1.25; }
+@media (max-width: 640px) { .tabs { grid-template-columns: repeat(2, minmax(0, 1fr)); } .tabs a { min-height: 38px; } }
