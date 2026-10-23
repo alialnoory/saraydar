@@ -138,6 +138,14 @@ function legacyRouter({ pool, jwtSecret, corsOrigins = [] }) {
     finally { client.release(); }
   }
 
+  // After the move into the portal the old tracker is read-only
+  app.use('/api/records', async (req, res, next) => {
+    if (req.method === 'GET') return next();
+    const moved = (await pool.query("select 1 from app_state where key = 'abuquwa_imported'")).rowCount;
+    if (moved) return res.status(410).json({ error: 'This tracker has moved to the SarayDar Management System. Make changes there.', code: 'moved' });
+    next();
+  });
+
   app.post('/api/records/:collection', auth, async (req, res) => {
     const coll = checkColl(req);
     if (!allowed(req.user.role, coll, 'create')) fail(403, 'Your role does not allow adding here.');

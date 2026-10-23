@@ -22,6 +22,8 @@ async function main() {
   const loaded = await db.seed(pool);
   if (loaded) console.log(`Loaded ${loaded} starting records`);
   await db.ensureAdmin(pool);
+  const moved = await require('./lib/abuquwa-import').importAbuquwa(pool);
+  if (moved) console.log(`Moved ${moved} Abuquwa tasks into workspace DEV-2026-001`);
 
   const corsOrigins = (process.env.CORS_ORIGINS || '').split(',').map(s => s.trim().replace(/\/$/, '')).filter(Boolean);
   const app = createApp({ pool, jwtSecret: secret, corsOrigins });

@@ -30,7 +30,8 @@ function sniff(buf, name) {
 }
 const safeName = n => String(n || 'file').replace(/[/\\]/g, '_').replace(/[\u0000-\u001f<>:"|?*]/g, '').slice(-150) || 'file';
 
-function mountWorkspaces(r, { pool, core, mailer, NotFound, Forbidden }) {
+function mountWorkspaces(r, ctx) {
+  const { pool, core, mailer, NotFound, Forbidden } = ctx;
   const sectionOf = key => { const s = SECTIONS[key]; if (!s) throw new NotFound(); return s; };
 
   async function access(req, id) {
@@ -131,6 +132,7 @@ function mountWorkspaces(r, { pool, core, mailer, NotFound, Forbidden }) {
     const from = `from workspaces w left join parties p on p.id = w.party_id left join users mu on mu.id = w.manager_id where ${where.join(' and ')}`;
     const total = (await pool.query(`select count(*)::int as n ${from}`, vals)).rows[0].n;
     const rows = (await pool.query(`select w.*, p.name as party_name, coalesce(mu.name, mu.email) as manager_name ${from} order by ${sort} limit ${PER_PAGE} offset ${(page - 1) * PER_PAGE}`, vals)).rows;
+    const extra = ctx.portfolioExtras && ctx.portfolioExtras[s.key] && rows.length ? await ctx.portfolioExtras[s.key](rows.map(x => x.id)) : null;
     const createKinds = [];
     for (const [k, c] of Object.entries(s.create)) if (await core.can(req.user, `create:${s.key}`)) createKinds.push([k, c]);
     const partyLabel = (s.create[kind || s.kinds[0]] || {}).party;
@@ -144,8 +146,8 @@ function mountWorkspaces(r, { pool, core, mailer, NotFound, Forbidden }) {
         <select name="status" aria-label="Status">${[['open', 'Active & on hold'], ['active', 'Active'], ['on_hold', 'On hold'], ['completed', 'Completed'], ['archived', 'Archived'], ['all', 'All']].map(([v, l]) => html`<option value="${v}" ${v === status ? raw('selected') : ''}>${l}</option>`)}</select>
         <select name="sort" aria-label="Sort">${[['updated', 'Recently updated'], ['name', 'Name'], ['ref', 'Reference'], ['created', 'Newest']].map(([v, l]) => html`<option value="${v}" ${v === (req.query.sort || 'updated') ? raw('selected') : ''}>${l}</option>`)}</select>
         <button class="btn" type="submit">Apply</button></form>
-      ${rows.length ? html`<div class="table-wrap"><table><thead><tr><th>Name</th><th>Reference</th>${partyLabel ? html`<th>${partyLabel.label}</th>` : ''}<th>Location</th><th>Manager</th><th>Status</th><th>Updated</th></tr></thead><tbody>
-        ${rows.map(w => html`<tr><td><a href="/w/${w.id}"><b>${w.name}</b></a>${w.stage ? html`<div class="muted small">${w.stage}</div>` : ''}</td><td class="mono">${w.ref}</td>${partyLabel ? html`<td>${w.party_name || '—'}</td>` : ''}<td>${w.location || '—'}</td><td>${w.manager_name || '—'}</td><td>${statusPill(w.status)}</td><td class="small">${fmtDate(w.updated_at)}</td></tr>`)}
+      ${rows.length ? html`<div class="table-wrap"><table><thead><tr><th>Name</th><th>Reference</th>${partyLabel ? html`<th>${partyLabel.label}</th>` : ''}<th>Location</th><th>Manager</th>${extra ? html`<th>Progress</th><th>Next milestone</th><th>Alerts</th>` : ''}<th>Status</th><th>Updated</th></tr></thead><tbody>
+        ${rows.map(w => html`<tr><td><a href="/w/${w.id}"><b>${w.name}</b></a>${w.stage ? html`<div class="muted small">${w.stage}</div>` : ''}</td><td class="mono">${w.ref}</td>${partyLabel ? html`<td>${w.party_name || '—'}</td>` : ''}<td>${w.location || '—'}</td><td>${w.manager_name || '—'}</td>${extra ? html`<td>${extra[w.id].progress}</td><td class="small">${extra[w.id].next}</td><td>${extra[w.id].alerts ? pill(String(extra[w.id].alerts), 'bad') : '—'}</td>` : ''}<td>${statusPill(w.status)}</td><td class="small">${fmtDate(w.updated_at)}</td></tr>`)}
         </tbody></table></div>${pager(req, total, page, PER_PAGE)}`
         : emptyState(q || status !== 'open' ? 'Nothing matches these filters' : s.empty, createKinds.length && !q ? 'Use the button above to add the first one.' : 'Items appear here when you are added to them.')}` }));
   });
@@ -212,8 +214,10 @@ function mountWorkspaces(r, { pool, core, mailer, NotFound, Forbidden }) {
   function wsLayout(req, a, tab, body, extra = {}) {
     const w = a.ws, s = SECTIONS[w.section];
     const external = !a.internal;
-    const tabs = [['Overview', `/w/${w.id}`, tab === 'overview'], ['Documents', `/w/${w.id}/documents`, tab === 'documents']];
+    let tabs = [['Overview', `/w/${w.id}`, tab === 'overview'], ['Documents', `/w/${w.id}/documents`, tab === 'documents']];
     if (!external) tabs.push(['Access & Invitations', `/w/${w.id}/access`, tab === 'access'], ['Activity', `/w/${w.id}/activity`, tab === 'activity']);
+    const label = { overview: 'Overview', documents: 'Documents', access: 'Access & Invitations', activity: 'Activity' }[tab];
+    if (!external && ctx.tabsFor && ctx.tabsFor[w.section]) tabs = ctx.tabsFor[w.section](a, label);
     return layout(req, { title: w.name, heading: w.name, tabs,
       crumbs: external ? [['My Workspaces', '/my'], [w.name]] : [['Home', '/'], [s.name, `/s/${w.section}${s.tabs ? `?kind=${w.kind}` : ''}`], [w.name]],
       sub: { above: `${w.ref} · ${KIND_LABEL[w.kind]}${external ? ' · View only' : ''}`, below: [w.location, w.stage ? `Stage: ${w.stage}` : null].filter(Boolean).join(' · ') },
@@ -227,7 +231,7 @@ function mountWorkspaces(r, { pool, core, mailer, NotFound, Forbidden }) {
     const mgr = w.manager_id ? (await pool.query('select coalesce(nullif(name,\'\'), email) as n from users where id = $1', [w.manager_id])).rows[0] : null;
     const pLabel = (SECTIONS[w.section].create[w.kind] || {}).party;
     let legacy = '';
-    if (w.legacy && a.internal) {
+    if (w.legacy && a.internal && !(w.details && w.details.imported_at)) {
       const c = (await pool.query('select collection, count(*)::int as n from records group by collection')).rows;
       const n = Object.fromEntries(c.map(x => [x.collection, x.n]));
       legacy = html`<section class="panel"><h2 class="h">Existing project tracker</h2>
@@ -235,9 +239,10 @@ function mountWorkspaces(r, { pool, core, mailer, NotFound, Forbidden }) {
         <dl class="stats inline"><div><dt>Tasks</dt><dd>${n.tasks || 0}</dd></div><div><dt>Budget lines</dt><dd>${n.costs || 0}</dd></div><div><dt>Risks</dt><dd>${n.risks || 0}</dd></div><div><dt>Site log entries</dt><dd>${n.log || 0}</dd></div></dl>
         <a class="btn" href="https://saraydar.netlify.app" rel="noopener">Open the current tracker</a></section>`;
     }
+    const extras = ctx.overviewExtras && ctx.overviewExtras[w.section] ? await ctx.overviewExtras[w.section](req, a) : '';
     const editable = core.canEdit(a);
     const users = editable ? (await pool.query("select id, coalesce(nullif(name,''), email) as label from users where active and kind = 'internal' order by 2")).rows : [];
-    res.send(wsLayout(req, a, 'overview', html`
+    res.send(wsLayout(req, a, 'overview', html`${extras}
       <div class="split">
         <section class="panel grow1"><h2 class="h">Details</h2>
           <dl class="details">
@@ -262,7 +267,8 @@ function mountWorkspaces(r, { pool, core, mailer, NotFound, Forbidden }) {
           </form></section>` : ''}
       </div>
       ${legacy}
-      ${a.internal ? html`<section class="panel"><h2 class="h">Coming to this workspace</h2>
+      ${w.details && w.details.imported_at && a.internal ? html`<p class="muted small">Tasks, budget, risks, units and the site log were imported from the earlier Abuquwa tracker on ${fmtDate(w.details.imported_at)}. Imported items are marked unverified until checked.</p>` : ''}
+      ${a.internal && !(ctx.overviewExtras && ctx.overviewExtras[w.section]) ? html`<section class="panel"><h2 class="h">Coming to this workspace</h2>
         <p class="muted">${{ dev: 'Guided setup, plan approval, tasks and schedule, budget and cost control, progress updates with photos, investors and funding, and PDF/Excel reports (Phases 3 and 7).',
           cpm: 'Management agreement, execution tracking, client-funded expenditure, monthly fee invoices, receipts and client statements (Phase 4).',
           props: 'Units, leases, rent invoicing, deposits, maintenance, cleaning, owner statements and the Unit History & Report (Phase 5).',

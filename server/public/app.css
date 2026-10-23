@@ -155,3 +155,29 @@ th.c, td.c { text-align: center; }
   .details > div { grid-template-columns: 1fr; gap: 2px; }
   .panel, .card { padding: 16px; }
 }
+
+/* Phase 3: project workspaces */
+.big { font-size: 28px; font-weight: 600; line-height: 1.2; } .mid { font-size: 17px; font-weight: 600; }
+.bar { height: 8px; border-radius: 4px; background: var(--sunken); overflow: hidden; margin: 6px 0; } .bar span { display: block; height: 100%; background: var(--accent); }
+.kv { min-width: 0; } .kv th { text-align: left; font-weight: 400; color: var(--muted); border: 0; padding: 6px 0; font-size: 14px; white-space: normal; } .kv td { text-align: right; border-top: 1px solid var(--sunken); padding: 6px 0; } .kv tr:first-child td { border-top: 0; }
+.gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 8px; margin: 10px 0; }
+.gallery img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 10px; display: block; background: var(--sunken); }
+.big-gallery { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); } .gallery figure { margin: 0; } .gallery figcaption { color: var(--muted); margin-top: 4px; }
+.steps-nav ol { list-style: none; margin: 0; padding: 0; display: flex; gap: 6px; overflow-x: auto; }
+.steps-nav a { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); text-decoration: none; color: var(--muted); white-space: nowrap; font-size: 14px; min-height: 40px; }
+.steps-nav a span { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; background: var(--sunken); font-size: 12px; font-weight: 600; }
+.steps-nav li.done a span { background: var(--ok-bg); color: var(--ok); } .steps-nav li.on a { border-color: var(--accent); color: var(--ink); } .steps-nav li.on a span { background: var(--accent); color: var(--accent-ink); }
+.row-between { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px; }
+.h3 { font-size: 15px; font-weight: 600; margin: 12px 0 6px; } .pre-line { white-space: pre-line; }
+tr.late td { background: #FBF1EF; } tr.total td { font-weight: 600; border-top: 2px solid var(--line); }
+th.n, td.n { text-align: right; white-space: nowrap; } .warn-text { color: var(--warn); }
+.subtabs { display: flex; gap: 6px; overflow-x: auto; } .subtabs a { padding: 8px 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); text-decoration: none; color: var(--ink); white-space: nowrap; font-size: 14px; }
+.subtabs a[aria-current="page"] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.inline-form { margin-top: 12px; } .inline-form > summary { cursor: pointer; color: var(--accent); font-weight: 500; min-height: 32px; } .inline-form[open] > summary { margin-bottom: 10px; }
+td .inline-form { margin: 0; } td .inline-form form { min-width: 520px; }
+.q { display: flex; flex-direction: column; gap: 4px; } .q.full, .q:has(textarea) { grid-column: 1 / -1; }
+.check { display: inline-flex; align-items: center; gap: 6px; } .check input { width: 18px; height: 18px; }
+.deps { border: 1px solid var(--line); border-radius: 10px; padding: 10px; display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 4px; max-height: 260px; overflow: auto; }
+.update .h a { color: var(--ink); text-decoration: none; }
+.filters label.small { display: inline-flex; align-items: center; gap: 6px; } .filters input[type="date"] { width: auto; }
+@media (max-width: 640px) { td .inline-form form { min-width: 0; } }

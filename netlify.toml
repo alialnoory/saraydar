@@ -22,8 +22,15 @@
   status = 404
   force = true
 
-# Site root opens the Abuquwa Villas system
+# The Abuquwa tracker has moved into the SarayDar Management System (Phase 3)
+[[redirects]]
+  from = "/abuquwa-villas/*"
+  to = "https://saraydar-api.onrender.com/"
+  status = 302
+  force = true
+
 [[redirects]]
   from = "/"
-  to = "/abuquwa-villas/"
+  to = "https://saraydar-api.onrender.com/"
   status = 302
+  force = true

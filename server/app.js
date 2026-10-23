@@ -25,6 +25,7 @@ function createApp({ pool, jwtSecret, corsOrigins = [], mailer, env = process.en
     referrerPolicy: { policy: 'same-origin' }
   }));
   app.use('/static', express.static(path.join(__dirname, 'public'), { maxAge: '1h', index: false }));
+  app.get('/favicon.ico', (req, res) => res.status(204).end());
   app.get('/healthz', (req, res) => res.json({ ok: true }));
   app.use(legacyRouter({ pool, jwtSecret, corsOrigins }));
   app.use(createPortal({ pool, secret: jwtSecret, mailer: mailer || createMailer({ pool, env }), env }));

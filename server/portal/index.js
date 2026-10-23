@@ -4,6 +4,8 @@ const cookieParser = require('cookie-parser');
 const { createCore } = require('./core');
 const { mountAuth, homeFor } = require('./auth');
 const { mountWorkspaces } = require('./workspaces');
+const { mountProjects } = require('./projects');
+const { mountProjectExports } = require('./project-exports');
 const { mountAdmin } = require('./admin');
 const { mountAccount } = require('./account');
 const { layout, html } = require('./views');
@@ -64,6 +66,7 @@ function createPortal({ pool, secret, mailer, env = process.env }) {
   const ctx = { pool, core, mailer, secret, env, Forbidden, NotFound };
   mountAuth(r, ctx);
   mountAccount(r, ctx);
+  mountProjectExports(r, ctx, mountProjects(r, ctx));
   mountWorkspaces(r, ctx);
   mountAdmin(r, ctx);
 
