@@ -67,12 +67,11 @@ function layout(req, { title, crumbs = [], heading = null, sub = null, tabs = nu
   </div>`;
   const msg = MESSAGES[req.query && req.query.msg];
   const header = bare ? html`
-    <header class="band"><div class="wrap band-row"><a class="wordmark" href="/">SΛRΛYDΛR</a><span class="band-sub">Management System</span></div></header>`
+    <header class="band"><div class="wrap band-row"><a class="brand" href="/"><span class="wordmark">SΛRΛYDΛR</span><span class="band-sub">Management System</span></a></div></header>`
     : html`
     <header class="band">
       <div class="wrap band-row">
-        <a class="wordmark" href="${u && u.kind === 'external' ? '/my' : '/'}">SΛRΛYDΛR</a>
-        <span class="band-sub grow">Management System</span>
+        <a class="brand grow" href="${u && u.kind === 'external' ? '/my' : '/'}"><span class="wordmark">SΛRΛYDΛR</span><span class="band-sub">Management System</span></a>
         ${u && u.kind !== 'external' ? html`<form class="band-search" action="/search" method="get" role="search">
           ${icons.search}<input type="search" name="q" placeholder="Search projects, properties, clients" aria-label="Search" value="${req.path === '/search' ? (req.query.q || '') : ''}"></form>` : ''}
         ${u ? html`<details class="usermenu">

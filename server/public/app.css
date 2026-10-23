@@ -221,3 +221,7 @@ tr.sub td { border-top: 0; padding-top: 0; }
 .band-row { padding-top: 16px; padding-bottom: 16px; }
 .band-sub { font-size: 15px; }
 @media (max-width: 640px) { .band-row .wordmark { font-size: 22px; letter-spacing: .3em; } .band-sub { font-size: 13px; } }
+/* Logo with "Management System" beneath it */
+.brand { display: inline-flex; flex-direction: column; align-items: flex-start; gap: 9px; text-decoration: none; }
+.brand .band-sub { font-size: 12px; letter-spacing: .32em; text-transform: uppercase; color: #C9B6A6; padding-left: 2px; }
+@media (max-width: 640px) { .brand { gap: 7px; } .brand .band-sub { font-size: 10px; letter-spacing: .26em; } }
