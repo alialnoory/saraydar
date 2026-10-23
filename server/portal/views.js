@@ -78,7 +78,7 @@ function layout(req, { title, crumbs = [], heading = null, sub = null, tabs = nu
       </div>
       ${heading ? html`<div class="wrap band-head">
         ${crumbs.length ? html`<nav class="crumbs" aria-label="Breadcrumb">${crumbs.map((c, i) => html`${i ? ' › ' : ''}${c[1] ? html`<a href="${c[1]}">${c[0]}</a>` : html`<span>${c[0]}</span>`}`)}</nav>` : ''}
-        <div class="band-title"><div class="grow">${sub && sub.above ? html`<div class="eyebrow">${sub.above}</div>` : ''}<h1>${heading}</h1>${sub && sub.below ? html`<div class="band-meta">${sub.below}</div>` : ''}</div><div class="band-actions">${pagenav}${actions || ''}</div></div>
+        <div class="band-title"><div class="grow">${sub && sub.above ? html`<div class="eyebrow">${sub.above}</div>` : ''}<h1>${heading}</h1>${sub && (sub.below || sub.badge) ? html`<div class="band-meta">${sub.below || ''}${sub.badge ? html` <span class="band-badge">${sub.badge}</span>` : ''}</div>` : ''}</div><div class="band-actions">${pagenav}${actions || ''}</div></div>
         ${tabs ? html`<nav class="tabs" aria-label="Sections">${tabs.map(([label, href, on]) => html`<a href="${href}" ${on ? raw('aria-current="page"') : ''}>${label}</a>`)}</nav>` : ''}
       </div>` : ''}
     </header>`;

@@ -222,7 +222,7 @@ function mountWorkspaces(r, ctx) {
     if (!external && ctx.tabsFor && ctx.tabsFor[w.section]) tabs = ctx.tabsFor[w.section](a, label);
     return layout(req, { title: w.name, heading: w.name, tabs,
       crumbs: external ? [['My Workspaces', '/my'], [w.name]] : [['Home', '/'], [s.name, `/s/${w.section}${s.tabs ? `?kind=${w.kind}` : ''}`], [w.name]],
-      sub: { above: `${w.ref} · ${KIND_LABEL[w.kind]}${external ? ' · View only' : ''}`, below: [w.location, w.stage ? `Stage: ${w.stage}` : null].filter(Boolean).join(' · ') },
+      sub: { above: `${w.ref} · ${KIND_LABEL[w.kind]}${external ? ' · View only' : ''}`, below: [w.location, w.stage ? `Stage: ${w.stage}` : null].filter(Boolean).join(' · '), badge: statusPill(w.status) },
       body, ...extra });
   }
 
