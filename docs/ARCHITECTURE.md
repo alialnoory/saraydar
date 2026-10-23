@@ -28,7 +28,7 @@ One deployable web application plus one database. Chosen for a small team: one l
 | Migrations | node-pg-migrate (SQL files) | Plain, reviewable SQL |
 | Validation | Zod | Same schemas for API and forms |
 | Front end | React 18 + Vite, React Router, served by the same service | Same origin → no CORS, httpOnly cookies |
-| i18n | i18next; Arabic RTL default, English LTR; IBM Plex Sans Arabic + IBM Plex Sans | Spec 13 |
+| Language | English only, LTR (owner decision 2026-10-23, overrides spec §13 Arabic default). Strings kept in one catalogue so Arabic can be added later | Owner instruction |
 | Sessions | Server-side sessions in Postgres, httpOnly Secure SameSite=Lax cookie, CSRF token on mutations | Revocable instantly; works on iPhone Safari |
 | Passwords | scrypt (Node crypto) | Already implemented |
 | MFA | TOTP (RFC 6238) + one-time recovery codes; mandatory for Super Admin | No SMS provider needed |
@@ -144,6 +144,8 @@ Testing: `node --test` + Supertest against a real Postgres (embedded in CI), Pla
 - [A] Payment gateway: not in this release; the payment layer has a provider interface for later.
 - [A] AI: off until an API key is configured.
 - [A] Demonstration data lives only in a separate `demo` seed, labelled "DEMO" on every screen, never loaded in production.
+
+- DECIDED 2026-10-23: the whole system is English only (screens, PDFs, Excel, emails). Arabic names are not shown.
 
 ## 9. Honest scope note
 

@@ -10,7 +10,7 @@ Last updated: 2026-10-23
 | Phase | State |
 |---|---|
 | 1 Architecture, data model, screen map, questions | Done (`docs/ARCHITECTURE.md`); Q1–Q4 answered |
-| Design preview | In progress — current theme approved as identity |
+| Design preview | Published for approval (6 boards, English only) |
 | 2 Foundation | Not started |
 | 3 Development projects | Not started |
 | 4 Client projects | Not started |
