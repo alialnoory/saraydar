@@ -216,3 +216,8 @@ tr.sub td { border-top: 0; padding-top: 0; }
 .tabs { display: grid; grid-template-columns: repeat(auto-fill, minmax(168px, 1fr)); gap: 6px; }
 .tabs a { display: flex; align-items: center; justify-content: center; text-align: center; min-height: 40px; padding: 6px 10px; white-space: normal; line-height: 1.25; }
 @media (max-width: 640px) { .tabs { grid-template-columns: repeat(2, minmax(0, 1fr)); } .tabs a { min-height: 38px; } }
+/* Larger company wordmark in the top ribbon */
+.band-row .wordmark { font-size: 34px; letter-spacing: .36em; line-height: 1; font-weight: 500; }
+.band-row { padding-top: 16px; padding-bottom: 16px; }
+.band-sub { font-size: 15px; }
+@media (max-width: 640px) { .band-row .wordmark { font-size: 22px; letter-spacing: .3em; } .band-sub { font-size: 13px; } }
