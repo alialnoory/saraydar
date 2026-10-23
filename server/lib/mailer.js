@@ -17,16 +17,16 @@ function createMailer({ pool, env = process.env, transport } = {}) {
   const cfg = smtpConfig(env);
   const tx = transport || (cfg ? nodemailer.createTransport({ host: cfg.host, port: cfg.port, secure: cfg.secure, requireTLS: cfg.requireTLS, auth: cfg.auth }) : null);
 
-  async function send({ to, subject, text, kind, sensitive = false, workspaceId = null }) {
+  async function send({ to, subject, text, kind, sensitive = false, workspaceId = null, attachments = null, refKind = null, refId = null }) {
     const status = tx ? 'queued' : 'unconfigured';
     const { rows } = await pool.query(
-      `insert into outbox_messages (to_address, subject, body_text, kind, sensitive, status, workspace_id)
-       values ($1,$2,$3,$4,$5,$6,$7) returning id`,
-      [to, subject, text, kind, sensitive, status, workspaceId]);
+      `insert into outbox_messages (to_address, subject, body_text, kind, sensitive, status, workspace_id, ref_kind, ref_id)
+       values ($1,$2,$3,$4,$5,$6,$7,$8,$9) returning id`,
+      [to, subject, text, kind, sensitive, status, workspaceId, refKind, refId]);
     const id = rows[0].id;
     if (!tx) return { id, status };
     try {
-      const info = await tx.sendMail({ from: cfg ? cfg.from : env.MAIL_FROM, to, subject, text });
+      const info = await tx.sendMail({ from: cfg ? cfg.from : env.MAIL_FROM, to, subject, text, ...(attachments ? { attachments } : {}) });
       await pool.query(
         `update outbox_messages set status = 'sent', attempts = attempts + 1, provider_id = $2, sent_at = now(),
                 body_text = case when sensitive then null else body_text end where id = $1`,

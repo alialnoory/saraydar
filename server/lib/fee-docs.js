@@ -87,7 +87,9 @@ function render({ title, number, company = {}, letterhead = null, marginTop = 45
     const range = doc.bufferedPageRange();
     for (let i = range.start; i < range.start + range.count; i++) {
       doc.switchToPage(i);
+      const keepBottom = doc.page.margins.bottom; doc.page.margins.bottom = 0;   // the footer sits below the margin; without this pdfkit starts a new, empty page
       doc.font('body').fontSize(7.5).fillColor(MUTED).text(`${number || 'Draft'} · page ${i + 1} of ${range.count}`, L, doc.page.height - mm(10), { width: W, align: 'right', lineBreak: false });
+      doc.page.margins.bottom = keepBottom;
     }
     doc.end();
   });

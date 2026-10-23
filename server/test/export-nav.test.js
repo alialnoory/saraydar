@@ -70,6 +70,8 @@ test('export and navigation', { skip: !URL_ && 'set TEST_DATABASE_URL to run' },
     assert.equal(names.length, 24);                         // 23 new + Abuquwa: no paging in exports
     const p = await file(admin, '/s/dev?export=pdf');
     assert.equal(p.buf.subarray(0, 5).toString(), '%PDF-');
+    const pages = buf => (buf.toString('latin1').match(/\/Type \/Page\b/g) || []).length;
+    assert.equal(pages((await file(admin, '/?export=pdf')).buf), 1);            // no empty extra page after the footer
     const t2 = await sheets((await file(admin, `/w/${ws}/tasks?export=xlsx`)).buf);
     const vals = []; t2.worksheets.forEach(w => w.eachRow(r => r.eachCell(c => vals.push(c.value))));
     assert.ok(vals.includes('\'=cmd|"/c calc"!A0'));

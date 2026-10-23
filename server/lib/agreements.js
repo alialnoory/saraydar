@@ -120,7 +120,9 @@ function renderPdf({ text, ref, letterhead, marginTop = 45, marginBottom = 30, n
     const range = doc.bufferedPageRange();
     for (let i = range.start; i < range.start + range.count; i++) {
       doc.switchToPage(i);
+      const keepBottom = doc.page.margins.bottom; doc.page.margins.bottom = 0;   // the footer sits below the margin; without this pdfkit starts a new, empty page
       doc.font('body').fontSize(7.5).fillColor('#6E5B50').text(`${ref} · page ${i + 1} of ${range.count}`, mm(22), doc.page.height - mm(12), { width: W, align: 'right', lineBreak: false });
+      doc.page.margins.bottom = keepBottom;
     }
     doc.end();
   });

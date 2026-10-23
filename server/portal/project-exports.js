@@ -188,7 +188,9 @@ function mountProjectExports(r, ctx, P) {
     const range = doc.bufferedPageRange();
     for (let i = range.start; i < range.start + range.count; i++) {
       doc.switchToPage(i);
+      const keepBottom = doc.page.margins.bottom; doc.page.margins.bottom = 0;   // the footer sits below the margin; without this pdfkit starts a new, empty page
       doc.font('body').fontSize(7.5).fillColor(MUTED).text(`SarayDar Management System · ${a.ws.ref} · page ${i + 1} of ${range.count}`, 48, doc.page.height - 36, { width: W, align: 'right', lineBreak: false });
+      doc.page.margins.bottom = keepBottom;
     }
     await core.audit(null, { actor: req.user, workspaceId: a.ws.id, action: 'report.pdf', entity: 'report', entityId: a.ws.id, summary: `PDF report downloaded (${per.label})`, ip: req.ip });
     doc.end();

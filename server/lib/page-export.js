@@ -179,7 +179,9 @@ function toPdf(page, { user, when }) {
     const range = doc.bufferedPageRange();
     for (let i = range.start; i < range.start + range.count; i++) {
       doc.switchToPage(i);
+      const keepBottom = doc.page.margins.bottom; doc.page.margins.bottom = 0;   // the footer sits below the margin; without this pdfkit starts a new, empty page
       doc.font('body').fontSize(7).fillColor(MUTED).text(plain(`SarayDar Management System · ${page.title} · page ${i + 1} of ${range.count}`), X, doc.page.height - 30, { width: W, align: 'right', lineBreak: false });
+      doc.page.margins.bottom = keepBottom;
     }
     doc.end();
   });

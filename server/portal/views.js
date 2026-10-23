@@ -1,6 +1,8 @@
 'use strict';
 const { html, raw } = require('../lib/html');
 const { STATUS_LABEL } = require('./core');
+// Version stamp for the stylesheet and script, so browsers fetch the new files after every update instead of a cached copy.
+const ASSET_V = (() => { try { const c = require('crypto'), fs = require('fs'), p = require('path'); const h = c.createHash('sha256'); for (const f of ['app.css', 'app.js']) h.update(fs.readFileSync(p.join(__dirname, '..', 'public', f))); return h.digest('hex').slice(0, 10); } catch { return String(Date.now()); } })();
 
 const ROLE_LABELS = {
   super_admin: 'Super Admin', project_manager: 'Project Manager', finance: 'Finance', engineer: 'Engineer', viewer: 'Viewer',
@@ -84,7 +86,7 @@ function layout(req, { title, crumbs = [], heading = null, sub = null, tabs = nu
     </header>`;
   return '<!doctype html>' + html`<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${title ? `${title} · ` : ''}SarayDar Management System</title>
-<link rel="stylesheet" href="/static/app.css"><script src="/static/app.js" defer></script></head>
+<link rel="stylesheet" href="/static/app.css?v=${ASSET_V}"><script src="/static/app.js?v=${ASSET_V}" defer></script></head>
 <body>${header}<main class="wrap main">${heading ? '' : pagenav}${msg ? html`<div class="flash" role="status">${msg}</div>` : ''}${body}</main></body></html>`;
 }
 
