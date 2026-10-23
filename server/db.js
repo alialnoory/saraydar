@@ -9,46 +9,6 @@ const scrypt = promisify(crypto.scrypt);
 const COLLECTIONS = ['tasks', 'costs', 'payments', 'units', 'risks', 'log', 'meta'];
 const ROLES = ['admin', 'editor', 'site', 'viewer'];
 
-const SCHEMA = `
-create table if not exists users (
-  id            uuid primary key default gen_random_uuid(),
-  email         text not null,
-  name          text not null default '',
-  role          text not null default 'viewer' check (role in ('admin', 'editor', 'site', 'viewer')),
-  password_hash text not null,
-  active        boolean not null default true,
-  token_version integer not null default 0,
-  created_at    timestamptz not null default now()
-);
-create unique index if not exists users_email_key on users (lower(email));
-
-create table if not exists records (
-  collection text not null check (collection in ('tasks', 'costs', 'payments', 'units', 'risks', 'log', 'meta')),
-  id         text not null,
-  data       jsonb not null default '{}'::jsonb,
-  updated_at timestamptz not null default now(),
-  updated_by uuid references users(id) on delete set null,
-  primary key (collection, id)
-);
-
-create table if not exists record_history (
-  history_id       bigint generated always as identity primary key,
-  collection       text not null,
-  id               text not null,
-  action           text not null,
-  old_data         jsonb,
-  new_data         jsonb,
-  changed_by       uuid references users(id) on delete set null,
-  changed_by_email text,
-  changed_at       timestamptz not null default now()
-);
-create index if not exists record_history_changed_at on record_history (changed_at desc);
-
-create table if not exists app_state (
-  key   text primary key,
-  value text not null
-);
-`;
 
 async function hashPassword(password) {
   const salt = crypto.randomBytes(16);
@@ -69,8 +29,31 @@ async function verifyPassword(password, stored) {
   }
 }
 
-async function migrate(pool) {
-  await pool.query(SCHEMA);
+// Applies migrations/NNN_*.sql in order, once each, under an advisory lock.
+async function migrate(pool, dir = path.join(__dirname, 'migrations')) {
+  const client = await pool.connect();
+  try {
+    await client.query('select pg_advisory_lock(727001)');
+    await client.query('create table if not exists schema_migrations (name text primary key, applied_at timestamptz not null default now())');
+    const done = new Set((await client.query('select name from schema_migrations')).rows.map(r => r.name));
+    const files = fs.readdirSync(dir).filter(f => /^\d{3}_.+\.sql$/.test(f)).sort();
+    for (const f of files) {
+      if (done.has(f)) continue;
+      const sql = fs.readFileSync(path.join(dir, f), 'utf8');
+      try {
+        await client.query('begin');
+        await client.query(sql);
+        await client.query('insert into schema_migrations (name) values ($1)', [f]);
+        await client.query('commit');
+      } catch (e) {
+        await client.query('rollback').catch(() => {});
+        throw new Error(`Migration ${f} failed: ${e.message}`);
+      }
+    }
+  } finally {
+    await client.query('select pg_advisory_unlock(727001)').catch(() => {});
+    client.release();
+  }
 }
 
 // Loads the current project data once, on the first start only.
@@ -115,7 +98,7 @@ async function ensureAdmin(pool, env = process.env) {
       return 'none';
     }
     await pool.query(
-      "insert into users (email, name, role, password_hash) values ($1, 'Administrator', 'admin', $2)",
+      "insert into users (email, name, role, system_role, password_hash) values ($1, 'Administrator', 'admin', 'super_admin', $2)",
       [email, await hashPassword(password)]
     );
     console.log(`Created administrator ${email}`);
@@ -123,11 +106,13 @@ async function ensureAdmin(pool, env = process.env) {
   }
   if (env.ADMIN_FORCE_RESET === '1' && email && password.length >= 10) {
     const r = await pool.query(
-      "update users set password_hash = $2, token_version = token_version + 1, active = true, role = 'admin' where lower(email) = $1",
+      "update users set password_hash = $2, token_version = token_version + 1, active = true, role = 'admin', system_role = 'super_admin', failed_logins = 0, locked_until = null where lower(email) = $1",
       [email, await hashPassword(password)]
     );
     if (r.rowCount) { console.log(`Reset password for ${email}. Remove ADMIN_FORCE_RESET now.`); return 'reset'; }
   }
+  // the configured administrator is always the Super Admin
+  if (email) await pool.query("update users set system_role = 'super_admin', kind = 'internal' where lower(email) = $1 and system_role <> 'super_admin'", [email]);
   return 'exists';
 }
 

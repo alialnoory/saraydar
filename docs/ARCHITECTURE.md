@@ -22,17 +22,17 @@ One deployable web application plus one database. Chosen for a small team: one l
 
 | Concern | Choice | Why |
 |---|---|---|
-| Runtime | Node.js 22 LTS, TypeScript 5 | Same language front and back; already in use |
+| Runtime | Node.js 22 LTS, plain JavaScript (CommonJS) | No build step; same language as the existing API |
 | HTTP | Express 5 | Already used and tested in the current API |
 | Database | PostgreSQL 16+ (Render Postgres) | Relational integrity, exclusion constraints for lease overlaps, transactions for posting |
-| Migrations | node-pg-migrate (SQL files) | Plain, reviewable SQL |
-| Validation | Zod | Same schemas for API and forms |
-| Front end | React 18 + Vite, React Router, served by the same service | Same origin → no CORS, httpOnly cookies |
+| Migrations | `server/migrations/NNN_*.sql`, applied once each under an advisory lock (`db.migrate`) | Plain, reviewable SQL |
+| Validation | Explicit server-side checks in each route | Small surface, no extra dependency |
+| Front end | Server-rendered HTML (escaped template literals, `lib/html.js`) + a little progressive JavaScript; self-hosted Jost + IBM Plex Sans | Permissions are applied before any HTML is produced; works on any phone; nothing to build |
 | Language | English only, LTR (owner decision 2026-10-23, overrides spec §13 Arabic default). Strings kept in one catalogue so Arabic can be added later | Owner instruction |
 | Sessions | Server-side sessions in Postgres, httpOnly Secure SameSite=Lax cookie, CSRF token on mutations | Revocable instantly; works on iPhone Safari |
 | Passwords | scrypt (Node crypto) | Already implemented |
 | MFA | TOTP (RFC 6238) + one-time recovery codes; mandatory for Super Admin | No SMS provider needed |
-| Jobs | pg-boss (Postgres-backed queue + cron) | Durable, retries, singleton keys; no extra service |
+| Jobs | Postgres-backed job table with idempotency keys (added in Phase 5 when rent invoicing needs it) | Durable, retries, no extra service |
 | Files | Storage adapter: Postgres (start) → S3-compatible (Cloudflare R2) or Render disk later | Works on any tier; swap without data model change |
 | Images | sharp: thumbnails, EXIF strip, size limits | Mobile photo uploads |
 | PDF | HTML templates rendered by headless Chromium (Playwright) | Only reliable way to get joined Arabic + RTL tables |
