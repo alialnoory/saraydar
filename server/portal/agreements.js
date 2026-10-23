@@ -313,7 +313,7 @@ function mountAgreements(r, ctx) {
       <div class="split">
         <section class="panel grow1"><h2 class="h">Company details used in agreements</h2>
           <form method="post" action="/admin/agreements/company" class="form-grid">${csrfField(req)}
-            ${[['legal_name', 'Legal name'], ['trade_name', 'Trade name'], ['cr_number', 'Commercial registration (CR)'], ['address', 'Address'], ['phone', 'Telephone'], ['email', 'Email'], ['signatory_name', 'Authorised signatory'], ['signatory_title', 'Signatory title']]
+            ${[['legal_name', 'Legal name'], ['trade_name', 'Trade name'], ['cr_number', 'Commercial registration (CR)'], ['vat_number', 'VAT registration number (leave empty while not charging VAT)'], ['address', 'Address'], ['phone', 'Telephone'], ['email', 'Email'], ['signatory_name', 'Authorised signatory'], ['signatory_title', 'Signatory title']]
               .map(([k, l]) => field({ name: k, label: l, value: co[k] || '' }))}
             <div class="actions full"><button class="btn primary" type="submit">Save</button></div></form></section>
         <section class="panel grow1"><h2 class="h">Letterhead</h2>
@@ -340,7 +340,7 @@ function mountAgreements(r, ctx) {
 
   r.post('/admin/agreements/company', async (req, res) => {
     adminOnly(req);
-    const keys = ['legal_name', 'trade_name', 'cr_number', 'address', 'phone', 'email', 'signatory_name', 'signatory_title'];
+    const keys = ['legal_name', 'trade_name', 'cr_number', 'vat_number', 'address', 'phone', 'email', 'signatory_name', 'signatory_title'];
     const vals = keys.map(k => txt(req.body[k], 300));
     await core.inTx(async db => {
       await db.query(`update company_profile set ${keys.map((k, i) => `${k} = $${i + 1}`).join(', ')}, updated_by = $${keys.length + 1}, updated_at = now() where id = 1`, [...vals, req.user.id]);

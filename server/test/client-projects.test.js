@@ -202,6 +202,31 @@ test('client projects', { skip: !URL_ && 'set TEST_DATABASE_URL to run' }, async
     assert.equal((await admin.post(`/w/${p1}/approvals/${cid}/decision`, { status: 'rejected', decided_on: today, approver_name: 'x' }, `/w/${p1}/approvals`)).status, 400);  // a recorded decision is final
   });
 
+  await t.test('VAT later: a new terms version with a rate; VAT invoices need SarayDar\'s VAT number', async () => {
+    const next = fees.monthOf(fees.addDays(`${month}-28`, 7).slice(0, 7));
+    const form = await admin.get(`/w/${p3}/client`);
+    assert.match(form.text, /<option value="none" selected>No VAT charged on the fee/);              // the form's default today
+    await admin.post(`/w/${p3}/terms`, { start_date: `${month}-01`, monthly_fee: '1000', tax_mode: 'none' }, `/w/${p3}/client`);
+    const tA = (await q1(`select id, tax_mode from mgmt_terms where workspace_id = '${p3}'`));
+    assert.equal(tA.tax_mode, 'none');
+    await admin.post(`/w/${p3}/terms/${tA.id}/activate`, {}, `/w/${p3}/client`);
+    await admin.post(`/w/${p3}/terms`, { start_date: `${month}-01`, effective_from: next.start, monthly_fee: '1000', tax_mode: 'rate', tax_rate: '10' }, `/w/${p3}/client`);
+    const tB = (await q1(`select id, tax_label from mgmt_terms where workspace_id = '${p3}' and status = 'draft'`));
+    assert.equal(tB.tax_label, 'VAT');
+    await admin.post(`/w/${p3}/terms/${tB.id}/activate`, {}, `/w/${p3}/client`);
+    let r = await admin.post(`/w/${p3}/fees/drafts`, { month }, `/w/${p3}/fees`);
+    const noVat = r.location.split('/')[5].slice(0, 36);
+    assert.equal((await admin.post(`/w/${p3}/fees/invoices/${noVat}/issue`, { issue_date: today }, `/w/${p3}/fees/invoices/${noVat}`)).status, 302);
+    assert.equal(Number((await q1(`select tax_minor from fee_invoices where id = '${noVat}'`)).tax_minor), 0);
+    r = await admin.post(`/w/${p3}/fees/drafts`, { month: next.start.slice(0, 7) }, `/w/${p3}/fees`);
+    const vat = r.location.split('/')[5].slice(0, 36);
+    assert.equal(Number((await q1(`select tax_minor from fee_invoices where id = '${vat}'`)).tax_minor), 100000);
+    r = await admin.post(`/w/${p3}/fees/invoices/${vat}/issue`, { issue_date: today }, `/w/${p3}/fees/invoices/${vat}`);
+    assert.equal(r.status, 400); assert.match(r.text, /VAT registration number/);
+    await pool.query("update company_profile set vat_number = '200000000000002' where id = 1");
+    assert.equal((await admin.post(`/w/${p3}/fees/invoices/${vat}/issue`, { issue_date: today }, `/w/${p3}/fees/invoices/${vat}`)).status, 302);
+  });
+
   await t.test('isolation: other projects, non-members and roles without financial access', async () => {
     // an invoice of project 1 cannot be reached through project 3
     assert.equal((await admin.get(`/w/${p3}/fees/invoices/${inv1}`)).status, 404);

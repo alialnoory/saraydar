@@ -127,7 +127,7 @@ function mountFees(r, ctx, P) {
 
   // ---------- Client & Agreement tab ----------
   const termLabel = t => `v${t.version} · ${fm(num(t.monthly_fee_minor), t.currency)} / month from ${fmtDate(t.effective_from)}`;
-  const taxText = t => t.tax_mode === 'rate' ? `${t.tax_label || 'Tax'} ${fees.pctLabel(t.tax_rate_bp || 0)}` : t.tax_mode === 'none' ? 'No tax charged' : 'Not configured';
+  const taxText = t => t.tax_mode === 'rate' ? `${t.tax_label || 'Tax'} ${fees.pctLabel(t.tax_rate_bp || 0)}` : t.tax_mode === 'none' ? 'No VAT charged' : 'Not configured';
 
   r.get('/w/:id/client', async (req, res) => {
     const a = await access(req);
@@ -181,7 +181,7 @@ function mountFees(r, ctx, P) {
               ${field({ name: 'billing_timing', label: 'Billed', value: base.billing_timing || 'advance', options: [['advance', 'In advance (start of the month)'], ['arrears', 'In arrears (after the month)']] })}
               ${field({ name: 'proration', label: 'Part months', value: base.proration || 'daily', options: [['daily', 'Prorate by day'], ['none', 'Full monthly fee']] })}
               ${field({ name: 'payment_terms_days', label: 'Payment due (days after issue)', type: 'number', value: base.payment_terms_days ?? 30, attrs: 'min="0" max="365"' })}
-              ${field({ name: 'tax_mode', label: 'Tax treatment', value: base.tax_mode || 'not_configured', options: [['not_configured', 'Not yet confirmed'], ['none', 'No tax charged on the fee'], ['rate', 'Charge tax at a rate']], hint: 'Confirm with your tax adviser; the system does not assume a rate.' })}
+              ${field({ name: 'tax_mode', label: 'Tax treatment', value: base.tax_mode || 'none', options: [['none', 'No VAT charged on the fee'], ['rate', 'Charge VAT at a rate'], ['not_configured', 'Not yet confirmed']], hint: 'When VAT starts, record a new version of the terms from that date with the rate. Earlier invoices stay as issued.' })}
               ${field({ name: 'tax_rate', label: 'Tax rate (%)', value: base.tax_rate_bp !== undefined && base.tax_rate_bp !== null ? base.tax_rate_bp / 100 : '', attrs: 'inputmode="decimal"' })}
               ${tf('tax_label', 'Tax name on invoices', { hint: 'For example VAT.' })}
               ${tf('client_approvers', 'Authorised client approvers', { type: 'textarea' })}
@@ -225,7 +225,7 @@ function mountFees(r, ctx, P) {
     const days = parseInt(b.payment_terms_days, 10);
     return { agreement_ref: txt(b.agreement_ref, 80), signed_on: dateOrNull(b.signed_on), start_date: start, end_date: end, effective_from: eff,
       monthly_fee_minor: fee, billing_timing: b.billing_timing === 'arrears' ? 'arrears' : 'advance', proration: b.proration === 'none' ? 'none' : 'daily',
-      payment_terms_days: Number.isFinite(days) && days >= 0 && days <= 365 ? days : 30, tax_mode, tax_rate_bp, tax_label: txt(b.tax_label, 40),
+      payment_terms_days: Number.isFinite(days) && days >= 0 && days <= 365 ? days : 30, tax_mode, tax_rate_bp, tax_label: txt(b.tax_label, 40) || (tax_mode === 'rate' ? 'VAT' : null),
       client_approvers: txt(b.client_approvers, 2000), scope: txt(b.scope, 4000), responsibilities: txt(b.responsibilities, 4000), exclusions: txt(b.exclusions, 4000), notes: txt(b.notes, 2000) };
   }
 
@@ -416,7 +416,7 @@ function mountFees(r, ctx, P) {
           ${i.period_start ? html`<div><dt>Billing period</dt><dd>${fmtDate(i.period_start)} – ${fmtDate(i.period_end)}</dd></div>` : ''}
           <div><dt>Issue date</dt><dd>${fmtDate(i.issue_date) || '—'}</dd></div><div><dt>Due date</dt><dd>${fmtDate(i.due_date) || '—'}</dd></div>
           <div><dt>Terms used</dt><dd>${terms ? termLabel(terms) : '—'}</dd></div>
-          <div><dt>Tax</dt><dd>${i.tax_mode === 'rate' ? `${i.tax_label || 'Tax'} ${fees.pctLabel(i.tax_rate_bp || 0)}` : i.tax_mode === 'none' ? 'No tax charged' : html`<span class="err">Not configured</span>`}</dd></div>
+          <div><dt>Tax</dt><dd>${i.tax_mode === 'rate' ? `${i.tax_label || 'Tax'} ${fees.pctLabel(i.tax_rate_bp || 0)}` : i.tax_mode === 'none' ? 'No VAT charged' : html`<span class="err">Not configured</span>`}</dd></div>
           ${i.status === 'void' ? html`<div><dt>Voided</dt><dd>${fmtDateTime(i.voided_at)} · ${i.void_reason}</dd></div>` : ''}
         </dl>
         <div class="table-wrap"><table><thead><tr><th>Description</th><th class="n">Amount</th>${draft && edit ? html`<th></th>` : ''}</tr></thead><tbody>
@@ -515,6 +515,7 @@ function mountFees(r, ctx, P) {
       if (i.status !== 'draft') throw bad('This invoice has already been issued.');
       if (i.tax_mode === 'not_configured') throw bad('Tax treatment is not configured in the management-agreement terms used by this draft. Set it, then prepare the draft again.');
       if (!a.ws.party_id) throw bad('Link the project to a client before issuing invoices.');
+      if (i.tax_mode === 'rate' && !(await db.query('select vat_number from company_profile where id = 1')).rows[0]?.vat_number) throw bad('Add SarayDar\'s VAT registration number under Admin › Agreements (company details) before issuing a VAT invoice.');
       const t = await recalc(db, i.id);
       if (t.total <= 0) throw bad('The invoice total must be more than zero.');
       const terms = i.terms_id ? (await db.query('select payment_terms_days from mgmt_terms where id = $1', [i.terms_id])).rows[0] : null;
@@ -765,11 +766,11 @@ function mountFees(r, ctx, P) {
     const draft = i.status === 'draft';
     const t = draft ? fees.totals(i.lines, i.tax_mode, i.tax_rate_bp) : { subtotal: num(i.subtotal_minor), tax: num(i.tax_minor), total: i.total };
     const buf = await docs.render({ ...b, title: i.tax_mode === 'rate' ? 'Tax invoice' : 'Invoice', number: i.number, stamp: draft ? 'DRAFT — NOT ISSUED' : i.status === 'void' ? 'VOID' : null,
-      meta: [['Issue date', fmtDate(i.issue_date) || '—'], ['Due date', fmtDate(i.due_date) || '—'], ['Project', `${a.ws.ref}`], ['', a.ws.name], ...(i.period_start ? [['Period', `${fmtDate(i.period_start)} – ${fmtDate(i.period_end)}`]] : []), ['Currency', i.currency]],
+      meta: [...(i.tax_mode === 'rate' && b.company.vat_number ? [['VAT no.', b.company.vat_number]] : []), ['Issue date', fmtDate(i.issue_date) || '—'], ['Due date', fmtDate(i.due_date) || '—'], ['Project', `${a.ws.ref}`], ['', a.ws.name], ...(i.period_start ? [['Period', `${fmtDate(i.period_start)} – ${fmtDate(i.period_end)}`]] : []), ['Currency', i.currency]],
       tables: [{ head: ['Description', 'Amount'], widths: [0.75, 0.25], align: ['left', 'right'], rows: i.lines.map(l => [l.description, docs.money(l.amount, i.currency)]) }],
       totals: [['Subtotal', docs.money(t.subtotal, i.currency)], ...(i.tax_mode === 'rate' ? [[`${i.tax_label || 'Tax'} ${fees.pctLabel(i.tax_rate_bp || 0)}`, docs.money(t.tax, i.currency)]] : []), ['Total due', docs.money(t.total, i.currency), true],
         ...(i.status === 'issued' && (i.credited || i.allocated) ? [['Credited', docs.money(i.credited)], ['Paid', docs.money(i.allocated)], ['Outstanding', docs.money(i.outstanding), true]] : [])],
-      notes: ['This invoice requests payment of SarayDar\'s project management fee under the management agreement. It is not a receipt.', i.tax_mode === 'none' ? 'No tax has been charged on this fee.' : null, b.company.legal_name ? `${b.company.legal_name}${b.company.cr_number ? ` · CR ${b.company.cr_number}` : ''}` : null] });
+      notes: ['This invoice requests payment of SarayDar\'s project management fee under the management agreement. It is not a receipt.', i.tax_mode === 'none' ? 'No VAT has been charged on this fee.' : null, b.company.legal_name ? `${b.company.legal_name}${b.company.cr_number ? ` · CR ${b.company.cr_number}` : ''}${i.tax_mode === 'rate' && b.company.vat_number ? ` · VAT registration ${b.company.vat_number}` : ''}` : null] });
     await core.audit(null, { actor: req.user, workspaceId: a.ws.id, action: 'fee.invoice_pdf', entity: 'fee_invoice', entityId: i.id, summary: `Invoice PDF downloaded: ${i.number || 'draft'}`, ip: req.ip });
     sendPdf(res, buf, i.number || `draft-invoice-${a.ws.ref}`);
   });
