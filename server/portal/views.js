@@ -52,13 +52,18 @@ function layout(req, { title, crumbs = [], heading = null, sub = null, tabs = nu
   const exportable = !!u && !bare && !noExport && req.method === 'GET' && !/^\/(mfa|reset|login|forgot)/.test(req.path)
     && /<table|class="(details|stats|kv|card|rows|feed|empty)|<p[ >]/.test(bodyStr.replace(/<form[\s\S]*?<\/form>/g, ''));
   const exportHref = fmt => { const q = new URLSearchParams(req.query); q.delete('msg'); q.delete('page'); q.set('export', fmt); return `${req.path}?${q}`; };
+  const I = {
+    back: raw('<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>'),
+    home: raw('<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/></svg>'),
+    next: raw('<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18l6-6-6-6"/></svg>'),
+    file: raw('<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11"/><path d="M7 10l5 5 5-5"/><path d="M5 20h14"/></svg>')
+  };
   const pagenav = !u || bare ? '' : html`<div class="pagenav" role="navigation" aria-label="Page navigation">
-    <a class="navbtn" href="${parent}" data-back>‹ Back</a>
-    <a class="navbtn" href="${home}">Home</a>
-    ${prevTab ? html`<a class="navbtn" href="${prevTab[1]}">‹ ${prevTab[0]}</a>` : ''}
-    ${nextTab ? html`<a class="navbtn" href="${nextTab[1]}">${nextTab[0]} ›</a>` : ''}
-    <span class="grow"></span>
-    ${exportable ? html`<span class="export-label">Export</span><a class="navbtn" href="${exportHref('pdf')}" rel="nofollow">PDF</a><a class="navbtn" href="${exportHref('xlsx')}" rel="nofollow">Excel</a>` : ''}
+    ${prevTab || nextTab ? html`<div class="navgroup" aria-label="Tabs">
+      ${prevTab ? html`<a class="navbtn" href="${prevTab[1]}">${I.back}${prevTab[0]}</a>` : ''}
+      ${nextTab ? html`<a class="navbtn" href="${nextTab[1]}">${nextTab[0]}${I.next}</a>` : ''}</div>` : ''}
+    <div class="navgroup"><a class="navbtn" href="${parent}" data-back>${I.back}Back</a><a class="navbtn" href="${home}">${I.home}Home</a></div>
+    ${exportable ? html`<div class="navgroup" aria-label="Export"><a class="navbtn" href="${exportHref('pdf')}" rel="nofollow">${I.file}PDF</a><a class="navbtn" href="${exportHref('xlsx')}" rel="nofollow">${I.file}Excel</a></div>` : ''}
   </div>`;
   const msg = MESSAGES[req.query && req.query.msg];
   const header = bare ? html`

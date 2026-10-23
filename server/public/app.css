@@ -205,3 +205,10 @@ tr.sub td { border-top: 0; padding-top: 0; }
 .tabs a { border: 1px solid rgba(241, 230, 218, 0.22); border-radius: 8px; padding: 7px 12px; color: var(--band-soft); background: rgba(255, 255, 255, 0.02); border-bottom-width: 1px; }
 .tabs a:hover { border-color: rgba(241, 230, 218, 0.5); color: var(--band-ink); }
 .tabs a[aria-current="page"] { background: var(--copper); border-color: var(--copper); color: #1A110C; font-weight: 600; }
+/* Navigation and export: buttons grouped in the top-right corner */
+.pagenav { justify-content: flex-end; gap: 10px; }
+.navgroup { display: inline-flex; gap: 6px; flex-wrap: wrap; }
+.navgroup + .navgroup { padding-left: 10px; border-left: 1px solid var(--line); }
+.navbtn { border-radius: 8px; gap: 6px; padding: 0 12px; min-height: 36px; font-weight: 500; }
+.navbtn svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2; flex-shrink: 0; }
+@media (max-width: 640px) { .navgroup + .navgroup { padding-left: 0; border-left: 0; } }

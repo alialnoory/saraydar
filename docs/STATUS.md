@@ -59,7 +59,7 @@ Last updated: 2026-10-23
 - Land & Plots tab (development projects): any number of plots per project — plot number, title deed, area, frontage × depth, zoning, tenure, registered owner, status, purchase price/date (finance roles), notes, documents per plot; totals; units linked to plots; setup asks number of plots and flags a mismatch; draft plan adds a title/survey check per plot.
 
 ## Navigation and exports (owner requests 2026-10-23)
-- Every signed-in page has a navigation bar: Back (previous page, or the parent page), Home, and the previous/next tab inside a workspace.
+- Every signed-in page has a button bar in the top-right corner: previous/next tab, Back (previous page, or the parent page), Home, and Export PDF / Excel where the page has data. On a phone the buttons wrap onto two right-aligned rows.
 - Every page that shows data has Export PDF and Excel. The export is made from the page exactly as that user sees it (permissions and field hiding carry over), includes all rows (no paging), keeps money/percentages as numbers in Excel, neutralises formula text, and is recorded in the audit log. Forms, buttons and navigation are left out. The richer project report (with photos) remains under Reports.
 - Workspace tabs wrap onto extra lines (all visible) and are shown as light-bordered buttons; the current tab is filled.
 

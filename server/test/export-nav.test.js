@@ -51,13 +51,13 @@ test('export and navigation', { skip: !URL_ && 'set TEST_DATABASE_URL to run' },
     for (const p of ['/', '/s/dev', `/w/${ws}`, `/w/${ws}/plots`, `/w/${ws}/budget`, `/w/${ws}/tasks`, `/w/${ws}/registers`, `/w/${ws}/access`, '/admin/users', '/admin/audit']) {
       const page = await admin.get(p);
       assert.equal(page.status, 200, p);
-      assert.match(page.text, /‹ Back/, p);
+      assert.match(page.text, /data-back><svg[^<]*<path[^>]*\/><\/svg>Back<\/a>/, p);
       assert.match(page.text, /export=pdf/, p);
       assert.match(page.text, /export=xlsx/, p);
     }
     const plots = await admin.get(`/w/${ws}/plots`);
-    assert.match(plots.text, /href="\/w\/[0-9a-f-]{36}\/plan">Plan ›/);          // next tab
-    assert.match(plots.text, /href="\/w\/[0-9a-f-]{36}\/setup">‹ Setup/);       // previous tab
+    assert.match(plots.text, /href="\/w\/[0-9a-f-]{36}\/plan">Plan<svg/);          // next tab
+    assert.match(plots.text, /href="\/w\/[0-9a-f-]{36}\/setup"><svg[^<]*<path[^>]*\/><\/svg>Setup/);       // previous tab
     assert.doesNotMatch((await admin.get('/account/password')).text, /export=pdf/);   // nothing to export on a form
   });
 
