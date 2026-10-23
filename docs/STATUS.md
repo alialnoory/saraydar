@@ -58,8 +58,13 @@ Last updated: 2026-10-23
 - Creating logins: Administration › Users and each workspace's Access & Invitations (Super Admin) now take full name, email, username, mobile, job title/company, staff role or external viewer type, workspace role, auto-generated or typed temporary password. Details shown once; optional welcome email (address + username only, never the password); forced password change at first sign-in.
 - Land & Plots tab (development projects): any number of plots per project — plot number, title deed, area, frontage × depth, zoning, tenure, registered owner, status, purchase price/date (finance roles), notes, documents per plot; totals; units linked to plots; setup asks number of plots and flags a mismatch; draft plan adds a title/survey check per plot.
 
+## Navigation and exports (owner requests 2026-10-23)
+- Every signed-in page has a navigation bar: Back (previous page, or the parent page), Home, and the previous/next tab inside a workspace.
+- Every page that shows data has Export PDF and Excel. The export is made from the page exactly as that user sees it (permissions and field hiding carry over), includes all rows (no paging), keeps money/percentages as numbers in Excel, neutralises formula text, and is recorded in the audit log. Forms, buttons and navigation are left out. The richer project report (with photos) remains under Reports.
+- Workspace tabs wrap onto extra lines (all visible) and are shown as light-bordered buttons; the current tab is filled.
+
 ## Tests (actual results, 2026-10-23)
-- Latest full suite: 54 pass, 0 fail (adds photo, login creation, password generator, plots, MFA-off tests).
+- Latest full suite: 59 pass, 0 fail (adds page export/navigation tests) (adds photo, login creation, password generator, plots, MFA-off tests).
 - Agreements add 8 tests (field detection/typing, letterhead validation, per-section templates, required terms, generated PDF/Word contents, cross-workspace URL refused, issue/sign/lock, uploaded Word template filled, company copy without notice). Full suite: 48 pass, 0 fail.
 - Phase 3 adds 12 tests (money, progress maths, import, setup unknowns/conflicts, plan approval/baseline/revision, task loops and cross-workspace IDs, budget not triple-counted / approval ≠ payment / Finance-only confirmation, photo updates and drafts, PDF/xlsx with formula neutralised). Full suite: 40 pass, 0 fail.
 - `cd server && TEST_DATABASE_URL=… npm test` → 28 pass, 0 fail (old API 15, portal 13 groups covering sign-in, MFA, recovery codes, forced password change, workspace isolation, revocation, CSRF/origin, file types, external read-only through direct requests, audit immutability, password reset single use, deactivation, lockout, configurable roles).

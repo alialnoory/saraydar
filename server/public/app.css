@@ -190,3 +190,18 @@ img.avatar { object-fit: cover; display: block; background: var(--sunken); }
 .creds { font-size: 18px; letter-spacing: .06em; background: var(--sunken); padding: 6px 10px; border-radius: 8px; display: inline-block; user-select: all; }
 tr.sub td { border-top: 0; padding-top: 0; }
 [hidden] { display: none !important; }
+/* page navigation + export bar */
+.pagenav { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.navbtn { display: inline-flex; align-items: center; min-height: 36px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink); text-decoration: none; font-size: 13px; white-space: nowrap; }
+.navbtn:hover { border-color: var(--accent); color: var(--ink); }
+.export-label { font-size: 12px; color: var(--muted); margin-right: 2px; }
+@media print { .pagenav, .band .tabs, .usermenu, .band-search { display: none !important; } }
+/* All workspace tabs always visible: wrap onto extra lines instead of scrolling out of view */
+.tabs { flex-wrap: wrap; overflow-x: visible; row-gap: 0; }
+.tabs a { padding: 9px 11px; }
+@media (max-width: 640px) { .tabs { font-size: 13px; } .tabs a { padding: 8px 9px; } }
+/* Tabs as light-bordered buttons (owner request) */
+.tabs { gap: 6px; padding: 2px 0 14px; }
+.tabs a { border: 1px solid rgba(241, 230, 218, 0.22); border-radius: 8px; padding: 7px 12px; color: var(--band-soft); background: rgba(255, 255, 255, 0.02); border-bottom-width: 1px; }
+.tabs a:hover { border-color: rgba(241, 230, 218, 0.5); color: var(--band-ink); }
+.tabs a[aria-current="page"] { background: var(--copper); border-color: var(--copper); color: #1A110C; font-weight: 600; }

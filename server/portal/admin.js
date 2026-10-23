@@ -174,7 +174,7 @@ function mountAdmin(r, ctx) {
   r.get('/admin/outbox', async (req, res) => {
     const p = Math.max(1, parseInt(req.query.page, 10) || 1);
     const total = (await pool.query('select count(*)::int as n from outbox_messages')).rows[0].n;
-    const rows = (await pool.query(`select * from outbox_messages order by id desc limit ${PER} offset ${(p - 1) * PER}`)).rows;
+    const rows = (await pool.query(`select * from outbox_messages order by id desc limit ${req.exportAll ? 5000 : PER} offset ${req.exportAll ? 0 : (p - 1) * PER}`)).rows;
     res.send(page(req, 'outbox', 'Outbox', html`<section class="panel"><h2 class="h">Outbox</h2>
       <p class="muted">Every email the system creates is listed here. “Not configured” means no SMTP account is set up, so nothing was sent. Password-reset contents are never shown.</p>
       ${rows.length ? html`<div class="table-wrap"><table><thead><tr><th>Created</th><th>To</th><th>Subject</th><th>Type</th><th>Status</th></tr></thead><tbody>
@@ -191,7 +191,7 @@ function mountAdmin(r, ctx) {
     const vals = []; let where = 'true';
     if (q) { vals.push(`%${q.replace(/[%_\\]/g, '\\$&')}%`); where = `(e.action ilike $1 or coalesce(e.summary,'') ilike $1 or coalesce(e.actor_label,'') ilike $1)`; }
     const total = (await pool.query(`select count(*)::int as n from audit_events e where ${where}`, vals)).rows[0].n;
-    const rows = (await pool.query(`select e.*, w.name as ws_name from audit_events e left join workspaces w on w.id = e.workspace_id where ${where} order by e.id desc limit ${PER} offset ${(p - 1) * PER}`, vals)).rows;
+    const rows = (await pool.query(`select e.*, w.name as ws_name from audit_events e left join workspaces w on w.id = e.workspace_id where ${where} order by e.id desc limit ${req.exportAll ? 5000 : PER} offset ${req.exportAll ? 0 : (p - 1) * PER}`, vals)).rows;
     res.send(page(req, 'audit', 'Audit log', html`<section class="panel"><h2 class="h">Audit log</h2>
       <form class="filters" method="get"><label class="searchbox"><input type="search" name="q" value="${q}" placeholder="Filter by action, person or text" aria-label="Filter"></label><button class="btn" type="submit">Filter</button></form>
       <p class="muted small">The log is append-only: the database refuses edits and deletions.</p>

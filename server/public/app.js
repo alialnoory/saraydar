@@ -27,3 +27,9 @@ document.addEventListener('change', e => {
   const f = t.form && t.form.querySelector('[name="password"]'); if (f) f.closest('.field').hidden = t.checked;
 });
 document.querySelectorAll('[data-toggle-pw]').forEach(t => { const f = t.form && t.form.querySelector('[name="password"]'); if (f && t.checked) f.closest('.field').hidden = true; });
+// "Back" returns to the previous page when there is one in this tab, otherwise to the parent page
+document.addEventListener('click', e => {
+  const a = e.target.closest('a[data-back]');
+  if (!a || e.metaKey || e.ctrlKey) return;
+  if (history.length > 1 && document.referrer && new URL(document.referrer).origin === location.origin) { e.preventDefault(); history.back(); }
+});

@@ -39,8 +39,27 @@ const icons = {
   search: raw('<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>')
 };
 
-function layout(req, { title, crumbs = [], heading = null, sub = null, tabs = null, actions = null, body, bare = false }) {
+function layout(req, { title, crumbs = [], heading = null, sub = null, tabs = null, actions = null, body, bare = false, noExport = false }) {
   const u = req.user;
+  // Page navigation (Back / Home / Next tab) and export buttons, shown on every signed-in page.
+  const home = u && u.kind === 'external' ? '/my' : '/';
+  const linked = crumbs.filter(c => c[1]);
+  const parent = linked.length ? linked[linked.length - 1][1] : home;
+  const cur = tabs ? tabs.findIndex(t => t[2]) : -1;
+  const nextTab = cur >= 0 && cur + 1 < tabs.length ? tabs[cur + 1] : null;
+  const prevTab = cur > 0 ? tabs[cur - 1] : null;
+  const bodyStr = String(body || '');
+  const exportable = !!u && !bare && !noExport && req.method === 'GET' && !/^\/(mfa|reset|login|forgot)/.test(req.path)
+    && /<table|class="(details|stats|kv|card|rows|feed|empty)|<p[ >]/.test(bodyStr.replace(/<form[\s\S]*?<\/form>/g, ''));
+  const exportHref = fmt => { const q = new URLSearchParams(req.query); q.delete('msg'); q.delete('page'); q.set('export', fmt); return `${req.path}?${q}`; };
+  const pagenav = !u || bare ? '' : html`<div class="pagenav" role="navigation" aria-label="Page navigation">
+    <a class="navbtn" href="${parent}" data-back>‹ Back</a>
+    <a class="navbtn" href="${home}">Home</a>
+    ${prevTab ? html`<a class="navbtn" href="${prevTab[1]}">‹ ${prevTab[0]}</a>` : ''}
+    ${nextTab ? html`<a class="navbtn" href="${nextTab[1]}">${nextTab[0]} ›</a>` : ''}
+    <span class="grow"></span>
+    ${exportable ? html`<span class="export-label">Export</span><a class="navbtn" href="${exportHref('pdf')}" rel="nofollow">PDF</a><a class="navbtn" href="${exportHref('xlsx')}" rel="nofollow">Excel</a>` : ''}
+  </div>`;
   const msg = MESSAGES[req.query && req.query.msg];
   const header = bare ? html`
     <header class="band"><div class="wrap band-row"><a class="wordmark" href="/">SΛRΛYDΛR</a><span class="band-sub">Management System</span></div></header>`
@@ -69,7 +88,7 @@ function layout(req, { title, crumbs = [], heading = null, sub = null, tabs = nu
   return '<!doctype html>' + html`<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${title ? `${title} · ` : ''}SarayDar Management System</title>
 <link rel="stylesheet" href="/static/app.css"><script src="/static/app.js" defer></script></head>
-<body>${header}<main class="wrap main">${msg ? html`<div class="flash" role="status">${msg}</div>` : ''}${body}</main></body></html>`;
+<body>${header}<main class="wrap main">${pagenav}${msg ? html`<div class="flash" role="status">${msg}</div>` : ''}${body}</main></body></html>`;
 }
 
 const emptyState = (title, text, action = '') => html`<div class="empty"><strong>${title}</strong><p>${text}</p>${action}</div>`;

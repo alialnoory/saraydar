@@ -131,7 +131,7 @@ function mountWorkspaces(r, ctx) {
     if (q) { vals.push(`%${q.replace(/[%_\\]/g, '\\$&')}%`); where.push(`(w.name ilike $${vals.length} or w.ref ilike $${vals.length} or coalesce(w.location,'') ilike $${vals.length} or coalesce(p.name,'') ilike $${vals.length})`); }
     const from = `from workspaces w left join parties p on p.id = w.party_id left join users mu on mu.id = w.manager_id where ${where.join(' and ')}`;
     const total = (await pool.query(`select count(*)::int as n ${from}`, vals)).rows[0].n;
-    const rows = (await pool.query(`select w.*, p.name as party_name, coalesce(mu.name, mu.email) as manager_name ${from} order by ${sort} limit ${PER_PAGE} offset ${(page - 1) * PER_PAGE}`, vals)).rows;
+    const rows = (await pool.query(`select w.*, p.name as party_name, coalesce(mu.name, mu.email) as manager_name ${from} order by ${sort} limit ${req.exportAll ? 5000 : PER_PAGE} offset ${req.exportAll ? 0 : (page - 1) * PER_PAGE}`, vals)).rows;
     const extra = ctx.portfolioExtras && ctx.portfolioExtras[s.key] && rows.length ? await ctx.portfolioExtras[s.key](rows.map(x => x.id)) : null;
     const createKinds = [];
     for (const [k, c] of Object.entries(s.create)) if (await core.can(req.user, `create:${s.key}`)) createKinds.push([k, c]);
@@ -489,7 +489,7 @@ function mountWorkspaces(r, ctx) {
     if (!a.internal) throw new NotFound();
     const page = Math.max(1, parseInt(req.query.page, 10) || 1);
     const total = (await pool.query('select count(*)::int as n from audit_events where workspace_id = $1', [a.ws.id])).rows[0].n;
-    const rows = (await pool.query(`select * from audit_events where workspace_id = $1 order by id desc limit ${PER_PAGE} offset ${(page - 1) * PER_PAGE}`, [a.ws.id])).rows;
+    const rows = (await pool.query(`select * from audit_events where workspace_id = $1 order by id desc limit ${req.exportAll ? 5000 : PER_PAGE} offset ${req.exportAll ? 0 : (page - 1) * PER_PAGE}`, [a.ws.id])).rows;
     res.send(wsLayout(req, a, 'activity', html`<section class="panel"><h2 class="h">Activity</h2>
       ${rows.length ? html`<ol class="feed">${rows.map(e => html`<li><b>${e.summary || e.action}</b><div class="muted small">${e.actor_label} · ${fmtDateTime(e.at)} · <span class="mono">${e.action}</span></div></li>`)}</ol>${pager(req, total, page, PER_PAGE)}`
         : html`<p class="muted">No activity recorded yet.</p>`}</section>`));
