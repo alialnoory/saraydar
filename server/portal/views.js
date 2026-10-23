@@ -45,9 +45,6 @@ function layout(req, { title, crumbs = [], heading = null, sub = null, tabs = nu
   const home = u && u.kind === 'external' ? '/my' : '/';
   const linked = crumbs.filter(c => c[1]);
   const parent = linked.length ? linked[linked.length - 1][1] : home;
-  const cur = tabs ? tabs.findIndex(t => t[2]) : -1;
-  const nextTab = cur >= 0 && cur + 1 < tabs.length ? tabs[cur + 1] : null;
-  const prevTab = cur > 0 ? tabs[cur - 1] : null;
   const bodyStr = String(body || '');
   const exportable = !!u && !bare && !noExport && req.method === 'GET' && !/^\/(mfa|reset|login|forgot)/.test(req.path)
     && /<table|class="(details|stats|kv|card|rows|feed|empty)|<p[ >]/.test(bodyStr.replace(/<form[\s\S]*?<\/form>/g, ''));
@@ -55,13 +52,9 @@ function layout(req, { title, crumbs = [], heading = null, sub = null, tabs = nu
   const I = {
     back: raw('<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>'),
     home: raw('<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/></svg>'),
-    next: raw('<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18l6-6-6-6"/></svg>'),
     file: raw('<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11"/><path d="M7 10l5 5 5-5"/><path d="M5 20h14"/></svg>')
   };
   const pagenav = !u || bare ? '' : html`<div class="pagenav" role="navigation" aria-label="Page navigation">
-    ${prevTab || nextTab ? html`<div class="navgroup" aria-label="Tabs">
-      ${prevTab ? html`<a class="navbtn" href="${prevTab[1]}">${I.back}${prevTab[0]}</a>` : ''}
-      ${nextTab ? html`<a class="navbtn" href="${nextTab[1]}">${nextTab[0]}${I.next}</a>` : ''}</div>` : ''}
     <div class="navgroup"><a class="navbtn" href="${parent}" data-back>${I.back}Back</a><a class="navbtn" href="${home}">${I.home}Home</a></div>
     ${exportable ? html`<div class="navgroup" aria-label="Export"><a class="navbtn" href="${exportHref('pdf')}" rel="nofollow">${I.file}PDF</a><a class="navbtn" href="${exportHref('xlsx')}" rel="nofollow">${I.file}Excel</a></div>` : ''}
   </div>`;
@@ -84,8 +77,8 @@ function layout(req, { title, crumbs = [], heading = null, sub = null, tabs = nu
           </div></details>` : ''}
       </div>
       ${heading ? html`<div class="wrap band-head">
-        <div class="band-top">${crumbs.length ? html`<nav class="crumbs" aria-label="Breadcrumb">${crumbs.map((c, i) => html`${i ? ' › ' : ''}${c[1] ? html`<a href="${c[1]}">${c[0]}</a>` : html`<span>${c[0]}</span>`}`)}</nav>` : html`<span></span>`}${pagenav}</div>
-        <div class="band-title"><div class="grow">${sub && sub.above ? html`<div class="eyebrow">${sub.above}</div>` : ''}<h1>${heading}</h1>${sub && sub.below ? html`<div class="band-meta">${sub.below}</div>` : ''}</div>${actions || ''}</div>
+        ${crumbs.length ? html`<nav class="crumbs" aria-label="Breadcrumb">${crumbs.map((c, i) => html`${i ? ' › ' : ''}${c[1] ? html`<a href="${c[1]}">${c[0]}</a>` : html`<span>${c[0]}</span>`}`)}</nav>` : ''}
+        <div class="band-title"><div class="grow">${sub && sub.above ? html`<div class="eyebrow">${sub.above}</div>` : ''}<h1>${heading}</h1>${sub && sub.below ? html`<div class="band-meta">${sub.below}</div>` : ''}</div><div class="band-actions">${pagenav}${actions || ''}</div></div>
         ${tabs ? html`<nav class="tabs" aria-label="Sections">${tabs.map(([label, href, on]) => html`<a href="${href}" ${on ? raw('aria-current="page"') : ''}>${label}</a>`)}</nav>` : ''}
       </div>` : ''}
     </header>`;

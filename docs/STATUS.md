@@ -71,7 +71,7 @@ Last updated: 2026-10-23
 - Not done in Phase 4: automatic monthly issuing (terms record the flag, nothing issues automatically — needs the paid tier/job scheduler), emailing invoices (needs Outlook SMTP), configurable approval thresholds, the external client view (Phase 7).
 
 ## Navigation and exports (owner requests 2026-10-23)
-- Every signed-in page has a button bar in the dark ribbon, top right beside the breadcrumbs (on pages without a ribbon heading, at the top of the page): previous/next tab, Back (previous page, or the parent page), Home, and Export PDF / Excel where the page has data. On a phone the buttons wrap onto two right-aligned rows.
+- Every signed-in page has Back (previous page, or the parent page), Home, and Export PDF / Excel where the page has data, on the title row of the dark ribbon, right side, next to the status (owner request 2026-10-23; previous/next tab buttons removed). Pages without a ribbon heading show them at the top of the page.
 - Every page that shows data has Export PDF and Excel. The export is made from the page exactly as that user sees it (permissions and field hiding carry over), includes all rows (no paging), keeps money/percentages as numbers in Excel, neutralises formula text, and is recorded in the audit log. Forms, buttons and navigation are left out. The richer project report (with photos) remains under Reports.
 - Workspace tabs wrap onto extra lines (all visible) and are shown as light-bordered buttons; the current tab is filled.
 

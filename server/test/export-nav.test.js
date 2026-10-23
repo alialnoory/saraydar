@@ -47,7 +47,7 @@ test('export and navigation', { skip: !URL_ && 'set TEST_DATABASE_URL to run' },
   await admin.post(`/w/${ws}/tasks`, { title: '=cmd|"/c calc"!A0', phase_id: '', owner_text: '', start_date: '', due_date: '' }, `/w/${ws}/tasks`);
   await admin.post(`/w/${ws}/plots`, { ref: '1201', area_m2: '175.1', status: 'owned', purchase_price: '62500' }, `/w/${ws}/plots`);
 
-  await t.test('every data page offers PDF and Excel, plus Back / Home / Next', async () => {
+  await t.test('every data page offers PDF and Excel, plus Back / Home', async () => {
     for (const p of ['/', '/s/dev', `/w/${ws}`, `/w/${ws}/plots`, `/w/${ws}/budget`, `/w/${ws}/tasks`, `/w/${ws}/registers`, `/w/${ws}/access`, '/admin/users', '/admin/audit']) {
       const page = await admin.get(p);
       assert.equal(page.status, 200, p);
@@ -56,8 +56,8 @@ test('export and navigation', { skip: !URL_ && 'set TEST_DATABASE_URL to run' },
       assert.match(page.text, /export=xlsx/, p);
     }
     const plots = await admin.get(`/w/${ws}/plots`);
-    assert.match(plots.text, /href="\/w\/[0-9a-f-]{36}\/plan">Plan<svg/);          // next tab
-    assert.match(plots.text, /href="\/w\/[0-9a-f-]{36}\/setup"><svg[^<]*<path[^>]*\/><\/svg>Setup/);       // previous tab
+    assert.match(plots.text, /class="band-actions"><div class="pagenav"/);     // in the title row of the ribbon
+    assert.doesNotMatch(plots.text, /aria-label="Tabs"/);                      // no previous/next tab buttons
     assert.doesNotMatch((await admin.get('/account/password')).text, /export=pdf/);   // nothing to export on a form
   });
 
