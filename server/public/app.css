@@ -181,3 +181,5 @@ td .inline-form { margin: 0; } td .inline-form form { min-width: 520px; }
 .update .h a { color: var(--ink); text-decoration: none; }
 .filters label.small { display: inline-flex; align-items: center; gap: 6px; } .filters input[type="date"] { width: auto; }
 @media (max-width: 640px) { td .inline-form form { min-width: 0; } }
+.letterhead-preview { width: 100%; max-width: 260px; border: 1px solid var(--line); border-radius: 8px; display: block; background: #fff; }
+textarea.mono { font-family: var(--f-mono); font-size: 13px; line-height: 1.5; }

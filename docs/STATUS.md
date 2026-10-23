@@ -13,7 +13,8 @@ Last updated: 2026-10-23
 | Design preview | Approved 2026-10-23 (English only) |
 | 2 Foundation | **Done, tested locally, pushed** — see below |
 | 3 Development projects | **Done, tested locally, pushed** — see below |
-| 4 Client projects | Not started |
+| Agreements & contracts (all sections) | **Done, tested locally, pushed** — see below |
+| 4 Client projects | Next |
 | 5 Property management | Not started |
 | 6 Sales & Acquisition | Not started |
 | 7 Portals (invitations), investors, exports, AI, hardening | Not started |
@@ -42,13 +43,22 @@ Last updated: 2026-10-23
 - Units & Sales (list price, status); reports: PDF (branded, with photos, period filter) and Excel (separate sheets, formula-injection safe, finance sheets only for finance-visible roles).
 - Abuquwa tracker moved into DEV-2026-001 on first start (36 tasks as draft plan v1, 9 budget lines unverified, land commitment, 1 payment awaiting confirmation, 7 risks, 4 units, site log). The old tracker API is read-only (410) and Netlify redirects to the portal.
 
+## Agreements & contracts — what exists
+- Agreements tab in every workspace of all four sections; Administration › Agreements for company details, letterhead and templates.
+- Letterhead: A4 PNG/JPG placed behind every page of generated PDFs and Word files; header/footer space configurable.
+- 12 starter drafts (subcontract, design consultancy, unit sale, project management services, residential lease, commercial lease, property management, maintenance contract, sale mandate, buyer search agreement, reservation form, co-broker). Generic texts, not checked against any jurisdiction; every page they generate carries a legal-review notice. "Make a company copy" to edit wording (versioned, no notice).
+- Uploaded Word templates with {{fields}}: questions detected automatically (_amount = money, _date = date), filled Word file produced with the original formatting.
+- Preparing an agreement: system fills project/property and company details and the reference; asks for the other party (existing or new; updates the party record) and the template's terms; save with blanks, generate only when required answers are complete; blanks print as lines for hand completion, never invented.
+- Every generation is a numbered version (PDF + Word for text templates); issue for signature; record signing date + signed copy (PDF/photo); signed/cancelled agreements are locked; all steps audited.
+
 ## Tests (actual results, 2026-10-23)
+- Agreements add 8 tests (field detection/typing, letterhead validation, per-section templates, required terms, generated PDF/Word contents, cross-workspace URL refused, issue/sign/lock, uploaded Word template filled, company copy without notice). Full suite: 48 pass, 0 fail.
 - Phase 3 adds 12 tests (money, progress maths, import, setup unknowns/conflicts, plan approval/baseline/revision, task loops and cross-workspace IDs, budget not triple-counted / approval ≠ payment / Finance-only confirmation, photo updates and drafts, PDF/xlsx with formula neutralised). Full suite: 40 pass, 0 fail.
 - `cd server && TEST_DATABASE_URL=… npm test` → 28 pass, 0 fail (old API 15, portal 13 groups covering sign-in, MFA, recovery codes, forced password change, workspace isolation, revocation, CSRF/origin, file types, external read-only through direct requests, audit immutability, password reset single use, deactivation, lockout, configurable roles).
 - Browser check (Chromium) at 1366 px and 390 px: sign-in → MFA enrolment → dashboard → section → workspace → upload; no horizontal scroll.
 
 ## Not yet built (by phase)
-- Next: Agreements & contracts tab for all sections (requested 2026-10-23), then Phase 4 Clients Projects Management.
+- Next: Phase 4 Clients Projects Management (client projects reuse the Phase 3 project engine; agreements, fee invoices, receipts, statements).
 - Later: email invitations for external viewers, job scheduler, investors & funding, AI assistant.
 
 ## External dependencies (not available yet)

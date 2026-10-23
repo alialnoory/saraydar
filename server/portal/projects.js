@@ -63,7 +63,7 @@ function mountProjects(r, ctx) {
     const id = a.ws.id;
     return [['Overview', `/w/${id}`], ['Setup', `/w/${id}/setup`], ['Plan', `/w/${id}/plan`], ['Tasks & Schedule', `/w/${id}/tasks`],
       ...(a.finance !== false ? [['Budget & Cost', `/w/${id}/budget`]] : []), ['Progress Updates', `/w/${id}/updates`], ['Registers', `/w/${id}/registers`],
-      ['Units & Sales', `/w/${id}/units`], ['Documents', `/w/${id}/documents`], ['Reports', `/w/${id}/reports`], ['Access & Invitations', `/w/${id}/access`], ['Activity', `/w/${id}/activity`]]
+      ['Units & Sales', `/w/${id}/units`], ['Agreements', `/w/${id}/agreements`], ['Documents', `/w/${id}/documents`], ['Reports', `/w/${id}/reports`], ['Access & Invitations', `/w/${id}/access`], ['Activity', `/w/${id}/activity`]]
       .map(([l, h]) => [l, h, l === cur]);
   }
   function page(req, a, cur, body) {

@@ -215,7 +215,7 @@ function mountWorkspaces(r, ctx) {
     const w = a.ws, s = SECTIONS[w.section];
     const external = !a.internal;
     let tabs = [['Overview', `/w/${w.id}`, tab === 'overview'], ['Documents', `/w/${w.id}/documents`, tab === 'documents']];
-    if (!external) tabs.push(['Access & Invitations', `/w/${w.id}/access`, tab === 'access'], ['Activity', `/w/${w.id}/activity`, tab === 'activity']);
+    if (!external) { tabs.splice(1, 0, ['Agreements', `/w/${w.id}/agreements`, false]); tabs.push(['Access & Invitations', `/w/${w.id}/access`, tab === 'access'], ['Activity', `/w/${w.id}/activity`, tab === 'activity']); }
     const label = { overview: 'Overview', documents: 'Documents', access: 'Access & Invitations', activity: 'Activity' }[tab];
     if (!external && ctx.tabsFor && ctx.tabsFor[w.section]) tabs = ctx.tabsFor[w.section](a, label);
     return layout(req, { title: w.name, heading: w.name, tabs,
