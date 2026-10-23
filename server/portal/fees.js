@@ -31,11 +31,18 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 
 function mountFees(r, ctx, P) {
   const { pool, core, NotFound, Forbidden } = ctx;
 
+  // fee billing serves client projects (cpm) and managed properties (props)
   async function access(req, need = 'view') {
-    const a = await P.access(req, need === 'finance-edit' ? 'edit' : need);
-    if (a.ws.section !== 'cpm') throw new NotFound();
+    if (!UUID.test(req.params.id || '')) throw new NotFound();
+    const w = (await pool.query('select section from workspaces where id = $1', [req.params.id])).rows[0];
+    const impl = w && w.section === 'cpm' ? P : w && w.section === 'props' ? ctx.PR : null;
+    if (!impl) throw new NotFound();
+    const a = await impl.access(req, need === 'finance-edit' ? 'edit' : need);
+    a.impl = impl;
     return a;
   }
+  const cpmOnly = a => { if (a.ws.section !== 'cpm') throw new NotFound(); return a; };
+  const party = a => a.ws.section === 'props' ? 'Owner' : 'Client';
   async function finAccess(req, need = 'view') {
     const a = await access(req, need === 'post' ? 'view' : need);
     if (!a.finance) throw new NotFound();
@@ -44,7 +51,8 @@ function mountFees(r, ctx, P) {
     return a;
   }
   const own = (t, id, ws) => P.own(t, id, ws);
-  const page = (req, a, tab, body) => P.page(req, a, tab, body);
+  const touch = (db, ws) => P.touch(db, ws);
+  const page = (req, a, tab, body) => a.impl.page(req, a, tab === 'Client & Agreement' && a.ws.section === 'props' ? 'Owner & Agreement' : tab, body);
 
   // ---------- ledger state (one fee account per client project) ----------
   async function ledger(wsId, db = pool) {
@@ -137,22 +145,24 @@ function mountFees(r, ctx, P) {
     const act = activeTerms(all);
     const edit = core.canEdit(a);
     const canPost = core.isSuper(req.user) || await core.can(req.user, 'finance:post');
-    const clients = edit ? (await pool.query("select id, name from parties where 'client' = any(roles) and archived_at is null order by name limit 500")).rows : [];
+    const role = a.ws.section === 'props' ? 'owner' : 'client';
+    const clients = edit ? (await pool.query("select id, name from parties where $1 = any(roles) and archived_at is null order by name limit 500", [role])).rows : [];
     const base = draft || act || {};
     const showTerms = a.finance;
     const tf = (k, label, extra = {}) => field({ name: k, label, value: base[k] instanceof Date ? iso(base[k]) : base[k] ?? '', ...extra });
     res.send(page(req, a, 'Client & Agreement', html`
       <div class="split">
-        <section class="panel grow1"><div class="row-between"><h2 class="h">Client</h2>${client ? html`<a class="btn small" href="/clients/${client.id}">Full client profile</a>` : ''}</div>
+        <section class="panel grow1"><div class="row-between"><h2 class="h">${party(a)}</h2>${client ? html`<a class="btn small" href="/clients/${client.id}">Full ${party(a).toLowerCase()} profile</a>` : ''}</div>
           ${client ? html`<p class="client-name">${client.name}</p><dl class="details">
             <div><dt>Main contact</dt><dd>${client.contact_person || client.representative || html`<span class="muted">Not recorded</span>`}</dd></div>
             <div><dt>Telephone</dt><dd>${client.phone || '—'}</dd></div><div><dt>Email</dt><dd>${client.email || '—'}</dd></div>
             <div><dt>Preferred contact</dt><dd>${client.preferred_contact || '—'}</dd></div>
             <div><dt>Approval authorities</dt><dd class="pre-line">${client.approval_authorities || html`<span class="muted">Not recorded</span>`}</dd></div></dl>`
-            : html`<p class="muted">This project is not linked to a client yet.</p>`}
-          ${edit ? html`<details class="inline-form"><summary>${client ? 'Change client' : 'Link a client'}</summary><form method="post" action="/w/${a.ws.id}/client/link" class="form-grid">${csrfField(req)}
-            ${field({ name: 'party_id', label: 'Client', options: [['', 'Choose…'], ...clients.map(c => [c.id, c.name])], required: true })}
-            <div class="actions full"><button class="btn" type="submit">Save</button><a class="btn" href="/clients/new">+ New client</a></div></form></details>` : ''}
+            : html`<p class="muted">Not linked to ${a.ws.section === 'props' ? 'an owner' : 'a client'} yet.</p>`}
+          ${edit ? html`<details class="inline-form"><summary>${client ? `Change ${party(a).toLowerCase()}` : `Link ${a.ws.section === 'props' ? 'an owner' : 'a client'}`}</summary><form method="post" action="/w/${a.ws.id}/client/link" class="form-grid">${csrfField(req)}
+            ${field({ name: 'party_id', label: party(a), options: [['', 'Choose…'], ...clients.map(c => [c.id, c.name])], required: true })}
+            ${a.ws.section === 'props' ? field({ name: 'new_name', label: 'Or new owner name' }) : ''}
+            <div class="actions full"><button class="btn" type="submit">Save</button>${a.ws.section === 'cpm' ? html`<a class="btn" href="/clients/new">+ New client</a>` : ''}</div></form></details>` : ''}
         </section>
         ${showTerms ? html`<section class="panel grow2"><h2 class="h">Management agreement terms</h2>
           ${act ? html`<dl class="details">
@@ -195,13 +205,15 @@ function mountFees(r, ctx, P) {
 
   r.post('/w/:id/client/link', async (req, res) => {
     const a = await access(req, 'edit');
+    const role = a.ws.section === 'props' ? 'owner' : 'client';
     const pid = UUID.test(req.body.party_id || '') ? req.body.party_id : null;
-    const p = pid ? (await pool.query("select id, name, roles from parties where id = $1 and archived_at is null", [pid])).rows[0] : null;
-    if (!p) throw bad('Choose a client.');
+    let p = pid ? (await pool.query("select id, name, roles from parties where id = $1 and archived_at is null", [pid])).rows[0] : null;
+    if (!p && role === 'owner' && txt(req.body.new_name, 160)) p = (await pool.query("insert into parties (name, roles, created_by) values ($1, '{owner}', $2) returning id, name, roles", [txt(req.body.new_name, 160), req.user.id])).rows[0];
+    if (!p) throw bad(`Choose ${role === 'owner' ? 'an owner' : 'a client'}.`);
     await core.inTx(async db => {
-      if (!p.roles.includes('client')) await db.query("update parties set roles = array_append(roles, 'client') where id = $1", [p.id]);
+      if (!p.roles.includes(role)) await db.query("update parties set roles = array_append(roles, $2) where id = $1", [p.id, role]);
       await db.query('update workspaces set party_id = $2, updated_at = now() where id = $1', [a.ws.id, p.id]);
-      await core.audit(db, { actor: req.user, workspaceId: a.ws.id, action: 'workspace.client_linked', entity: 'workspace', entityId: a.ws.id, summary: `Client linked: ${p.name}`, before: { party_id: a.ws.party_id }, after: { party_id: p.id }, ip: req.ip });
+      await core.audit(db, { actor: req.user, workspaceId: a.ws.id, action: 'workspace.client_linked', entity: 'workspace', entityId: a.ws.id, summary: `${role === 'owner' ? 'Owner' : 'Client'} linked: ${p.name}`, before: { party_id: a.ws.party_id }, after: { party_id: p.id }, ip: req.ip });
     });
     res.redirect(`/w/${a.ws.id}/client?msg=saved`);
   });
@@ -266,7 +278,7 @@ function mountFees(r, ctx, P) {
       if (act) await db.query("update mgmt_terms set status = 'superseded' where id = $1", [act.id]);
       await db.query("update mgmt_terms set status = 'active', activated_by = $2, activated_at = now() where id = $1", [t.id, req.user.id]);
       await core.audit(db, { actor: req.user, workspaceId: a.ws.id, action: 'terms.activated', entity: 'mgmt_terms', entityId: t.id, summary: `Management terms v${t.version} in force from ${iso(t.effective_from)}: ${formatMoney(num(t.monthly_fee_minor))} / month`, before: act ? { version: act.version, fee: num(act.monthly_fee_minor) } : null, after: { version: t.version, fee: num(t.monthly_fee_minor) }, ip: req.ip });
-      await P.touch(db, a.ws.id);
+      await touch(db, a.ws.id);
     });
     res.redirect(`/w/${a.ws.id}/client?msg=saved`);
   });
@@ -299,7 +311,8 @@ function mountFees(r, ctx, P) {
     const billed = new Set(L.invoices.filter(i => i.kind === 'monthly' && i.status !== 'void').map(i => iso(i.period_start).slice(0, 7)));
     const idem = crypto.randomBytes(12).toString('hex');
     res.send(page(req, a, 'Fee Billing', html`
-      <div class="notice info">SarayDar's own management-fee account for this project. The client's construction spending is kept separately under <a href="/w/${id}/budget">Client Budget &amp; Payments</a> and is never counted here.</div>
+      ${a.ws.section === 'props' ? html`<div class="notice info">SarayDar's own management-fee account for this property, addressed to the owner. Rent, deposits and property expenses are kept separately and never counted here.${(await ctx.PR.profileOf(id)).fee_deduction_allowed ? html` Fees may be deducted from collected rent under <a href="/w/${id}/owner">Owner Account</a>.` : ''}</div>`
+        : html`<div class="notice info">SarayDar's own management-fee account for this project. The client's construction spending is kept separately under <a href="/w/${id}/budget">Client Budget &amp; Payments</a> and is never counted here.</div>`}
       <section class="grid-cards" aria-label="Fee account">
         <div class="card"><div class="muted small">Invoiced (issued)</div><div class="big">${fm(L.t.invoiced)}</div><div class="muted small">Credited ${fm(L.t.credited)}</div></div>
         <div class="card"><div class="muted small">Collected (confirmed payments)</div><div class="big">${fm(L.t.collected)}</div><div class="muted small">${L.t.unapplied ? `Unapplied credit ${fm(L.t.unapplied)}` : 'All payments allocated'}</div></div>
@@ -524,7 +537,7 @@ function mountFees(r, ctx, P) {
       const number = `INV-${year}-${String(await core.nextNumber(db, `INV-${year}`)).padStart(4, '0')}`;
       await db.query("update fee_invoices set status = 'issued', number = $2, issue_date = $3, due_date = $4, party_id = $5, issued_by = $6, issued_at = now() where id = $1", [i.id, number, issue, due, a.ws.party_id, req.user.id]);
       await core.audit(db, { actor: req.user, workspaceId: a.ws.id, action: 'fee.invoice_issued', entity: 'fee_invoice', entityId: i.id, summary: `Fee invoice ${number} issued: ${formatMoney(t.total)}, due ${due}`, after: { number, total: t.total, issue, due }, ip: req.ip });
-      await P.touch(db, a.ws.id);
+      await touch(db, a.ws.id);
     });
     res.redirect(`/w/${a.ws.id}/fees/invoices/${i0.id}?msg=saved`);
   });
@@ -597,7 +610,7 @@ function mountFees(r, ctx, P) {
           [a.ws.id, a.ws.party_id, received, amount, method, txt(req.body.reference, 80), txt(req.body.notes, 300), idem, req.user.id])).rows[0].id;
         await core.audit(db, { actor: req.user, workspaceId: a.ws.id, action: 'fee.payment_recorded', entity: 'fee_payment', entityId: id, summary: `Client fee payment recorded: ${formatMoney(amount)} received ${received} (${method})`, ip: req.ip });
         for (const [inv, v] of allocs) if (v > 0) await allocate(db, a, req, id, inv, v);
-        await P.touch(db, a.ws.id);
+        await touch(db, a.ws.id);
         return id;
       });
     } catch (e) { if (e.code === '23505') throw bad('A payment with that method and reference is already recorded for this project.'); throw e; }
@@ -819,7 +832,7 @@ function mountFees(r, ctx, P) {
 
   // ---------- client approvals ----------
   r.get('/w/:id/approvals', async (req, res) => {
-    const a = await access(req);
+    const a = cpmOnly(await access(req));
     const rows = (await pool.query(`select c.*, coalesce(nullif(u.name,''), u.email) as recorder,
         (select array_agg(json_build_object('id', f.id, 'name', f.original_name) order by f.uploaded_at) from files f where f.entity = 'client_approval' and f.entity_id = c.id::text and f.archived_at is null) as evidence
       from client_approvals c left join users u on u.id = coalesce(c.decided_by, c.created_by) where c.workspace_id = $1 order by (c.status = 'requested') desc, c.requested_on desc, c.created_at desc`, [a.ws.id])).rows;
@@ -853,7 +866,7 @@ function mountFees(r, ctx, P) {
   });
 
   r.post('/w/:id/approvals', async (req, res) => {
-    const a = await access(req, 'contribute');
+    const a = cpmOnly(await access(req, 'contribute'));
     const title = txt(req.body.title, 200); if (!title) throw bad('Describe what needs approval.');
     const requested = dateOrNull(req.body.requested_on); if (!requested) throw bad('Enter the request date.');
     const subject = SUBJECTS[req.body.subject] ? req.body.subject : 'other';
@@ -861,14 +874,14 @@ function mountFees(r, ctx, P) {
       const id = (await db.query('insert into client_approvals (workspace_id, subject, title, linked_ref, requested_on, requested_from, notes, client_visible, created_by) values ($1,$2,$3,$4,$5,$6,$7,$8,$9) returning id',
         [a.ws.id, subject, title, txt(req.body.linked_ref, 120), requested, txt(req.body.requested_from, 120), txt(req.body.notes, 1000), req.body.client_visible === '1', req.user.id])).rows[0].id;
       await core.audit(db, { actor: req.user, workspaceId: a.ws.id, action: 'approval.requested', entity: 'client_approval', entityId: id, summary: `Client approval requested: ${title}`, ip: req.ip });
-      await P.touch(db, a.ws.id);
+      await touch(db, a.ws.id);
     });
     res.redirect(`/w/${a.ws.id}/approvals?msg=added`);
   });
 
   r.post('/w/:id/approvals/:cid/decision', upload.array('files', 6), async (req, res) => {
     if (!core.checkCsrf(req)) throw new Forbidden('Your form expired. Reload the page and try again.');
-    const a = await access(req, 'contribute');
+    const a = cpmOnly(await access(req, 'contribute'));
     const c = await own('client_approvals', req.params.cid, a.ws.id);
     const status = ['approved', 'rejected', 'withdrawn'].includes(req.body.status) ? req.body.status : null;
     if (!status) throw bad('Choose the decision.');
@@ -887,7 +900,7 @@ function mountFees(r, ctx, P) {
           [a.ws.id, c.id, f.originalname.slice(-150), t.mime, f.size, crypto.createHash('sha256').update(f.buffer).digest('hex'), f.buffer, req.user.id]);
       }
       await core.audit(db, { actor: req.user, workspaceId: a.ws.id, action: `approval.${status}`, entity: 'client_approval', entityId: c.id, summary: `Client approval ${status}: ${c.title}${who ? ` (by ${who})` : ''}${files.length ? `, ${files.length} evidence file(s)` : ''}`, ip: req.ip });
-      await P.touch(db, a.ws.id);
+      await touch(db, a.ws.id);
     });
     res.redirect(`/w/${a.ws.id}/approvals?msg=saved`);
   });

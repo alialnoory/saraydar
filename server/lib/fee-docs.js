@@ -10,7 +10,7 @@ const INK = '#2A1C15', MUTED = '#6E5B50', LINE = '#D9CCC1', COPPER = '#A8673D';
 const mm = v => v * 72 / 25.4;
 const d = v => v ? new Date(v).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Asia/Bahrain' }) : '—';
 
-function render({ title, number, company = {}, letterhead = null, marginTop = 45, marginBottom = 30, stamp = null, meta = [], to = [], tables = [], totals = [], notes = [] }) {
+function render({ title, number, company = {}, letterhead = null, marginTop = 45, marginBottom = 30, stamp = null, meta = [], to = [], tables = [], totals = [], notes = [], images = [], toLabel = 'TO' }) {
   return new Promise((resolve, reject) => {
     const top = letterhead ? mm(marginTop) : mm(18), bottom = letterhead ? mm(marginBottom) : mm(18);
     const doc = new PDFDocument({ size: 'A4', bufferPages: true, margins: { top, bottom, left: mm(18), right: mm(18) }, info: { Title: `${title} ${number || ''}`.trim(), Author: company.trade_name || 'SarayDar' } });
@@ -39,7 +39,7 @@ function render({ title, number, company = {}, letterhead = null, marginTop = 45
 
     // to / meta
     const yTop = doc.y;
-    doc.font('bold').fontSize(8).fillColor(MUTED).text('TO', L, yTop);
+    doc.font('bold').fontSize(8).fillColor(MUTED).text(toLabel, L, yTop);
     doc.font('body').fontSize(9.5).fillColor(INK).text(to.filter(Boolean).join('\n'), L, doc.y + 2, { width: W * 0.52 });
     const yLeft = doc.y;
     let ym = yTop;
@@ -83,6 +83,20 @@ function render({ title, number, company = {}, letterhead = null, marginTop = 45
       doc.y += 8;
     }
     for (const n of notes.filter(Boolean)) { room(30); doc.font('body').fontSize(8.5).fillColor(MUTED).text(n, L, doc.y, { width: W }); doc.y += 5; }
+
+    // photo pages: three per row with captions (images are JPEG/PNG buffers)
+    if (images.length) {
+      room(40); doc.font('bold').fontSize(10).fillColor(INK).text('Photos', L, doc.y); doc.y += 6;
+      const gap = 10, cw = (W - 2 * gap) / 3, ch = cw * 0.75;
+      images.forEach((im, i) => {
+        const col = i % 3;
+        if (col === 0) room(ch + 30);
+        const x = L + col * (cw + gap), y = doc.y;
+        try { doc.image(im.buf, x, y, { fit: [cw, ch], align: 'center', valign: 'center' }); } catch { /* unreadable image */ }
+        doc.font('body').fontSize(7.5).fillColor(MUTED).text(im.caption || '', x, y + ch + 3, { width: cw, height: 20, ellipsis: true });
+        if (col === 2 || i === images.length - 1) doc.y = y + ch + 26; else doc.y = y;
+      });
+    }
 
     const range = doc.bufferedPageRange();
     for (let i = range.start; i < range.start + range.count; i++) {

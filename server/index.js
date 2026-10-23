@@ -26,7 +26,17 @@ async function main() {
   if (moved) console.log(`Moved ${moved} Abuquwa tasks into workspace DEV-2026-001`);
 
   const corsOrigins = (process.env.CORS_ORIGINS || '').split(',').map(s => s.trim().replace(/\/$/, '')).filter(Boolean);
-  const app = createApp({ pool, jwtSecret: secret, corsOrigins });
+  const { createMailer } = require('./lib/mailer');
+  const mailer = createMailer({ pool, env: process.env });
+  const app = createApp({ pool, jwtSecret: secret, corsOrigins, mailer });
+  // Background jobs (Bahrain time): automatic rent invoicing, reminders and recurring service tasks, every hour.
+  // Safe to overlap or retry: an advisory lock allows one run at a time and every step is idempotent.
+  if (process.env.DISABLE_JOBS !== '1') {
+    const billing = require('./lib/billing');
+    const run = () => billing.runBilling(pool, mailer, {}).then(() => billing.generateServiceTasks(pool, {})).catch(e => console.error('Background job failed:', e.message));
+    setTimeout(run, 60 * 1000);
+    setInterval(run, 60 * 60 * 1000);
+  }
   const port = parseInt(process.env.PORT, 10) || 10000;
   app.listen(port, '0.0.0.0', () => console.log(`Saraydar API listening on ${port}; allowed origins: ${corsOrigins.join(', ') || 'none'}`));
 }

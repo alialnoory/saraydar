@@ -8,6 +8,10 @@ const { mountProjects } = require('./projects');
 const { mountProjectExports } = require('./project-exports');
 const { mountAgreements } = require('./agreements');
 const { mountFees } = require('./fees');
+const { mountProperties } = require('./properties');
+const { mountRent } = require('./rent');
+const { mountMaintenance } = require('./maintenance');
+const { mountOwner } = require('./owner');
 const { mountClients } = require('./clients');
 const { mountPeople } = require('./people');
 const { mountPlots } = require('./plots');
@@ -98,6 +102,10 @@ function createPortal({ pool, secret, mailer, env = process.env }) {
   });
   mountAuth(r, ctx);
   mountAccount(r, ctx);
+  mountProperties(r, ctx);          // before projects: shared paths (/units, /reports) fall through for other sections
+  mountRent(r, ctx);
+  mountMaintenance(r, ctx);
+  mountOwner(r, ctx);
   const P = mountProjects(r, ctx);
   mountProjectExports(r, ctx, P);
   mountClients(r, ctx, mountFees(r, ctx, P));
