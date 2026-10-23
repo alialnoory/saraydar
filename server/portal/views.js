@@ -84,7 +84,7 @@ function layout(req, { title, crumbs = [], heading = null, sub = null, tabs = nu
           </div></details>` : ''}
       </div>
       ${heading ? html`<div class="wrap band-head">
-        ${crumbs.length ? html`<nav class="crumbs" aria-label="Breadcrumb">${crumbs.map((c, i) => html`${i ? ' › ' : ''}${c[1] ? html`<a href="${c[1]}">${c[0]}</a>` : html`<span>${c[0]}</span>`}`)}</nav>` : ''}
+        <div class="band-top">${crumbs.length ? html`<nav class="crumbs" aria-label="Breadcrumb">${crumbs.map((c, i) => html`${i ? ' › ' : ''}${c[1] ? html`<a href="${c[1]}">${c[0]}</a>` : html`<span>${c[0]}</span>`}`)}</nav>` : html`<span></span>`}${pagenav}</div>
         <div class="band-title"><div class="grow">${sub && sub.above ? html`<div class="eyebrow">${sub.above}</div>` : ''}<h1>${heading}</h1>${sub && sub.below ? html`<div class="band-meta">${sub.below}</div>` : ''}</div>${actions || ''}</div>
         ${tabs ? html`<nav class="tabs" aria-label="Sections">${tabs.map(([label, href, on]) => html`<a href="${href}" ${on ? raw('aria-current="page"') : ''}>${label}</a>`)}</nav>` : ''}
       </div>` : ''}
@@ -92,7 +92,7 @@ function layout(req, { title, crumbs = [], heading = null, sub = null, tabs = nu
   return '<!doctype html>' + html`<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${title ? `${title} · ` : ''}SarayDar Management System</title>
 <link rel="stylesheet" href="/static/app.css"><script src="/static/app.js" defer></script></head>
-<body>${header}<main class="wrap main">${pagenav}${msg ? html`<div class="flash" role="status">${msg}</div>` : ''}${body}</main></body></html>`;
+<body>${header}<main class="wrap main">${heading ? '' : pagenav}${msg ? html`<div class="flash" role="status">${msg}</div>` : ''}${body}</main></body></html>`;
 }
 
 const emptyState = (title, text, action = '') => html`<div class="empty"><strong>${title}</strong><p>${text}</p>${action}</div>`;

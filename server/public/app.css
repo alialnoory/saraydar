@@ -236,3 +236,11 @@ tr.sub td { border-top: 0; padding-top: 0; }
 .panel-inner .h3 { margin-top: 0; }
 fieldset { border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; }
 .nowrap { white-space: nowrap; }
+/* Navigation and export buttons sit in the dark ribbon, top right, beside the breadcrumbs */
+.band-top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; padding-bottom: 6px; }
+.band-top .crumbs { flex: 1 1 260px; margin: 0; }
+.band .pagenav { margin: 0; flex: 0 1 auto; }
+.band .navbtn { background: rgba(255, 255, 255, 0.04); border-color: rgba(241, 230, 218, 0.28); color: var(--band-ink); }
+.band .navbtn:hover { border-color: var(--copper); color: var(--band-ink); background: rgba(255, 255, 255, 0.08); }
+.band .navgroup + .navgroup { border-left-color: rgba(241, 230, 218, 0.2); }
+@media (max-width: 640px) { .band-top { flex-direction: column; align-items: stretch; } .band-top .crumbs { flex: none; } .band .pagenav { justify-content: flex-start; } }
