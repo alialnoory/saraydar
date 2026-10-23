@@ -242,6 +242,7 @@ textarea { min-height: 76px; resize: vertical; }
       <button class="tab" role="tab" data-tab="sales">Sales</button>
       <button class="tab" role="tab" data-tab="risks">Risks</button>
       <button class="tab" role="tab" data-tab="log">Site Log</button>
+      <button class="tab" role="tab" data-tab="history" id="tab-history" hidden>History</button>
       <button class="tab" role="tab" data-tab="users" id="tab-users" hidden>Users</button>
     </nav>
   </div>
@@ -313,12 +314,12 @@ textarea { min-height: 76px; resize: vertical; }
   const state = { tasks: [], costs: [], payments: [], units: [], risks: [], log: [], meta: [] };
   const loaded = new Set();
   let db = null, canWrite = true, dbMissing = false, snapshotMode = false, snapshotDate = '';
-  // mode: 'claude' (Claude artifact database), 'supabase' (online with logins), 'snapshot' (read-only export)
-  let mode = '', sb = null, profile = null, authView = null, authMsg = '', loadError = '', users = [], channel = null;
+  // mode: 'claude' (Claude artifact database), 'api' (online with logins), 'snapshot' (read-only export)
+  let mode = '', token = '', API = '', profile = null, authView = null, authMsg = '', loadError = '', users = [], hist = [], pollT = null, lastLoad = 0;
   const ROLE_NAMES = { admin: 'Admin', editor: 'Editor', site: 'Site', viewer: 'Viewer' };
   function may(coll, act) {
     if (mode === 'claude') return canWrite;
-    if (mode !== 'supabase' || !profile) return false;
+    if (mode !== 'api' || !profile) return false;
     const r = profile.role;
     if (r === 'admin' || r === 'editor') return true;
     if (r === 'site') return coll === 'log' ? act !== 'delete' : coll === 'tasks' && act === 'edit';
@@ -576,25 +577,47 @@ textarea { min-height: 76px; resize: vertical; }
 
   function vUsers() {
     const opts = r => Object.entries(ROLE_NAMES).map(([k, l]) => `<option value="${k}" ${k === r ? 'selected' : ''}>${l}</option>`).join('');
+    const me = u => profile && u.id === profile.id;
     return `
-      <div class="bar-row"><div><h2>Users</h2><p class="sub">Choose what each person can do. Changes apply the next time their page loads.</p></div></div>
-      <div class="tbl-wrap"><table style="min-width:560px"><thead><tr><th>Email</th><th>Name</th><th>Role</th></tr></thead><tbody>
-        ${users.map(u => `<tr><td>${esc(u.email)}${u.user_id === profile.user_id ? ' <span class="muted small">(you)</span>' : ''}</td><td>${esc(u.full_name || '—')}</td>
-          <td><select id="role-${u.user_id}" data-role-user="${u.user_id}" ${u.user_id === profile.user_id ? 'disabled' : ''} style="max-width:160px">${opts(u.role)}</select></td></tr>`).join('') || '<tr><td colspan="3" class="muted">Loading users…</td></tr>'}
+      <div class="bar-row"><div><h2>Users</h2><p class="sub">Choose what each person can do. Role changes apply straight away.</p></div></div>
+      <div class="tbl-wrap"><table style="min-width:640px"><thead><tr><th>Email</th><th>Name</th><th>Role</th><th>Status</th><th></th></tr></thead><tbody>
+        ${users.map(u => `<tr><td>${esc(u.email)}${me(u) ? ' <span class="muted small">(you)</span>' : ''}</td><td>${esc(u.name || '—')}</td>
+          <td><select data-role-user="${u.id}" ${me(u) ? 'disabled' : ''} style="max-width:140px">${opts(u.role)}</select></td>
+          <td>${u.active ? '<span class="pill ok">Active</span>' : '<span class="pill warn">Deactivated</span>'}</td>
+          <td style="white-space:nowrap"><button class="btn sm" data-user-pw="${u.id}">Reset password</button> ${me(u) ? '' : `<button class="btn sm" data-user-toggle="${u.id}">${u.active ? 'Deactivate' : 'Activate'}</button>`}</td></tr>`).join('') || '<tr><td colspan="5" class="muted">Loading users…</td></tr>'}
       </tbody></table></div>
+      <section class="panel"><h3>Add a person</h3>
+        <form id="user-form" novalidate><div class="fields">
+          <label for="nu-email">Email<input type="email" id="nu-email" name="email" autocomplete="off" required></label>
+          <label for="nu-name">Name<input type="text" id="nu-name" name="name" autocomplete="off"></label>
+          <label for="nu-role">Role<select id="nu-role" name="role">${opts('viewer')}</select></label>
+          <label for="nu-pw">Temporary password (10+ characters)<input type="text" id="nu-pw" name="password" autocomplete="off" required></label>
+        </div><p class="err" id="user-err"></p><button type="submit" class="btn primary">Add person</button>
+        <p class="small muted" style="margin:10px 0 0">Send them the site address and this password. They can change it with “Change password”.</p></form>
+      </section>
       <section class="panel"><h3>Roles</h3>
         <div class="list small">
           <div class="li"><div class="t"><div>Admin</div><div class="muted">Everything, plus managing users and roles</div></div></div>
           <div class="li"><div class="t"><div>Editor</div><div class="muted">Add, edit and delete all project records</div></div></div>
-          <div class="li"><div class="t"><div>Site</div><div class="muted">Add and edit site log entries, update task status and progress</div></div></div>
+          <div class="li"><div class="t"><div>Site</div><div class="muted">Add and edit site log entries, update task status, progress and notes</div></div></div>
           <div class="li"><div class="t"><div>Viewer</div><div class="muted">Read only</div></div></div>
         </div>
-        <h3 style="margin-top:18px">Adding a person</h3>
-        <p class="small" style="margin:0">In Supabase, open Authentication → Users → Add user → Create new user, enter their email and a temporary password, and tick Auto Confirm User. They appear here as Viewer; choose their role, then send them the site address and password.</p>
       </section>`;
   }
 
-  const VIEWS = { overview: vOverview, schedule: vSchedule, budget: vBudget, sales: vSales, risks: vRisks, log: vLog, users: vUsers };
+  const COLL_LABEL = { tasks: 'Task', costs: 'Budget line', payments: 'Payment', units: 'Villa', risks: 'Risk', log: 'Site log', meta: 'Project details' };
+  const ACT_LABEL = { create: 'Added', update: 'Changed', delete: 'Deleted' };
+  function vHistory() {
+    return `
+      <div class="bar-row"><div><h2>Change history</h2><p class="sub">Who changed what, most recent first.</p></div></div>
+      ${hist.length ? `<div class="tbl-wrap"><table style="min-width:620px"><thead><tr><th>When</th><th>Who</th><th>What</th><th>Record</th></tr></thead><tbody>
+        ${hist.map(h => `<tr><td class="mono small">${esc(new Date(h.when).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' }))}</td><td>${esc(h.who || h.email || '—')}</td>
+          <td>${ACT_LABEL[h.action] || esc(h.action)} · ${esc(COLL_LABEL[h.collection] || h.collection)}</td>
+          <td>${esc(h.summary || '—')}${h.fields && h.fields.length && h.action === 'update' ? `<div class="muted small">${esc(h.fields.join(', '))}</div>` : ''}</td></tr>`).join('')}
+      </tbody></table></div>` : '<div class="empty"><strong>No changes yet</strong>Changes made from now on will be listed here.</div>'}`;
+  }
+
+  const VIEWS = { overview: vOverview, schedule: vSchedule, budget: vBudget, sales: vSales, risks: vRisks, log: vLog, history: vHistory, users: vUsers };
 
   function render() {
     const m = meta();
@@ -602,42 +625,41 @@ textarea { min-height: 76px; resize: vertical; }
     $('#hdr-company').textContent = `${m.company} · Project control`;
     const v = $('#view');
     renderWho();
-    $('#tab-users').hidden = !(mode === 'supabase' && profile && profile.role === 'admin');
-    if (tab === 'users' && $('#tab-users').hidden) tab = 'overview';
+    $('#tab-users').hidden = !(mode === 'api' && profile && profile.role === 'admin');
+    $('#tab-history').hidden = !(mode === 'api' && profile && (profile.role === 'admin' || profile.role === 'editor'));
+    if ((tab === 'users' && $('#tab-users').hidden) || (tab === 'history' && $('#tab-history').hidden)) tab = 'overview';
     document.querySelectorAll('.tab').forEach(b => b.setAttribute('aria-selected', String(b.dataset.tab === tab)));
-    $('.tabs').hidden = mode === 'supabase' && !!authView;
-    if (mode === 'supabase' && authView) { v.innerHTML = vAuth(); const f = v.querySelector('input'); if (f) f.focus(); return; }
+    $('.tabs').hidden = mode === 'api' && !!authView;
+    if (mode === 'api' && authView) { v.innerHTML = vAuth(); const f = v.querySelector('input'); if (f) f.focus(); return; }
     if (loadError) { v.innerHTML = `<div class="empty"><strong>The project data could not be loaded</strong>${esc(loadError)}<br><br><button class="btn" data-auth="retry">Try again</button></div>`; return; }
     if (dbMissing) { v.innerHTML = `<div class="empty"><strong>Project data is not available in this view</strong>Open this page in Claude while signed in to see and update the project.</div>`; return; }
     if (loaded.size < COLLS.length) { v.innerHTML = `<div class="empty"><strong>Loading project data</strong>Tasks, budget, sales, risks and site log will appear here.</div>`; return; }
-    const ro = mode === 'supabase' ? (profile && profile.role === 'viewer' ? `<div class="notice">You have view-only access. Ask the administrator if you need to make updates.</div>` : '') : canWrite ? '' : snapshotMode ? `<div class="notice">Read-only snapshot of the project data${snapshotDate ? ' as of ' + fd(snapshotDate) : ''}. Editing with user logins is coming next.</div>` : `<div class="notice">You can view this project. Ask the owner for Contributor or Editor access to make updates.</div>`;
+    const ro = mode === 'api' ? (profile && profile.role === 'viewer' ? `<div class="notice">You have view-only access. Ask the administrator if you need to make updates.</div>` : '') : canWrite ? '' : snapshotMode ? `<div class="notice">Read-only snapshot of the project data${snapshotDate ? ' as of ' + fd(snapshotDate) : ''}. </div>` : `<div class="notice">You can view this project. Ask the owner for Contributor or Editor access to make updates.</div>`;
     v.innerHTML = ro + VIEWS[tab]();
   }
 
   function renderWho() {
     const w = $('#who');
-    if (mode !== 'supabase' || !profile || authView) { w.hidden = true; return; }
+    if (mode !== 'api' || !profile || authView) { w.hidden = true; return; }
     w.hidden = false;
-    w.innerHTML = `<span><b>${esc(profile.full_name || profile.email || '')}</b> · ${ROLE_NAMES[profile.role] || 'No access'}</span><button type="button" data-auth="changepw">Change password</button><button type="button" data-auth="signout">Sign out</button>`;
+    w.innerHTML = `<span><b>${esc(profile.name || profile.email || '')}</b> · ${ROLE_NAMES[profile.role] || ''}</span><button type="button" data-auth="changepw">Change password</button><button type="button" data-auth="signout">Sign out</button>`;
   }
 
   function vAuth() {
     const box = (title, sub, body) => `<div class="auth"><section class="panel"><form id="auth-form" data-kind="${authView}" novalidate>
       <div><h2>${title}</h2>${sub ? `<p class="sub">${sub}</p>` : ''}</div>${body}<p class="err" id="auth-err"></p></form></section></div>`;
-    if (authView === 'loading') return `<div class="empty"><strong>Signing in</strong>Checking your access…</div>`;
-    if (authView === 'noaccess') return `<div class="auth"><div class="empty"><strong>No access yet</strong>Your account is signed in but has not been given access to this project. Ask the administrator to set your role.<br><br><button class="btn" data-auth="signout">Sign out</button></div></div>`;
-    if (authView === 'forgot') return box('Reset your password', 'We will email you a link to set a new password.',
-      `<label for="auth-email">Email<input type="email" id="auth-email" name="email" autocomplete="email" required></label>
-       <button type="submit" class="btn primary">Send reset link</button><button type="button" class="link" data-auth="login">Back to sign in</button>`);
-    if (authView === 'reset') return box('Set a new password', 'Use at least 8 characters.',
-      `<label for="auth-pw">New password<input type="password" id="auth-pw" name="password" autocomplete="new-password" required></label>
+    if (authView === 'loading') return `<div class="empty"><strong>${esc(authMsg || 'Loading')}</strong>This can take up to a minute if the system has been idle.</div>`;
+    if (authView === 'password') return box('Change your password', 'Use at least 10 characters.',
+      `<label for="auth-cur">Current password<input type="password" id="auth-cur" name="current" autocomplete="current-password" required></label>
+       <label for="auth-pw">New password<input type="password" id="auth-pw" name="password" autocomplete="new-password" required></label>
        <label for="auth-pw2">Confirm new password<input type="password" id="auth-pw2" name="confirm" autocomplete="new-password" required></label>
-       <button type="submit" class="btn primary">Save password</button>${profile ? '<button type="button" class="link" data-auth="cancel">Cancel</button>' : ''}`);
+       <button type="submit" class="btn primary">Save password</button><button type="button" class="link" data-auth="cancel">Cancel</button>`);
     return box('Sign in', 'Saraydar Real Estate · Abuquwa Villas',
       `${authMsg ? `<p class="msg">${esc(authMsg)}</p>` : ''}
        <label for="auth-email">Email<input type="email" id="auth-email" name="email" autocomplete="username" required></label>
        <label for="auth-pw">Password<input type="password" id="auth-pw" name="password" autocomplete="current-password" required></label>
-       <button type="submit" class="btn primary">Sign in</button><button type="button" class="link" data-auth="forgot">Forgot password?</button>`);
+       <button type="submit" class="btn primary">Sign in</button>
+       <p class="small muted" style="margin:0">Forgot your password? Ask your administrator to reset it.</p>`);
   }
 
   // ---------- form modal ----------
@@ -649,9 +671,11 @@ textarea { min-height: 76px; resize: vertical; }
     const data = rec ? { ...rec } : defaults(coll);
     if (coll === 'meta' && !rec) Object.assign(data, meta());
     const ro = !may(coll, rec || coll === 'meta' ? 'edit' : 'add');
+    const siteTask = mode === 'api' && profile && profile.role === 'site' && coll === 'tasks';
     const field = f => {
       const v = data[f.k] ?? '';
-      const idAttr = `id="f-${coll}-${f.k}" name="${f.k}" ${ro ? 'disabled' : ''} ${f.req ? 'required' : ''}`;
+      const off = ro || (siteTask && !['status', 'progress', 'notes'].includes(f.k));
+      const idAttr = `id="f-${coll}-${f.k}" name="${f.k}" ${off ? 'disabled' : ''} ${f.req ? 'required' : ''}`;
       let ctl;
       if (f.t === 'select') ctl = `<select ${idAttr}>${f.o.map(o => `<option ${o === v ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select>`;
       else if (f.t === 'costs') ctl = `<select ${idAttr}><option value="">Choose a cost line</option>${state.costs.map(c => `<option value="${c.id}" ${c.id === v ? 'selected' : ''}>${esc(c.item)}</option>`).join('')}</select>`;
@@ -708,36 +732,47 @@ textarea { min-height: 76px; resize: vertical; }
     if (coll === 'costs') return { category: 'Construction', budget: 0, committed: 0, order: state.costs.length + 1 };
     return {};
   }
+  class ApiError extends Error { constructor(status, body) { super((body && body.error) || 'Request failed'); this.status = status; this.body = body; } }
+  async function call(method, path, body) {
+    let res;
+    try {
+      res = await fetch(API + path, { method, headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: 'Bearer ' + token } : {}) }, body: body === undefined ? undefined : JSON.stringify(body) });
+    } catch (e) { throw new ApiError(0, { error: 'Could not reach the server. Check your connection and try again.' }); }
+    let json = null; try { json = await res.json(); } catch (e) {}
+    if (res.status === 401 && token && path !== '/api/auth/login') { sessionExpired(); }
+    if (!res.ok) throw new ApiError(res.status, json);
+    return json;
+  }
+  function saveToken(t) { token = t || ''; try { if (t) localStorage.setItem('abq-token', t); else localStorage.removeItem('abq-token'); } catch (e) {} }
+  function clearSession() { saveToken(''); profile = null; users = []; hist = []; clearInterval(pollT); for (const c of COLLS) state[c] = []; loaded.clear(); closeModal(); }
+  function sessionExpired() { if (!profile) return; clearSession(); authMsg = 'Your session has ended. Please sign in again.'; authView = 'login'; render(); }
+
   const api = {
     async save(coll, id, data) {
       if (mode === 'claude') { const c = db.collection(coll); return (id ? c.doc(id) : c.doc()).set(data); }
-      if (mode === 'supabase') {
-        const rid = id || (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2));
-        const { error } = await sb.from('records').upsert({ collection: coll, id: rid, data });
-        if (error) throw error;
-        return sbLoad();
+      if (mode === 'api') {
+        if (id) await call('PUT', `/api/records/${coll}/${encodeURIComponent(id)}`, data);
+        else await call('POST', `/api/records/${coll}`, data);
+        return apiLoad();
       }
       throw { code: 'read_only' };
     },
     async remove(coll, id) {
       if (mode === 'claude') return db.collection(coll).doc(id).delete();
-      if (mode === 'supabase') {
-        const { error } = await sb.from('records').delete().eq('collection', coll).eq('id', id);
-        if (error) throw error;
-        return sbLoad();
-      }
+      if (mode === 'api') { await call('DELETE', `/api/records/${coll}/${encodeURIComponent(id)}`); return apiLoad(); }
       throw { code: 'read_only' };
     }
   };
 
   function handleWriteError(err) {
-    const code = err && err.code;
-    if (mode === 'supabase') {
-      const denied = code === '42501' || /row-level security|permission/i.test((err && err.message) || '');
-      const m = denied ? 'Your role does not allow this change. Ask the administrator if you need it.' : 'The change could not be saved. Check your connection and try again.';
+    if (mode === 'api') {
+      const m = err && err.status === 403 ? 'Your role does not allow this change. Ask the administrator if you need it.'
+        : err && err.status === 401 ? 'Your session has ended. Please sign in again.'
+        : (err && err.status && err.message) || 'The change could not be saved. Check your connection and try again.';
       const e = $('#form-err'); if (e) e.textContent = m; else toast(m);
       return;
     }
+    const code = err && err.code;
     const msg = code === 'invalid_argument' ? 'You do not have permission to change this project. Ask the owner for Contributor or Editor access.'
       : code === 'quota_exceeded' ? 'The project database is full. Delete old entries and try again.'
       : code === 'resource_exhausted' ? 'Too many changes at once. Wait a moment and save again.'
@@ -750,7 +785,7 @@ textarea { min-height: 76px; resize: vertical; }
   function toast(t) { let el = $('.toast'); if (!el) { el = document.createElement('div'); el.className = 'toast'; el.setAttribute('role', 'status'); document.body.appendChild(el); } el.textContent = t; clearTimeout(toastT); toastT = setTimeout(() => el.remove(), 2200); }
 
   // ---------- events ----------
-  function setTab(t) { if (!VIEWS[t]) t = 'overview'; tab = t; try { history.replaceState(null, '', '#' + t); } catch (e) {} try { localStorage.setItem('abq-tab', t); } catch (e) {} render(); window.scrollTo(0, 0); }
+  function setTab(t) { if (!VIEWS[t]) t = 'overview'; tab = t; if (mode === 'api' && profile) { if (t === 'history') loadHistory(); if (t === 'users') loadUsers(); } try { history.replaceState(null, '', '#' + t); } catch (e) {} try { localStorage.setItem('abq-tab', t); } catch (e) {} render(); window.scrollTo(0, 0); }
   document.addEventListener('click', e => {
     const t = e.target.closest('[data-tab],[data-go],[data-add],[data-edit],[data-tf],[data-rf],[data-close],[data-auth]');
     if (!t) return;
@@ -766,16 +801,44 @@ textarea { min-height: 76px; resize: vertical; }
   });
   document.addEventListener('change', async e => {
     const sel = e.target.closest('[data-role-user]');
-    if (!sel || mode !== 'supabase') return;
+    if (!sel || mode !== 'api') return;
     sel.disabled = true;
-    const { error } = await sb.from('profiles').update({ role: sel.value }).eq('user_id', sel.dataset.roleUser);
-    sel.disabled = false;
-    if (error) { toast('Role could not be changed'); return loadUsers(); }
-    toast('Role updated'); loadUsers();
+    try { await call('PATCH', `/api/users/${sel.dataset.roleUser}`, { role: sel.value }); toast('Role updated'); }
+    catch (x) { toast(x.message || 'Role could not be changed'); }
+    loadUsers();
+  });
+
+  document.addEventListener('click', async e => {
+    const b = e.target.closest('[data-user-pw],[data-user-toggle]');
+    if (!b || mode !== 'api') return;
+    const u = users.find(x => x.id === (b.dataset.userPw || b.dataset.userToggle));
+    if (!u) return;
+    try {
+      if (b.dataset.userToggle) {
+        await call('PATCH', `/api/users/${u.id}`, { active: !u.active });
+        toast(u.active ? 'User deactivated' : 'User activated');
+      } else {
+        const pw = prompt(`New temporary password for ${u.email} (10+ characters). They will be signed out everywhere.`);
+        if (!pw) return;
+        await call('PATCH', `/api/users/${u.id}`, { password: pw });
+        toast('Password reset');
+      }
+    } catch (x) { toast(x.message || 'Could not update the user'); }
+    loadUsers();
   });
 
   document.addEventListener('submit', async e => {
     const f = e.target;
+    if (f.matches('#user-form')) {
+      e.preventDefault();
+      const err = $('#user-err'), btn = f.querySelector('button[type="submit"]'); err.textContent = ''; btn.disabled = true;
+      try {
+        await call('POST', '/api/users', { email: f.elements.email.value.trim(), name: f.elements.name.value.trim(), role: f.elements.role.value, password: f.elements.password.value });
+        toast('Person added'); f.reset(); await loadUsers();
+      } catch (x) { err.textContent = x.message || 'Could not add the person.'; }
+      finally { btn.disabled = false; }
+      return;
+    }
     if (!f.matches('#auth-form')) return;
     e.preventDefault();
     const kind = f.dataset.kind, err = $('#auth-err'), btn = f.querySelector('button[type="submit"]');
@@ -784,40 +847,26 @@ textarea { min-height: 76px; resize: vertical; }
       if (kind === 'login') {
         const email = f.elements.email.value.trim(), password = f.elements.password.value;
         if (!email || !password) throw { message: 'Enter your email and password.' };
-        const { data, error } = await sb.auth.signInWithPassword({ email, password });
-        if (error) throw error;
-        authMsg = '';
-        await afterLogin(data.session);
-      } else if (kind === 'forgot') {
-        const email = f.elements.email.value.trim();
-        if (!email) throw { message: 'Enter your email.' };
-        const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: location.origin + location.pathname });
-        if (error) throw error;
-        authMsg = 'If that email has an account, a reset link is on its way.'; authView = 'login'; render();
-      } else if (kind === 'reset') {
+        const r = await call('POST', '/api/auth/login', { email, password });
+        saveToken(r.token); profile = r.user; authMsg = ''; authView = null;
+        await startSession();
+      } else if (kind === 'password') {
         const p1 = f.elements.password.value, p2 = f.elements.confirm.value;
-        if (p1.length < 8) throw { message: 'Use at least 8 characters.' };
+        if (p1.length < 10) throw { message: 'Use at least 10 characters.' };
         if (p1 !== p2) throw { message: 'The two passwords do not match.' };
-        const { error } = await sb.auth.updateUser({ password: p1 });
-        if (error) throw error;
-        try { history.replaceState(null, '', location.pathname); } catch (x) {}
-        toast('Password saved');
-        const { data } = await sb.auth.getSession();
-        authView = null;
-        await afterLogin(data.session);
+        const r = await call('POST', '/api/auth/password', { current: f.elements.current.value, next: p1 });
+        saveToken(r.token); authView = null; toast('Password saved'); render();
       }
     } catch (x) {
-      const m = (x && x.message) || 'Something went wrong. Try again.';
-      err.textContent = /invalid login credentials/i.test(m) ? 'Email or password is incorrect.' : m;
+      err.textContent = (x && x.message) || 'Something went wrong. Try again.';
     } finally { if (btn.isConnected) btn.disabled = false; }
   });
 
   async function authAction(a) {
-    if (a === 'signout') { await sb.auth.signOut(); profile = null; users = []; for (const c of COLLS) state[c] = []; loaded.clear(); authView = 'login'; return render(); }
-    if (a === 'changepw') { authView = 'reset'; return render(); }
+    if (a === 'signout') { clearSession(); authMsg = ''; authView = 'login'; return render(); }
+    if (a === 'changepw') { authView = 'password'; return render(); }
     if (a === 'cancel') { authView = null; return render(); }
-    if (a === 'retry') { loadError = ''; render(); return sbLoad(); }
-    authMsg = ''; authView = a; render();
+    if (a === 'retry') { loadError = ''; render(); return apiLoad(); }
   }
 
   document.addEventListener('keydown', e => {
@@ -843,48 +892,55 @@ textarea { min-height: 76px; resize: vertical; }
     render();
   }
 
-  // ---------- online version (Supabase) ----------
-  const SUPABASE_JS = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js';
-  function loadScript(src) {
-    return new Promise((ok, fail) => { const el = document.createElement('script'); el.src = src; el.onload = ok; el.onerror = () => fail(new Error('Could not load ' + src)); document.head.appendChild(el); });
-  }
-  let loadT = null;
-  async function sbLoad() {
-    const { data, error } = await sb.from('records').select('collection,id,data').limit(5000);
-    if (error) { loadError = 'Check your connection and try again.'; return render(); }
-    loadError = '';
-    for (const c of COLLS) state[c] = [];
-    for (const r of data) if (state[r.collection]) state[r.collection].push({ id: r.id, ...r.data });
-    COLLS.forEach(c => loaded.add(c));
+  // ---------- online version (Render API) ----------
+  async function apiLoad() {
+    try {
+      const all = await call('GET', '/api/records');
+      loadError = '';
+      for (const c of COLLS) state[c] = Array.isArray(all[c]) ? all[c] : [];
+      COLLS.forEach(c => loaded.add(c));
+      lastLoad = Date.now();
+    } catch (x) {
+      if (x.status === 401) return;
+      if (!loaded.size) loadError = 'Check your connection and try again.';
+    }
     render();
   }
   async function loadUsers() {
-    const { data } = await sb.from('profiles').select('user_id,email,full_name,role').order('created_at');
-    users = data || [];
-    if (tab === 'users') render();
+    if (!profile || profile.role !== 'admin') return;
+    try { users = await call('GET', '/api/users'); } catch (x) {}
+    if (tab === 'users' && !$('.overlay')) { const keep = document.activeElement && document.activeElement.id; render(); if (keep) { const el = document.getElementById(keep); if (el) el.focus(); } }
   }
-  async function afterLogin(session) {
-    if (!session) { authView = 'login'; return render(); }
-    if (authView !== 'reset') { authView = 'loading'; render(); }
-    const { data: p } = await sb.from('profiles').select('user_id,email,full_name,role').eq('user_id', session.user.id).maybeSingle();
-    profile = p || null;
-    if (!p) { authView = 'noaccess'; return render(); }
-    if (authView !== 'reset') authView = null;
-    await sbLoad();
-    if (!channel) channel = sb.channel('records-live').on('postgres_changes', { event: '*', schema: 'public', table: 'records' }, () => { clearTimeout(loadT); loadT = setTimeout(sbLoad, 400); }).subscribe();
-    if (profile.role === 'admin') loadUsers();
+  async function loadHistory() {
+    if (!profile || !['admin', 'editor'].includes(profile.role)) return;
+    try { hist = await call('GET', '/api/history?limit=200'); } catch (x) {}
+    if (tab === 'history') render();
   }
-  async function startSupabase(cfg) {
-    mode = 'supabase';
-    const recovering = /type=recovery/.test(location.hash);
-    authView = recovering ? 'reset' : 'loading';
-    render();
-    try { await loadScript(SUPABASE_JS); } catch (e) { loadError = 'The sign-in service could not be reached. Check your connection and reload.'; authView = null; return render(); }
-    sb = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseAnonKey);
-    sb.auth.onAuthStateChange(event => { if (event === 'PASSWORD_RECOVERY') { authView = 'reset'; render(); } });
-    const { data } = await sb.auth.getSession();
-    if (data.session) await afterLogin(data.session);
-    else { authView = recovering ? 'reset' : 'login'; render(); }
+  async function startSession() {
+    await apiLoad();
+    loadUsers(); loadHistory();
+    clearInterval(pollT);
+    pollT = setInterval(() => {
+      if (document.hidden || !profile || $('.overlay') || (document.activeElement && document.activeElement.closest && document.activeElement.closest('#user-form'))) return;
+      apiLoad(); if (tab === 'history') loadHistory(); if (tab === 'users') loadUsers();
+    }, 30000);
+  }
+  document.addEventListener('visibilitychange', () => { if (!document.hidden && mode === 'api' && profile && Date.now() - lastLoad > 10000) apiLoad(); });
+
+  async function startApi(url) {
+    mode = 'api'; API = url.replace(/\/$/, '');
+    try { token = localStorage.getItem('abq-token') || ''; } catch (e) { token = ''; }
+    if (!token) { authView = 'login'; return render(); }
+    authView = 'loading'; authMsg = 'Connecting'; render();
+    try {
+      const r = await call('GET', '/api/auth/me');
+      profile = r.user; authView = null; authMsg = '';
+      await startSession();
+    } catch (x) {
+      if (x.status === 401) { saveToken(''); authMsg = ''; authView = 'login'; }
+      else { authView = null; loadError = 'The server could not be reached. Check your connection and try again.'; }
+      render();
+    }
   }
 
   (async () => {
@@ -892,7 +948,7 @@ textarea { min-height: 76px; resize: vertical; }
     if (cl && cl.use) { try { db = await cl.use('db'); } catch (e) { db = null; } }
     if (!db) {
       const cfg = window.SARAYDAR_CONFIG || {};
-      if (cfg.supabaseUrl && cfg.supabaseAnonKey) return startSupabase(cfg);
+      if (cfg.apiUrl) return startApi(cfg.apiUrl);
       mode = 'snapshot';
       return loadSnapshot();
     }

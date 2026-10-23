@@ -1,0 +1,35 @@
+# Render Blueprint: the API (logins, roles, data) and its database.
+# The page itself stays on Netlify. See SETUP.md.
+
+databases:
+  - name: saraydar-db
+    plan: 0.1c-256mb        # about $6/month, 1 GB included. "free" works for a trial but is temporary.
+    region: frankfurt       # closest Render region to Bahrain
+    databaseName: saraydar
+    user: saraydar
+
+services:
+  - type: web
+    name: saraydar-api
+    runtime: node
+    plan: 0.5c-512mb        # about $7/month. "free" works but sleeps when idle, so the first load is slow.
+    region: frankfurt
+    rootDir: server
+    buildCommand: npm ci
+    startCommand: node index.js
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: 22
+      - key: DATABASE_URL
+        fromDatabase:
+          name: saraydar-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: CORS_ORIGINS
+        value: https://saraydar.netlify.app
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
