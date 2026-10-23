@@ -1,2 +1,2 @@
-// Set apiUrl to the Render address of the Saraydar API once it is deployed.
-window.SARAYDAR_CONFIG = { apiUrl: '' };
+// Address of the Saraydar API on Render.
+window.SARAYDAR_CONFIG = { apiUrl: 'https://saraydar-api.onrender.com' };
