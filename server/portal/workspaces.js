@@ -51,10 +51,6 @@ function mountWorkspaces(r, ctx) {
               count(*) filter (where kind = 'request' and status in ('active','on_hold'))::int as requests
          from workspaces w where ${vis} group by section`, [u.id])).rows;
     const by = Object.fromEntries(counts.map(c => [c.section, c]));
-    const recent = (await pool.query(
-      `select e.at, e.action, e.summary, e.actor_label, w.name as ws_name, w.id as ws_id
-         from audit_events e join workspaces w on w.id = e.workspace_id
-        where ${vis.replace(/w\.id/g, 'w.id')} order by e.id desc limit 8`, [u.id])).rows;
     const attention = [];
     for (const fn of ctx.attention || []) attention.push(...await fn(u));
     if (core.isSuper(u) && !mailer.configured) attention.push(['Setup', 'warn', 'Email delivery is not configured', 'Invitations, password resets and invoices stay in the Outbox until Outlook SMTP is set up.', '/admin/system']);
@@ -79,14 +75,9 @@ function mountWorkspaces(r, ctx) {
       <div class="page-head"><div><div class="muted small">Home</div><h1 class="display">${greet}, ${(u.name || '').split(' ')[0] || 'there'}</h1>
         <p class="muted">${new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Bahrain' })}</p></div></div>
       <section class="grid-cards home-sections" aria-label="Sections">${SECTION_KEYS.map(card)}</section>
-      <div class="split">
-        <section class="panel grow2"><h2 class="h">Needs your attention</h2>
+      ${attention.length ? html`<section class="panel"><h2 class="h">Needs your attention</h2>
           ${attention.length ? html`<ul class="rows">${attention.map(([tag, tone, t, d, href]) => html`<li>${pill(tag, tone)}<div class="grow"><a href="${href}"><b>${t}</b></a><div class="muted small">${d}</div></div></li>`)}</ul>`
-            : html`<p class="muted">Nothing needs your attention right now.</p>`}</section>
-        <section class="panel grow1"><h2 class="h">Recent activity</h2>
-          ${recent.length ? html`<ol class="feed">${recent.map(e => html`<li><b>${e.summary || e.action}</b><div class="muted small"><a href="/w/${e.ws_id}">${e.ws_name}</a> · ${e.actor_label} · ${fmtDateTime(e.at)}</div></li>`)}</ol>`
-            : html`<p class="muted">No activity yet.</p>`}</section>
-      </div>` }));
+            : ''}</section>` : ''}` }));
   });
 
   // External viewers' My Workspaces page and portal live in external.js.
