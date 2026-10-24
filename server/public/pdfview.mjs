@@ -37,7 +37,7 @@ document.getElementById('pv-share').addEventListener('click', async () => {
   try {
     if (!blob) blob = await (await fetch(src, { credentials: 'same-origin' })).blob();
     const file = new File([blob], name, { type: 'application/pdf' });
-    if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file] }); return;   // no title: apps like WhatsApp would send it again as a message }
+    if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file] }); return; }   // no title: apps like WhatsApp would send it again as a message
   } catch (e) { if (e && e.name === 'AbortError') return; }
   // no share sheet (most computers): open the PDF in the browser, which has its own print and download buttons
   window.open(src, '_blank', 'noopener');
