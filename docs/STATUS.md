@@ -137,6 +137,6 @@ Last updated: 2026-10-24
 - Company website button (snippet in ADMIN_GUIDE.md)
 
 ## Known issues
-- Free database expires 2026-11-22.
-- Database password and the admin password were shared in chat on 2026-10-23 — rotate both.
+- Render upgraded 2026-10-24: web service 0.5c-512mb ($7/mo), database 0.1c-256mb ($6/mo, PostgreSQL 18) — no expiry. Nightly encrypted GitHub backup active (first run succeeded 2026-10-24).
+- Database and admin passwords were shared in chat on 2026-10-23; owner decided (2026-10-24) not to change them.
 - Files are stored in Postgres; the free 1 GB database limits photo volume. Move to object storage before heavy photo use.
