@@ -70,3 +70,21 @@ document.addEventListener('click', e => {
   document.documentElement.classList.toggle('tips-off', !!h);
   if (s) s.textContent = 'Tips are on';
 });
+// Stay where you were: after a form is sent and the page comes back (same page), return to the same scroll
+// position instead of the top (owner request 2026-10-24). The "Saved" message then shows as a floating note.
+document.addEventListener('submit', e => {
+  if (e.defaultPrevented || (e.target.method || '').toLowerCase() !== 'post') return;
+  try { sessionStorage.setItem('keep-scroll', JSON.stringify({ path: location.pathname, y: window.scrollY, t: Date.now() })); } catch (err) { /* storage blocked */ }
+});
+(() => {
+  let k = null;
+  try { k = JSON.parse(sessionStorage.getItem('keep-scroll') || 'null'); sessionStorage.removeItem('keep-scroll'); } catch (err) { return; }
+  if (!k || k.path !== location.pathname || Date.now() - k.t > 60000 || !k.y) return;
+  const go = () => {
+    window.scrollTo(0, Math.min(k.y, document.documentElement.scrollHeight));
+    const f = document.querySelector('.flash');
+    if (f) { f.classList.add('flash-float'); setTimeout(() => f.classList.add('flash-out'), 3500); }
+  };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', go); else go();
+  window.addEventListener('load', () => window.scrollTo(0, Math.min(k.y, document.documentElement.scrollHeight)), { once: true });
+})();

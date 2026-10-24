@@ -434,3 +434,5 @@ html.tips-off .tabtip { display: none; }
 .help-list li { margin: 4px 0; }
 .help-table td { vertical-align: top; }
 @media (max-width: 640px) { .tabtip { flex-direction: column; gap: 6px; } }
+.flash.flash-float { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 50; margin: 0; box-shadow: 0 6px 24px rgba(20,13,10,.25); transition: opacity .6s; max-width: calc(100vw - 32px); }
+.flash.flash-out { opacity: 0; pointer-events: none; }
