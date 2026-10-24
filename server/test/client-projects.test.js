@@ -112,6 +112,13 @@ test('client projects', { skip: !URL_ && 'set TEST_DATABASE_URL to run' }, async
     assert.match(ver.values.billing_timing, /in advance/);
     assert.equal(ver.values.governing_law, 'the Kingdom of Bahrain');
     assert.match((await admin.get(`/w/${p1}/agreements`)).text, new RegExp(`${ag.ref} · version 1`));
+    // downloads are named "Reference - project name - version", also when previewed in the browser
+    const pv = /href="([^"]*\/v\/1\.pdf\/~\/[^"]+\?view=1)"/.exec((await admin.get(`/w/${p1}/agreements`)).text);
+    assert.ok(pv, 'preview link carries the file name');
+    const pr = await admin.get(pv[1].replace(/&amp;/g, '&'));
+    assert.equal(pr.status, 200);
+    const pname = (await q1(`select name from workspaces where id = '${p1}'`)).name;
+    assert.match(decodeURIComponent(pr.res.headers.get('content-disposition')), new RegExp(`^inline; .*${ag.ref} - ${pname} - v1\\.pdf`));
     assert.equal((await admin.post(`/w/${p1}/client/agreement`, {}, `/w/${p1}/client`)).status, 302);
     assert.equal((await q1(`select count(*)::int as n from agreement_versions where agreement_id = '${ag.id}'`)).n, 2);
     // p2 gets terms with tax not configured

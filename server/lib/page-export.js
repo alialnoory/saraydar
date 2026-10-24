@@ -134,11 +134,8 @@ function toPdf(page, { user, when }) {
     const W = doc.page.width - 80, X = 40, bottom = () => doc.page.height - 50;
     const ensure = h => { if (doc.y + h > bottom()) doc.addPage(); };
     const plain = s => String(s).replace(/[^\u0000-ɏ‐-‧‰-⁞€™²³×]/g, '');   // fonts are Latin
-    doc.rect(0, 0, doc.page.width, 104).fill('#140D0A');
-    doc.rect(0, 101, doc.page.width, 3).fill('#D29466');
-    brand.logo(doc, X, 18, { size: 20 });
-    doc.font('display').fontSize(17).fillColor('#F1E6DA').text(plain(page.title), X, 52, { width: W, height: 24, ellipsis: true });
-    doc.font('body').fontSize(8.5).fillColor('#B9A595').text(plain([page.crumbs, page.tab && page.tab !== page.title && !page.crumbs.endsWith(page.tab) ? page.tab : null].filter(Boolean).join(' · ')), X, 78, { width: W, height: 12, ellipsis: true });
+    // the same dark heading as every SarayDar document: the page (type) on the right with the record under it
+    brand.band(doc, { title: plain(page.tab && page.tab !== page.title ? page.tab : 'Page export'), sub: plain(page.crumbs || ''), right: [[plain(page.title), { bold: true, size: 11 }]], x: X, width: W });
     doc.y = 116; doc.x = X;
     doc.font('body').fontSize(8).fillColor(MUTED).text(plain(`${[page.eyebrow, page.meta].filter(Boolean).join(' · ')}${page.eyebrow || page.meta ? '\n' : ''}Exported ${when.toLocaleString('en-GB', { timeZone: 'Asia/Bahrain' })} (Bahrain time) by ${user}. Contents match what this user could see on the page.`), { width: W });
     doc.moveDown(0.6);
@@ -185,4 +182,6 @@ function toPdf(page, { user, when }) {
 
 const fileBase = page => (page.eyebrow.split(' · ')[0] || page.title).concat(page.tab && page.tab !== page.title ? `-${page.tab}` : '').replace(/[^A-Za-z0-9-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 80) || 'saraydar-export';
 
-module.exports = { extract, toXlsx, toPdf, typed, safe, fileBase };
+// download name: reference - name - page, e.g. "CPM-2026-001 - SAMAVILLA - Tasks & Schedule - 2026-10-24"
+const nameParts = page => { const ref = page.eyebrow.split(' · ')[0]; return [ref, page.title, page.tab && page.tab !== page.title ? page.tab : null, require('./download').today()]; };
+module.exports = { extract, toXlsx, toPdf, typed, safe, fileBase, nameParts };

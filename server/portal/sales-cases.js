@@ -1,4 +1,5 @@
 'use strict';
+const DL = require('../lib/download');
 const CH = require('./choices');
 // Property Sales & Acquisition — the case workspaces: sale listings, acquisition requests and deals.
 // Mandate (versioned, authority verified, expiry blocks activity), property file with public vs confidential
@@ -387,7 +388,7 @@ function mountSalesCases(r, ctx) {
       tables: [{ head: ['Detail', ''], widths: [0.3, 0.7], rows: rows.map(([k, v]) => [k, String(v)]) }], images: imgs,
       notes: [l.description, 'Information provided by the owner and checked by SarayDar as noted; buyers should make their own enquiries. Subject to availability.'] });
     await core.audit(null, { actor: req.user, workspaceId: a.ws.id, action: 'listing.brochure', entity: 'listing', entityId: a.ws.id, summary: 'Brochure PDF downloaded', ip: req.ip });
-    res.set({ 'Content-Type': 'application/pdf', 'Content-Disposition': `attachment; filename="brochure-${a.ws.ref}.pdf"`, 'Cache-Control': 'private, no-store' }); res.end(buf);
+    res.set({ 'Content-Type': 'application/pdf', 'Content-Disposition': DL.disposition(DL.fileName([a.ws.ref, a.ws.name, 'Brochure'], 'pdf')), 'Cache-Control': 'private, no-store' }); res.end(buf);
   });
 
   // ---------- marketing ----------

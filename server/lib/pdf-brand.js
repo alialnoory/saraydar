@@ -25,8 +25,10 @@ function logo(doc, x, y, { size = 20, color = BAND_INK, tracking = 0.34 } = {}) 
 
 // Draws the band across the top of the current page and leaves doc.y just below it.
 // title: big line; sub: small line under it; right: [[text, {bold?, color?}]...] shown on the right.
-function band(doc, { title, sub = '', right = [], x = 40, width }) {
-  const W = width || doc.page.width - 2 * x, H = 104;
+const CM = 72 / 2.54;
+function band(doc, { title, sub = '', right = [], x: bodyX = 40, width }) {
+  // the heading's contents keep a 1 cm margin from the page edges, like the footer (owner request 2026-10-24)
+  const H = 104, x = CM, W = doc.page.width - 2 * CM;
   doc.save();
   doc.rect(0, 0, doc.page.width, H).fill(BAND);
   doc.rect(0, H - 3, doc.page.width, 3).fill(COPPER);
@@ -42,12 +44,11 @@ function band(doc, { title, sub = '', right = [], x = 40, width }) {
   line(String(title).toUpperCase(), { display: true, size: 17 });            // the type of document is always in capitals
   if (first) line(first[0], first[1]);
   for (const [t, o] of rest) line(t, o);
-  doc.x = x; doc.y = H + 16;
+  doc.x = bodyX; doc.y = H + 16;
 }
 
 // Dark footer band on every page, inset 1 cm from the left and right edges and running to the bottom edge:
 // company details on the left, "ref · page n of N" on the right.
-const CM = 72 / 2.54;
 function footer(doc, { company = {}, ref = '', lines = null }) {
   const line1 = [company.legal_name || company.trade_name || 'SarayDar Real Estate', company.cr_number ? `C.R. ${company.cr_number}` : null, company.address].filter(Boolean).join('  ·  ');
   const line2 = [company.phone, company.email || 'info@saraydar.com', 'saraydar.com'].filter(Boolean).join('  ·  ');

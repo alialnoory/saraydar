@@ -1,4 +1,5 @@
 'use strict';
+const DL = require('../lib/download');
 const CH = require('./choices');
 // Clients Projects Management: the client & management-agreement tab, SarayDar's fee ledger
 // (monthly invoice drafts, issue, credit notes, void, client payments, allocations, receipts,
@@ -239,7 +240,7 @@ function mountFees(r, ctx, P) {
     return html`<section class="panel"><div class="row-between"><h2 class="h">Agreement document</h2>${g ? html`<span>${pill(g.ref, 'muted')} ${pill(g.status === 'signed' ? 'Signed' : g.status === 'issued' ? 'Issued for signature' : g.status === 'cancelled' ? 'Cancelled' : 'Draft', g.status === 'signed' ? 'ok' : 'warn')}</span>` : ''}</div>
       <p class="muted small">The full agreement is written from the terms above (parties, scope, exclusions, fee, billing, payment, term, approvers, notice) together with the standard clauses: governing law, entire agreement and signature boxes. Edit the terms, then generate again — each generation is kept as a numbered version.</p>
       ${g && g.versions.length ? html`<ul class="rows">${g.versions.slice(0, 5).map(v => html`<li><div class="grow"><b>${g.ref} · version ${v.version}</b><div class="muted small">${fmtDateTime(v.created_at)}</div></div>
-          ${v.has_pdf ? html`<a class="btn small primary" href="/w/${id}/agreements/${g.id}/v/${v.version}.pdf?view=1" target="_blank" rel="noopener">Preview</a><a class="btn small" href="/w/${id}/agreements/${g.id}/v/${v.version}.pdf">PDF</a>` : ''}${v.has_docx ? html`<a class="btn small" href="/w/${id}/agreements/${g.id}/v/${v.version}.docx">Word</a>` : ''}</li>`)}</ul>` : html`<p class="muted">No agreement generated yet.</p>`}
+          ${v.has_pdf ? html`<a class="btn small primary" href="/w/${id}/agreements/${g.id}/v/${v.version}.pdf${DL.pretty(DL.fileName([g.ref, a.ws.name, `v${v.version}`], 'pdf'))}?view=1" target="_blank" rel="noopener">Preview</a><a class="btn small" href="/w/${id}/agreements/${g.id}/v/${v.version}.pdf">PDF</a>` : ''}${v.has_docx ? html`<a class="btn small" href="/w/${id}/agreements/${g.id}/v/${v.version}.docx">Word</a>` : ''}</li>`)}</ul>` : html`<p class="muted">No agreement generated yet.</p>`}
       <div class="actions">
         ${missing.length ? html`<div class="notice warn full">To write the agreement, add: <b>${missing.join(', ')}</b>.</div>` : ''}
         ${edit && hasTerms && a.ws.party_id && !missing.length ? html`<form method="post" action="/w/${id}/client/agreement" class="inline">${csrfField(req)}<button class="btn primary" type="submit">${locked ? 'Prepare a new agreement from these terms' : g && g.versions.length ? 'Generate again from the terms' : 'Generate the agreement'}</button></form>` : ''}
@@ -827,7 +828,7 @@ function mountFees(r, ctx, P) {
     const to = client ? [client.billing_name || client.name, client.billing_address || client.address, client.billing_email || client.email, client.tax_number ? `Tax no. ${client.tax_number}` : null] : ['Client not linked'];
     return { company: co, letterhead: co.letterhead || null, marginTop: co.margin_top_mm, marginBottom: co.margin_bottom_mm, to, client };
   }
-  const sendPdf = (res, buf, name) => { res.set({ 'Content-Type': 'application/pdf', 'Content-Disposition': `attachment; filename="${name}.pdf"`, 'Cache-Control': 'private, no-store' }); res.end(buf); };
+  const sendPdf = (res, buf, parts) => { res.set({ 'Content-Type': 'application/pdf', 'Content-Disposition': DL.disposition(DL.fileName(parts, 'pdf')), 'Cache-Control': 'private, no-store' }); res.end(buf); };
 
   r.get('/w/:id/fees/invoices/:iid/invoice.pdf', async (req, res) => {
     const a = await finAccess(req);
@@ -843,7 +844,7 @@ function mountFees(r, ctx, P) {
         ...(i.status === 'issued' && (i.credited || i.allocated) ? [['Credited', docs.money(i.credited)], ['Paid', docs.money(i.allocated)], ['Outstanding', docs.money(i.outstanding), true]] : [])],
       notes: [i.kind === 'commission' ? `This invoice requests payment of SarayDar's brokerage fee under the mandate. ${i.calc_note || ''} The property price is not part of this invoice. It is not a receipt.` : 'This invoice requests payment of SarayDar\'s management fee under the management agreement. It is not a receipt.', i.tax_mode === 'none' ? 'No VAT has been charged on this fee.' : null, b.company.legal_name ? `${b.company.legal_name}${b.company.cr_number ? ` · CR ${b.company.cr_number}` : ''}${i.tax_mode === 'rate' && b.company.vat_number ? ` · VAT registration ${b.company.vat_number}` : ''}` : null] });
     await core.audit(null, { actor: req.user, workspaceId: a.ws.id, action: 'fee.invoice_pdf', entity: 'fee_invoice', entityId: i.id, summary: `Invoice PDF downloaded: ${i.number || 'draft'}`, ip: req.ip });
-    sendPdf(res, buf, i.number || `draft-invoice-${a.ws.ref}`);
+    sendPdf(res, buf, i.number ? [i.number, a.ws.name] : ['DRAFT invoice', a.ws.ref, a.ws.name]);
   });
 
   r.get('/w/:id/fees/payments/:pid/receipt.pdf', async (req, res) => {
@@ -859,7 +860,7 @@ function mountFees(r, ctx, P) {
       totals: [['Amount received', docs.money(p.amount, p.currency), true], ['Applied to invoices', docs.money(allocs.reduce((s, x) => s + num(x.amount_minor), 0))], ['Unapplied credit', docs.money(p.status === 'confirmed' ? p.unapplied : 0)]],
       notes: [`Received with thanks from ${b.client ? b.client.name : 'the client'}. This receipt acknowledges a confirmed payment recorded by SarayDar.`, p.status === 'reversed' ? `This payment was reversed on ${fmtDate(p.reversed_at)}: ${p.reverse_reason}` : null] });
     await core.audit(null, { actor: req.user, workspaceId: a.ws.id, action: 'fee.receipt_pdf', entity: 'fee_payment', entityId: p.id, summary: `Receipt PDF downloaded: ${p.receipt_no}`, ip: req.ip });
-    sendPdf(res, buf, p.receipt_no);
+    sendPdf(res, buf, [p.receipt_no, a.ws.name]);
   });
 
   r.get('/w/:id/fees/credits/:cid/credit.pdf', async (req, res) => {
@@ -870,7 +871,7 @@ function mountFees(r, ctx, P) {
     const buf = await docs.render({ ...b, title: 'Credit note', number: c.number, meta: [['Date', fmtDate(c.issued_on)], ['Against invoice', inv.number], ['Project', a.ws.ref], ['', a.ws.name]],
       tables: [{ head: ['Reason', 'Amount'], widths: [0.75, 0.25], align: ['left', 'right'], rows: [[c.reason, docs.money(num(c.amount_minor))]] }],
       totals: [['Credit', docs.money(num(c.amount_minor)), true]], notes: ['This credit note reduces the amount due on the invoice shown.'] });
-    sendPdf(res, buf, c.number);
+    sendPdf(res, buf, [c.number, a.ws.name]);
   });
 
   r.get('/w/:id/fees/statement.pdf', async (req, res) => {
@@ -885,7 +886,7 @@ function mountFees(r, ctx, P) {
       totals: [['Total debits', docs.money(st.debits)], ['Total credits', docs.money(st.credits)], ['Closing balance', docs.money(st.closing), true]],
       notes: ['Positive balance: amount due to SarayDar. Negative balance: credit in your favour.', 'Covers SarayDar management-fee documents only.'] });
     await core.audit(null, { actor: req.user, workspaceId: a.ws.id, action: 'fee.statement_pdf', entity: 'workspace', entityId: a.ws.id, summary: `Fee statement PDF: ${per.label}`, ip: req.ip });
-    sendPdf(res, buf, `statement-${a.ws.ref}`);
+    sendPdf(res, buf, [a.ws.ref, a.ws.name, 'Statement', DL.today()]);
   });
 
   // ---------- client approvals ----------

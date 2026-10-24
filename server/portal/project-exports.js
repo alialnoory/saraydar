@@ -1,4 +1,5 @@
 'use strict';
+const DL = require('../lib/download');
 // PDF and Excel exports for development projects. Read-only: generating a report never changes records.
 const path = require('path');
 const ExcelJS = require('exceljs');
@@ -97,7 +98,7 @@ function mountProjectExports(r, ctx, P) {
     sheet('Units', [['Unit', 'n', 18], ['Type', 't', 16], ['Area m²', 'a', 10], ...(fin ? [['List price', 'p', 16, money]] : []), ['Status', 's', 14]],
       units.map(u => ({ n: u.name, t: u.unit_type || '', a: u.area_m2 === null ? null : Number(u.area_m2), ...(fin ? { p: bhd(u.list_price_minor) } : {}), s: u.status })));
     await core.audit(null, { actor: req.user, workspaceId: a.ws.id, action: 'report.excel', entity: 'report', entityId: a.ws.id, summary: `Excel report downloaded (${per.label})`, ip: req.ip });
-    res.set({ 'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'Content-Disposition': `attachment; filename="${a.ws.ref}-report.xlsx"`, 'Cache-Control': 'private, no-store' });
+    res.set({ 'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'Content-Disposition': DL.disposition(DL.fileName([a.ws.ref, a.ws.name, 'Report', DL.today()], 'xlsx')), 'Cache-Control': 'private, no-store' });
     await wb.xlsx.write(res);
     res.end();
   });
@@ -111,7 +112,7 @@ function mountProjectExports(r, ctx, P) {
     doc.registerFont('body', path.join(FONT_DIR, 'ibm-plex-sans-latin-400-normal.ttf'));
     doc.registerFont('bold', path.join(FONT_DIR, 'ibm-plex-sans-latin-600-normal.ttf'));
     doc.registerFont('display', path.join(FONT_DIR, 'ibm-plex-sans-latin-600-normal.ttf'));
-    res.set({ 'Content-Type': 'application/pdf', 'Content-Disposition': `attachment; filename="${a.ws.ref}-report.pdf"`, 'Cache-Control': 'private, no-store' });
+    res.set({ 'Content-Type': 'application/pdf', 'Content-Disposition': DL.disposition(DL.fileName([a.ws.ref, a.ws.name, 'Report', DL.today()], 'pdf')), 'Cache-Control': 'private, no-store' });
     doc.pipe(res);
     const W = doc.page.width - 96, INK = '#2A1C15', MUTED = '#6E5B50', ACC = '#8E4F2B', LINE = '#E0D2C6';
     const h2 = t => { if (doc.y > doc.page.height - 140) doc.addPage(); doc.moveDown(0.8).font('display').fontSize(15).fillColor(ACC).text(t).moveDown(0.3).fillColor(INK); };

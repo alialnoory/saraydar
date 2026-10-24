@@ -1,4 +1,5 @@
 'use strict';
+const DL = require('../lib/download');
 // Rent & collections for managed properties: billing settings per lease, invoices from the rent ledger
 // (manual or automatic), delivery tracking, tenant payments (reported → confirmed / bounced), allocations,
 // receipts, credit notes, tenant statements and the separate deposit ledger.
@@ -230,7 +231,7 @@ function mountRent(r, ctx) {
     await invoiceOf(a, req.params.iid);
     const { buf, data } = await billing.invoicePdf(pool, req.params.iid);
     await core.audit(null, { actor: req.user, workspaceId: a.ws.id, action: 'rent.invoice_pdf', entity: 'rent_invoice', entityId: data.inv.id, summary: `Rent invoice PDF downloaded: ${data.inv.number}`, ip: req.ip });
-    res.set({ 'Content-Type': 'application/pdf', 'Content-Disposition': `attachment; filename="${data.inv.number}.pdf"`, 'Cache-Control': 'private, no-store' }); res.end(buf);
+    res.set({ 'Content-Type': 'application/pdf', 'Content-Disposition': DL.disposition(DL.fileName([data.inv.number, a.ws.name], 'pdf')), 'Cache-Control': 'private, no-store' }); res.end(buf);
   });
 
   r.post('/w/:id/rent/invoices/:iid/send', async (req, res) => {
@@ -399,7 +400,7 @@ function mountRent(r, ctx) {
       tables: [{ caption: 'Applied to', head: ['Charge', 'Due', 'Amount'], widths: [0.55, 0.2, 0.25], align: ['left', 'left', 'right'], empty: 'Not yet applied', rows: allocs.map(x => [x.description, fmtDate(x.due_date), docs.money(Number(x.amount_minor))]) }],
       totals: [['Amount received', docs.money(Number(p.amount_minor)), true], ['Unapplied credit', docs.money(p.unapplied)]],
       notes: [prof.billing_entity === 'owner' && owner ? `Received on behalf of the owner, ${owner.name}, by SarayDar as managing agent.` : 'Received by SarayDar.', 'This receipt acknowledges a confirmed payment.'] });
-    res.set({ 'Content-Type': 'application/pdf', 'Content-Disposition': `attachment; filename="${p.receipt_no}.pdf"`, 'Cache-Control': 'private, no-store' }); res.end(buf);
+    res.set({ 'Content-Type': 'application/pdf', 'Content-Disposition': DL.disposition(DL.fileName([p.receipt_no, a.ws.name], 'pdf')), 'Cache-Control': 'private, no-store' }); res.end(buf);
   });
 
   // ---------- tenant statement ----------
@@ -454,7 +455,7 @@ function mountRent(r, ctx) {
       tables: [{ head: ['Date', 'Document', 'Details', 'Charges', 'Payments', 'Balance'], widths: [0.12, 0.15, 0.34, 0.13, 0.13, 0.13], align: ['left', 'left', 'left', 'right', 'right', 'right'],
         rows: [Object.assign(['', '', 'Opening balance', '', '', nb(st.opening)], { bold: true }), ...st.rows.map(e => [fmtDate(e.date), e.doc, e.text, e.debit ? nb(e.debit) : '', e.credit ? nb(e.credit) : '', nb(e.balance)])] }],
       totals: [['Closing balance', docs.money(st.closing), true]], notes: [st.pending ? `Payments reported but not yet confirmed (${docs.money(st.pending)}) are not included.` : null, 'Deposits are held separately and are not shown here.'] });
-    res.set({ 'Content-Type': 'application/pdf', 'Content-Disposition': `attachment; filename="statement-${l.ref}.pdf"`, 'Cache-Control': 'private, no-store' }); res.end(buf);
+    res.set({ 'Content-Type': 'application/pdf', 'Content-Disposition': DL.disposition(DL.fileName([l.ref, a.ws.name, 'Statement', DL.today()], 'pdf')), 'Cache-Control': 'private, no-store' }); res.end(buf);
   });
 
   // ---------- deposits ----------

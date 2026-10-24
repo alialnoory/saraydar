@@ -1,4 +1,5 @@
 'use strict';
+const DL = require('../lib/download');
 // Agreements & contracts for every section: templates (starter drafts, in-system text templates, uploaded Word templates),
 // SarayDar letterhead, per-workspace agreements with the external party's details, generated versions and signed copies.
 const crypto = require('crypto');
@@ -240,7 +241,7 @@ function mountAgreements(r, ctx) {
       </section>
       <section class="panel"><h2 class="h">Generated versions</h2>
         ${versions.length ? html`<ul class="rows">${versions.map(v => html`<li><div class="grow"><b>Version ${v.version}</b><div class="muted small">${fmtDateTime(v.created_at)} · ${v.who || ''} · template v${v.template_version}</div></div>
-          ${v.has_pdf ? html`<a class="btn small primary" href="/w/${a.ws.id}/agreements/${g.id}/v/${v.version}.pdf?view=1" target="_blank" rel="noopener">Preview</a><a class="btn small" href="/w/${a.ws.id}/agreements/${g.id}/v/${v.version}.pdf">PDF</a>` : ''}${v.has_docx ? html`<a class="btn small" href="/w/${a.ws.id}/agreements/${g.id}/v/${v.version}.docx">Word</a>` : ''}</li>`)}</ul>`
+          ${v.has_pdf ? html`<a class="btn small primary" href="/w/${a.ws.id}/agreements/${g.id}/v/${v.version}.pdf${DL.pretty(DL.fileName([g.ref, a.ws.name, `v${v.version}`], 'pdf'))}?view=1" target="_blank" rel="noopener">Preview</a><a class="btn small" href="/w/${a.ws.id}/agreements/${g.id}/v/${v.version}.pdf">PDF</a>` : ''}${v.has_docx ? html`<a class="btn small" href="/w/${a.ws.id}/agreements/${g.id}/v/${v.version}.docx">Word</a>` : ''}</li>`)}</ul>`
           : html`<p class="muted">Nothing generated yet.</p>`}
         ${tpl.kind === 'docx' ? html`<p class="muted small">This is your Word template filled in. Its letterhead is whatever your Word file contains. For a PDF, open it in Word and save as PDF.</p>` : ''}
       </section>
@@ -351,7 +352,7 @@ function mountAgreements(r, ctx) {
     const view = m[2] === 'pdf' && req.query.view === '1';     // Preview: open in the browser instead of downloading
     await core.audit(null, { actor: req.user, workspaceId: a.ws.id, action: view ? 'agreement.previewed' : 'agreement.downloaded', entity: 'agreement', entityId: g.id, summary: `${g.ref} v${m[1]} ${m[2].toUpperCase()} ${view ? 'previewed' : 'downloaded'}`, ip: req.ip });
     res.set({ 'Content-Type': m[2] === 'pdf' ? 'application/pdf' : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      'Content-Disposition': `${view ? 'inline' : 'attachment'}; filename="${g.ref}-v${m[1]}.${m[2]}"`, 'Cache-Control': 'private, no-store' });
+      'Content-Disposition': DL.disposition(DL.fileName([g.ref, a.ws.name, `v${m[1]}`], m[2]), view), 'Cache-Control': 'private, no-store' });
     res.end(v.data);
   });
 
