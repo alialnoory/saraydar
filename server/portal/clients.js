@@ -17,9 +17,9 @@ const CLIENT_F = [['kind', 'Individual or company'], ['name', 'Name'], ['id_numb
   ['preferred_contact', 'Preferred communication'], ['contact_person', 'Day-to-day contact (if not the client)'], ['address', 'Address']];
 const REP_F = [['representative', 'Representative name'], ['representative_title', 'Title / capacity'], ['representative_cpr', 'Representative CPR number'], ['representative_phone', 'Representative telephone'], ['representative_email', 'Representative email']];
 const MORE_F = [['representatives', 'Other authorised representatives'], ['billing_name', 'Billing name'], ['billing_address', 'Billing address'], ['billing_email', 'Billing email'],
-  ['tax_number', 'Tax registration number'], ['client_reference', 'Client reference'], ['communication_notes', 'Communication responsibilities'], ['notes', 'Notes']];
+  ['tax_number', 'Tax registration number'], ['client_reference', 'Client reference'], ['notes', 'Notes']];
 const FIELDS = [...CLIENT_F, ...REP_F, ...MORE_F];
-const LONG = new Set(['representatives', 'address', 'billing_address', 'communication_notes', 'notes']);
+const LONG = new Set(['representatives', 'address', 'billing_address', 'notes']);
 
 function mountClients(r, ctx, F) {
   const { pool, core, NotFound, Forbidden } = ctx;
