@@ -439,3 +439,5 @@ html.tips-off .tabtip { display: none; }
 .btn.danger-link { color: var(--bad); border-color: #E6C4BF; }
 .btn.danger-link:hover { background: var(--bad-bg); }
 form.inline { display: inline; }
+.form-section { margin: 6px 0 -4px; padding-top: 8px; border-top: 1px solid var(--line); }
+.form-section:first-of-type { border-top: 0; padding-top: 0; }

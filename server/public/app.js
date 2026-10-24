@@ -93,3 +93,8 @@ document.addEventListener('click', e => {
   const b = e.target.closest('[data-confirm]');
   if (b && !window.confirm(b.dataset.confirm)) { e.preventDefault(); e.stopImmediatePropagation(); }
 }, true);
+// A tick-box that hides a group of fields while ticked: data-hides="<id of the group>"
+document.addEventListener('change', e => {
+  const t = e.target.closest('[data-hides]'); if (!t) return;
+  const g = document.getElementById(t.dataset.hides); if (g) g.hidden = t.checked;
+});

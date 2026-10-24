@@ -27,3 +27,12 @@ test('the other party: CPR for individuals, CR for companies, and who represents
   assert.equal(co['party.signatory_title'], "Client's Representative");
   assert.equal(A.builtins({ party: { name: 'Sara', kind: 'person' } })['party.represented_by'], '');
 });
+
+test('a client who signs personally has no "represented by"; approvers are the client and the representative', () => {
+  const p = { name: 'Sara', kind: 'person', contact_person: 'Mahdi', representative: 'Mahdi', signs_personally: true };
+  const b = A.builtins({ party: p });
+  assert.equal(b['party.represented_by'], ''); assert.equal(b['party.signatory'], 'Sara'); assert.equal(b['party.signatory_title'], '');
+  assert.deepEqual(A.approversOf(p), ['Sara']);
+  assert.deepEqual(A.approversOf({ ...p, signs_personally: false }), ['Sara', 'Mahdi']);
+  assert.deepEqual(A.approversOf({ name: 'ACME WLL', kind: 'company', representative: 'Ahmed' }), ['Ahmed']);
+});

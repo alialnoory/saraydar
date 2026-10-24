@@ -61,10 +61,18 @@ function readValues(fields, body) {
   return out;
 }
 
+// Who may approve for the client: the client (an individual) and whoever represents them; approvals are no longer
+// a separate list on the client profile (owner request 2026-10-24).
+function approversOf(p = {}) {
+  const rep = p.signs_personally ? '' : (p.representative || (p.contact_person && p.contact_person !== p.name ? p.contact_person : ''));
+  const names = p.kind === 'company' ? [rep || p.name] : [p.name, rep];
+  return [...new Set(names.filter(Boolean))];
+}
+
 function builtins({ company = {}, ws = {}, party = {}, agreement = {}, counterparty = 'Client' }) {
   // the other party is "represented by" whoever signs for them: the representative recorded on their profile,
   // otherwise their main contact (an individual with neither signs for themselves)
-  const repName = party.representative || (party.contact_person && party.contact_person !== party.name ? party.contact_person : '');
+  const repName = party.signs_personally ? '' : party.representative || (party.contact_person && party.contact_person !== party.name ? party.contact_person : '');
   const repTitle = party.representative ? party.representative_title : '';
   const repCpr = party.representative ? party.representative_cpr : '';
   const rep = repName ? `, represented by ${repName}${repCpr ? ` (CPR No. ${repCpr})` : ''}${repTitle ? `, ${repTitle}` : ''}` : '';
@@ -269,4 +277,4 @@ function fillDocx(buf, map) {
   return doc.getZip().generate({ type: 'nodebuffer', compression: 'DEFLATE' });
 }
 
-module.exports = { placeholders, docxText, fieldsFor, readValues, builtins, resolve, missingRequired, fill, renderPdf, renderDocx, fillDocx, display, isBuiltin, NOTICE, BLANK };
+module.exports = { approversOf, placeholders, docxText, fieldsFor, readValues, builtins, resolve, missingRequired, fill, renderPdf, renderDocx, fillDocx, display, isBuiltin, NOTICE, BLANK };

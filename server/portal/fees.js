@@ -1,4 +1,5 @@
 'use strict';
+const AG = require('../lib/agreements');
 const DL = require('../lib/download');
 const CH = require('./choices');
 // Clients Projects Management: the client & management-agreement tab, SarayDar's fee ledger
@@ -161,10 +162,9 @@ function mountFees(r, ctx, P) {
         <section class="panel grow1"><div class="row-between"><h2 class="h">${party(a)}</h2>${client ? html`<div class="actions">${edit ? html`<a class="btn small primary" href="/clients/${client.id}?edit=1&back=${encodeURIComponent(`/w/${a.ws.id}/client`)}#edit">Edit ${party(a).toLowerCase()} details</a>` : ''}<a class="btn small" href="/clients/${client.id}">Full profile</a></div>` : ''}</div>
           ${client ? html`<p class="client-name">${client.name}</p><dl class="details">
             <div><dt>Main contact</dt><dd>${client.contact_person || client.representative || html`<span class="muted">Not recorded</span>`}</dd></div>
-            <div><dt>Represented by</dt><dd>${client.representative ? `${client.representative}${client.representative_cpr ? ` (CPR No. ${client.representative_cpr})` : ''}${client.representative_title ? `, ${client.representative_title}` : ''}` : client.contact_person && client.contact_person !== client.name ? html`${client.contact_person} <span class="muted small">(main contact)</span>` : html`<span class="muted">Signs personally</span>`}</dd></div>
+            <div><dt>Represented by</dt><dd>${client.signs_personally ? html`<span class="muted">Signs personally</span>` : client.representative ? `${client.representative}${client.representative_cpr ? ` (CPR No. ${client.representative_cpr})` : ''}${client.representative_title ? `, ${client.representative_title}` : ''}` : client.contact_person && client.contact_person !== client.name ? html`${client.contact_person} <span class="muted small">(main contact)</span>` : html`<span class="muted">Signs personally</span>`}</dd></div>
             <div><dt>Telephone</dt><dd>${client.phone || '—'}</dd></div><div><dt>Email</dt><dd>${client.email || '—'}</dd></div>
-            <div><dt>Preferred contact</dt><dd>${client.preferred_contact || '—'}</dd></div>
-            <div><dt>Approval authorities</dt><dd class="pre-line">${client.approval_authorities || html`<span class="muted">Not recorded</span>`}</dd></div></dl>`
+            <div><dt>Preferred contact</dt><dd>${client.preferred_contact || '—'}</dd></div></dl>`
             : html`<p class="muted">Not linked to ${a.ws.section === 'props' ? 'an owner' : 'a client'} yet.</p>`}
           ${edit ? html`<details class="inline-form"><summary>${client ? `Change ${party(a).toLowerCase()}` : `Link ${a.ws.section === 'props' ? 'an owner' : 'a client'}`}</summary><form method="post" action="/w/${a.ws.id}/client/link" class="form-grid">${csrfField(req)}
             ${field({ name: 'party_id', label: party(a), options: [['', 'Choose…'], ...clients.map(c => [c.id, c.name])], required: true })}
@@ -178,7 +178,7 @@ function mountFees(r, ctx, P) {
             <div><dt>Period</dt><dd>${fmtDate(act.start_date)} – ${act.end_date ? fmtDate(act.end_date) : 'open-ended'}</dd></div>
             <div><dt>Billing</dt><dd>Monthly in ${act.billing_timing} · ${act.proration === 'daily' ? 'part months prorated by day' : 'full fee for part months'} · payment due ${act.payment_terms_days} days after issue</dd></div>
             <div><dt>Tax</dt><dd>${act.tax_mode === 'not_configured' ? html`<span class="err">Not configured — invoices cannot be issued until it is</span>` : taxText(act)}</dd></div>
-            <div><dt>Client approvers</dt><dd class="pre-line">${(client && client.approval_authorities) || act.client_approvers || '—'}</dd></div>
+            <div><dt>Client approvers</dt><dd class="pre-line">${client ? AG.approversOf(client).join('\n') : act.client_approvers || '—'}</dd></div>
             <div><dt>Scope</dt><dd class="pre-line">${act.scope || '—'}</dd></div>
             ${act.responsibilities ? html`<div><dt>Responsibilities</dt><dd class="pre-line">${act.responsibilities}</dd></div>` : ''}
             <div><dt>Exclusions</dt><dd class="pre-line">${act.exclusions || '—'}</dd></div>
@@ -205,7 +205,6 @@ function mountFees(r, ctx, P) {
               <input type="hidden" name="tax_label" value="${base.tax_label || ''}">
               ${field({ name: 'scope', label: 'SarayDar management scope — tick what SarayDar will do', type: 'checks', value: base.scope || '', options: a.ws.section === 'props' ? CH.PROP_SCOPE : CH.MGMT_SCOPE, otherLabel: 'Anything else (one per line)' })}
               ${field({ name: 'exclusions', label: 'Not included — tick what is excluded', type: 'checks', value: base.exclusions || '', options: a.ws.section === 'props' ? CH.PROP_EXCLUSIONS : CH.MGMT_EXCLUSIONS, otherLabel: 'Other exclusions (one per line)' })}
-              <p class="muted small full">Client approvers are taken from the ${party(a).toLowerCase()}'s profile (Edit ${party(a).toLowerCase()} details), so they are entered once.</p>
               ${tf('notes', 'Notes', { type: 'textarea' })}
               <div class="actions full"><button class="btn primary" type="submit">Save draft terms</button></div>
               <p class="muted small full">Saved as a draft. Finance activates it; activation replaces the previous version from the effective date and keeps it in the history.</p></form></details>` : ''}
@@ -301,8 +300,8 @@ function mountFees(r, ctx, P) {
   r.post('/w/:id/terms', async (req, res) => {
     const a = await finAccess(req, 'edit');
     const t = readTerms(req.body);
-    // approvers are kept on the client's profile (entered once); the terms keep a copy as at this version
-    if (!t.client_approvers) { const c = await clientOf(a.ws); t.client_approvers = (c && c.approval_authorities) || null; }
+    // approvers are the client and their representative (from the client's profile); the terms keep a copy as at this version
+    if (!t.client_approvers) { const c = await clientOf(a.ws); t.client_approvers = c ? AG.approversOf(c).join('\n') || null : null; }
     await core.inTx(async db => {
       await db.query('select id from workspaces where id = $1 for update', [a.ws.id]);
       const act = (await db.query("select * from mgmt_terms where workspace_id = $1 and status = 'active'", [a.ws.id])).rows[0];
@@ -901,7 +900,7 @@ function mountFees(r, ctx, P) {
     const client = await clientOf(a.ws);
     const terms = activeTerms(await termsAll(a.ws.id));
     res.send(page(req, a, 'Client Approvals', html`
-      <p class="muted">Approvals the client gives outside the system (signed letters, emails, meeting minutes) are recorded here by SarayDar staff with the evidence. Client viewers will see the status only; they cannot approve or comment in the portal.${client && client.approval_authorities ? html` Authorised approvers: <b>${client.approval_authorities.split(/\r?\n/).join(', ')}</b>.` : terms && terms.client_approvers ? html` Authorised approvers: <b>${terms.client_approvers.split(/\r?\n/).join(', ')}</b>.` : ''}</p>
+      <p class="muted">Approvals the client gives outside the system (signed letters, emails, meeting minutes) are recorded here by SarayDar staff with the evidence. Client viewers will see the status only; they cannot approve or comment in the portal.${client && AG.approversOf(client).length ? html` Authorised approvers: <b>${AG.approversOf(client).join(', ')}</b>.` : ''}</p>
       <section class="panel"><h2 class="h">Approvals</h2>
         ${rows.length ? html`<div class="table-wrap"><table><thead><tr><th>Subject</th><th>Item</th><th>Requested</th><th>Decision</th><th>Evidence</th><th></th></tr></thead><tbody>
           ${rows.map(c => html`<tr><td>${SUBJECTS[c.subject]}</td><td><b>${c.title}</b>${c.linked_ref ? html`<div class="muted small">${c.linked_ref}</div>` : ''}${!c.client_visible ? html`<div class="small">${pill('Internal only', 'muted')}</div>` : ''}${c.notes ? html`<div class="muted small">${c.notes}</div>` : ''}</td>
@@ -920,7 +919,7 @@ function mountFees(r, ctx, P) {
       ${edit ? html`<section class="panel"><h2 class="h">Record a request for client approval</h2><form method="post" action="/w/${id}/approvals" class="form-grid">${csrfField(req)}
         ${field({ name: 'subject', label: 'Subject', options: Object.entries(SUBJECTS) })}${field({ name: 'title', label: 'What needs approval', required: true })}
         ${field({ name: 'linked_ref', label: 'Linked item / version', hint: 'For example Budget v2, VO-03, drawing A-101 rev C.' })}${field({ name: 'requested_on', label: 'Requested on', type: 'date', required: true, value: todayBH() })}
-        ${field({ name: 'requested_from', label: 'Requested from (client approver)', list: CH.lines(client && client.approval_authorities), hint: client && client.approval_authorities ? 'Pick from the client\'s approvers.' : 'Record approvers in the client profile to pick them here.' })}
+        ${field({ name: 'requested_from', label: 'Requested from (client approver)', list: client ? AG.approversOf(client) : [], value: client ? AG.approversOf(client)[0] || '' : '', hint: 'The client or their representative.' })}
         <label class="field check"><input type="checkbox" name="client_visible" value="1" checked> <span>Client viewers can see the status</span></label>
         ${field({ name: 'notes', label: 'Internal notes', full: true })}<div class="actions full"><button class="btn primary" type="submit">Record request</button></div></form></section>` : ''}`));
   });

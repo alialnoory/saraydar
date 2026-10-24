@@ -12,13 +12,14 @@ const bad = m => Object.assign(new Error(m), { status: 400 });
 const txt = (v, n = 300) => { const s = String(v ?? '').trim().slice(0, n); return s || null; };
 const fm = m => formatMoney(m || 0);
 const KINDS = { call: 'Call', email: 'Email', meeting: 'Meeting', letter: 'Letter', message: 'Message', other: 'Other' };
-const FIELDS = [
-  ['kind', 'Individual or company'], ['name', 'Name'], ['contact_person', 'Main contact'], ['representative', 'Represented by (signs agreements)'], ['representative_title', 'Their title / capacity'], ['representative_cpr', 'Their CPR number'], ['representatives', 'Other authorised representatives'],
-  ['phone', 'Telephone'], ['email', 'Email'], ['address', 'Address'], ['preferred_contact', 'Preferred communication'], ['id_number', 'CPR / CR / passport'],
-  ['billing_name', 'Billing name'], ['billing_address', 'Billing address'], ['billing_email', 'Billing email'], ['tax_number', 'Tax registration number'],
-  ['client_reference', 'Client reference'], ['approval_authorities', 'Approval authorities'], ['communication_notes', 'Communication responsibilities'], ['notes', 'Notes']
-];
-const LONG = new Set(['representatives', 'address', 'billing_address', 'approval_authorities', 'communication_notes', 'notes']);
+// Client details first, then who signs for the client, then billing and other details (owner request 2026-10-24).
+const CLIENT_F = [['kind', 'Individual or company'], ['name', 'Name'], ['id_number', 'CPR / CR number'], ['phone', 'Telephone'], ['email', 'Email'],
+  ['preferred_contact', 'Preferred communication'], ['contact_person', 'Day-to-day contact (if not the client)'], ['address', 'Address']];
+const REP_F = [['representative', 'Representative name'], ['representative_title', 'Title / capacity'], ['representative_cpr', 'Representative CPR number']];
+const MORE_F = [['representatives', 'Other authorised representatives'], ['billing_name', 'Billing name'], ['billing_address', 'Billing address'], ['billing_email', 'Billing email'],
+  ['tax_number', 'Tax registration number'], ['client_reference', 'Client reference'], ['communication_notes', 'Communication responsibilities'], ['notes', 'Notes']];
+const FIELDS = [...CLIENT_F, ...REP_F, ...MORE_F];
+const LONG = new Set(['representatives', 'address', 'billing_address', 'communication_notes', 'notes']);
 
 function mountClients(r, ctx, F) {
   const { pool, core, NotFound, Forbidden } = ctx;
@@ -37,6 +38,8 @@ function mountClients(r, ctx, F) {
     for (const [k] of FIELDS) v[k] = txt(b[k], LONG.has(k) ? 2000 : 200);
     v.kind = v.kind === 'company' ? 'company' : 'person';
     if (!v.name) throw bad('Enter the client name.');
+    v.signs_personally = b.signs_personally === '1';
+    if (v.signs_personally) { v.representative = null; v.representative_title = null; v.representative_cpr = null; }
     if (!v.billing_name) v.billing_name = v.name;          // the billing name is the client's name unless a different one is entered
     if (!v.billing_address) v.billing_address = v.address;
     if (!v.billing_email) v.billing_email = v.email;
@@ -44,18 +47,21 @@ function mountClients(r, ctx, F) {
     if (v.billing_email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v.billing_email)) throw bad('Check the billing email address.');
     return v;
   }
-  // the essentials first; billing and other details folded away (billing name and address follow the client unless different)
-  const MAIN = ['kind', 'name', 'contact_person', 'representative', 'representative_title', 'representative_cpr', 'phone', 'email', 'preferred_contact', 'approval_authorities'];
   const one = (c, k, l) => k === 'kind' ? field({ name: k, label: l, value: c.kind || 'person', options: [['person', 'Individual'], ['company', 'Company']] })
     : k === 'preferred_contact' ? field({ name: k, label: l, value: c[k] || '', options: [['', 'Not stated'], ...(c[k] && !CH.CONTACT_CHANNELS.includes(c[k]) ? [[c[k], c[k]]] : []), ...CH.CONTACT_CHANNELS.map(x => [x, x])] })
     : field({ name: k, label: l, value: k === 'billing_name' ? (c.billing_name || c.name || '') : c[k] || '', required: k === 'name', type: LONG.has(k) ? 'textarea' : k.includes('email') ? 'email' : k === 'phone' ? 'tel' : 'text', full: LONG.has(k),
-        hint: k === 'representative' ? 'Printed in agreements as "represented by …" and in the signature box. Leave empty to use the main contact.' : k === 'representative_title' ? 'For example Owner, Managing Director, Attorney under power of attorney.' : k === 'approval_authorities' ? 'Who on the client side can approve budgets, appointments, materials, variations and payments — one per line. Used in the agreement and approvals.' : k === 'billing_name' ? 'Same as the client name unless different.' : k === 'billing_address' ? 'Leave empty to use the address above.' : k === 'billing_email' ? 'Leave empty to use the email.' : '' });
+        hint: k === 'id_number' ? 'CPR for an individual, CR for a company. Printed in agreements.' : k === 'representative' ? 'Printed in agreements as "represented by …" and in the signature box.'
+          : k === 'representative_title' ? 'For example Attorney under power of attorney, Managing Director. Empty = "Client\'s Representative".' : k === 'billing_name' ? 'Same as the client name unless different.'
+          : k === 'billing_address' ? 'Leave empty to use the address above.' : k === 'billing_email' ? 'Leave empty to use the email.' : '' });
   const form = (req, c = {}, action, label) => {
-    const extra = FIELDS.filter(([k]) => !MAIN.includes(k));
-    const anyExtra = extra.some(([k]) => k !== 'billing_name' && c[k] && !(k === 'billing_address' && c[k] === c.address) && !(k === 'billing_email' && c[k] === c.email));
+    const anyMore = MORE_F.some(([k]) => k !== 'billing_name' && c[k] && !(k === 'billing_address' && c[k] === c.address) && !(k === 'billing_email' && c[k] === c.email));
     return html`<form method="post" action="${action}" class="panel form-grid">${csrfField(req)}
-    ${FIELDS.filter(([k]) => MAIN.includes(k)).map(([k, l]) => one(c, k, l))}
-    <details class="full inline-form" ${anyExtra ? raw('open') : ''}><summary>Address, billing and other details</summary><div class="form-grid">${extra.map(([k, l]) => one(c, k, l))}</div></details>
+    <h3 class="h3 full form-section">Client details</h3>
+    ${CLIENT_F.map(([k, l]) => one(c, k, l))}
+    <h3 class="h3 full form-section">Client's representative</h3>
+    <label class="check full"><input type="checkbox" name="signs_personally" value="1" data-hides="rep-fields" ${c.signs_personally ? raw('checked') : ''}> The client represents himself / herself and signs personally (no representative)</label>
+    <div class="full form-grid" id="rep-fields" ${c.signs_personally ? raw('hidden') : ''}>${REP_F.map(([k, l]) => one(c, k, l))}</div>
+    <details class="full inline-form" ${anyMore ? raw('open') : ''}><summary>Billing and other details</summary><div class="form-grid">${MORE_F.map(([k, l]) => one(c, k, l))}</div></details>
     <div class="actions full"><button class="btn primary" type="submit">${label}</button></div></form>`;
   };
 
@@ -114,7 +120,7 @@ function mountClients(r, ctx, F) {
     if (g.seeFees) for (const w of projects) fees[w.id] = (await F.ledger(w.id)).t;
     res.send(shell(req, c.name, [['Clients', '/clients'], [c.name]], html`
       <div class="split">
-        <section class="panel grow1"><h2 class="h">Profile</h2><dl class="details">${FIELDS.filter(([k]) => k !== 'name').map(([k, l]) => html`<div><dt>${l}</dt><dd class="pre-line">${k === 'kind' ? (c.kind === 'company' ? 'Company' : 'Individual') : c[k] || html`<span class="muted">—</span>`}</dd></div>`)}</dl></section>
+        <section class="panel grow1"><h2 class="h">Profile</h2><dl class="details">${FIELDS.filter(([k]) => k !== 'name' && !(c.signs_personally && REP_F.some(f => f[0] === k))).map(([k, l]) => html`<div><dt>${l}</dt><dd class="pre-line">${k === 'kind' ? (c.kind === 'company' ? 'Company' : 'Individual') : c[k] || html`<span class="muted">—</span>`}</dd></div>`)}</dl></section>
         <section class="panel grow2"><h2 class="h">Projects</h2>
           ${projects.length ? html`<div class="table-wrap"><table><thead><tr><th>Project</th><th>Reference</th><th>Status</th>${g.seeFees ? html`<th class="n">Invoiced</th><th class="n">Outstanding</th>` : ''}</tr></thead><tbody>
             ${projects.map(w => html`<tr><td><a href="/w/${w.id}"><b>${w.name}</b></a>${w.location ? html`<div class="muted small">${w.location}</div>` : ''}</td><td class="mono">${w.ref}</td><td>${statusPill(w.status)}</td>

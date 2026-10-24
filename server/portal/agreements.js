@@ -94,7 +94,7 @@ function mountAgreements(r, ctx) {
     let months = null;
     if (t.start_date && t.end_date) { const s0 = new Date(iso(t.start_date)), e0 = new Date(iso(t.end_date)); e0.setUTCDate(e0.getUTCDate() + 1); months = Math.round((e0 - s0) / (30.4375 * 864e5)); }
     const from = { services: t.scope, scope: t.scope, exclusions: t.exclusions, monthly_fee_amount: t.monthly_fee_minor === null ? null : Number(t.monthly_fee_minor), monthly_fee: t.monthly_fee_minor === null ? null : Number(t.monthly_fee_minor),
-      start_date: iso(t.start_date), end_date: iso(t.end_date), duration_months: months, payment_days: t.payment_terms_days, approvers: ((await pool.query('select p.approval_authorities from workspaces w join parties p on p.id = w.party_id where w.id = $1', [wsId])).rows[0] || {}).approval_authorities || t.client_approvers,
+      start_date: iso(t.start_date), end_date: iso(t.end_date), duration_months: months, payment_days: t.payment_terms_days, approvers: A.approversOf((await pool.query('select p.* from workspaces w join parties p on p.id = w.party_id where w.id = $1', [wsId])).rows[0] || {}).join(' and ') || t.client_approvers,
       notices_days: t.notice_days, agreement_date: iso(t.signed_on),
       billing_timing: t.billing_timing === 'advance' ? `in advance, at the start of each month${t.proration === 'daily' ? ' (part months charged by the day)' : ''}` : t.billing_timing === 'arrears' ? `in arrears, after the end of each month${t.proration === 'daily' ? ' (part months charged by the day)' : ''}` : null };
     const prof = (await pool.query('select * from property_profiles where workspace_id = $1', [wsId])).rows[0];

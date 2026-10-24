@@ -22,7 +22,7 @@ function mountCompleteness(r, ctx) {
       if (cpm) {
         add('Client linked', party, W('/client'));
         add('Client telephone or email', party && (party.phone || party.email), party ? `/clients/${party.id}?edit=1&back=${encodeURIComponent(W('/client'))}#edit` : W('/client'));
-        add('Client approvers recorded', party && party.approval_authorities, party ? `/clients/${party.id}?edit=1&back=${encodeURIComponent(W('/client'))}#edit` : W('/client'));
+        add('Client representative recorded (or signs personally)', party && (party.signs_personally || party.representative), party ? `/clients/${party.id}?edit=1&back=${encodeURIComponent(W('/client'))}#edit` : W('/client'));
         const t = await one("select status, scope, monthly_fee_minor from mgmt_terms where workspace_id = $1 and status in ('draft','active') order by (status = 'active') desc limit 1", [id]);
         add('Management terms recorded (fee, period, scope)', t.status && t.scope && t.monthly_fee_minor !== null, W('/agreements'));
         add('Terms activated by Finance', await n("select count(*)::int as n from mgmt_terms where workspace_id = $1 and status = 'active'", [id]), W('/agreements'));
