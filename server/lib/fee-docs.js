@@ -28,7 +28,8 @@ function render({ title, number, company = {}, letterhead = null, marginTop = 45
 
     // heading: the dark band, with the document title on the left and its number on the right
     brand.band(doc, { title: title.toUpperCase(), sub: [company.legal_name || company.trade_name, company.cr_number ? `C.R. ${company.cr_number}` : null].filter(Boolean).join(' · '),
-      right: [[number || 'DRAFT — not issued', { bold: true, size: 11 }], ...(stamp ? [[stamp, { bold: true, size: 10, color: '#F2B8A8' }]] : [])], x: L, width: W });
+      right: [[number || 'DRAFT — not issued', { bold: true, size: 11 }], ...(stamp ? [[stamp, { bold: true, size: 10, color: '#F2B8A8' }]] : [])], x: L, width: W,
+      date: ((meta.find(([k, v]) => /^(issue date|date|payment date|receipt issued|statement date)$/i.test(String(k)) && v && v !== '—') || [])[1]) || undefined });
 
     // to / meta
     const yTop = doc.y;

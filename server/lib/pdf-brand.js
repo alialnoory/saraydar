@@ -26,7 +26,7 @@ function logo(doc, x, y, { size = 20, color = BAND_INK, tracking = 0.34 } = {}) 
 // Draws the band across the top of the current page and leaves doc.y just below it.
 // title: big line; sub: small line under it; right: [[text, {bold?, color?}]...] shown on the right.
 const CM = 72 / 2.54;
-function band(doc, { title, sub = '', right = [], x: bodyX = 40, width }) {
+function band(doc, { title, sub = '', right = [], x: bodyX = 40, width, date }) {
   // the heading's contents keep a 1 cm margin from the page edges, like the footer (owner request 2026-10-24)
   const H = 104, x = CM, W = doc.page.width - 2 * CM;
   doc.save();
@@ -43,6 +43,9 @@ function band(doc, { title, sub = '', right = [], x: bodyX = 40, width }) {
   ry = 22;
   line(String(title).toUpperCase(), { display: true, size: 17 });            // the type of document is always in capitals
   if (first) line(first[0], first[1]);
+  // the date of the document under its type and reference (today unless the document has its own date)
+  const shown = date === false ? null : date || new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Bahrain' });
+  if (shown) line(`Date: ${shown}`, { size: 9, color: BAND_MUTED });
   for (const [t, o] of rest) line(t, o);
   doc.x = bodyX; doc.y = H + 16;
 }
@@ -57,12 +60,12 @@ function footer(doc, { company = {}, ref = '', lines = null }) {
   for (let i = range.start; i < range.start + range.count; i++) {
     doc.switchToPage(i);
     const keep = doc.page.margins.bottom; doc.page.margins.bottom = 0;   // the footer sits below the margin; otherwise pdfkit starts an empty page
-    const H = 30, x0 = CM, w0 = doc.page.width - 2 * CM, y0 = doc.page.height - H;
+    const H = 40, x0 = CM, w0 = doc.page.width - 2 * CM, y0 = doc.page.height - H;
     doc.save(); doc.rect(x0, y0, w0, H).fill(BAND); doc.rect(x0, y0, w0, 2).fill(COPPER); doc.restore();
     const pad = 14, tx = x0 + pad, tw = w0 - 2 * pad;
-    doc.font('body').fontSize(7).fillColor(BAND_INK).text(l1 || '', tx, y0 + 7, { width: tw * 0.74, height: 9, ellipsis: true });
-    doc.font('body').fontSize(7).fillColor(BAND_MUTED).text(l2 || '', tx, y0 + 16.5, { width: tw * 0.74, height: 9, ellipsis: true });
-    doc.font('body').fontSize(7.5).fillColor(BAND_INK).text(`${ref ? `${ref} · ` : ''}page ${i + 1} of ${range.count}`, tx + tw * 0.74, y0 + 11.5, { width: tw * 0.26, align: 'right', lineBreak: false });
+    doc.font('body').fontSize(7.5).fillColor(BAND_INK).text(l1 || '', tx, y0 + 11, { width: tw * 0.74, height: 9, ellipsis: true });
+    doc.font('body').fontSize(7.5).fillColor(BAND_MUTED).text(l2 || '', tx, y0 + 22, { width: tw * 0.74, height: 9, ellipsis: true });
+    doc.font('body').fontSize(8).fillColor(BAND_INK).text(`${ref ? `${ref} · ` : ''}page ${i + 1} of ${range.count}`, tx + tw * 0.74, y0 + 11.5, { width: tw * 0.26, align: 'right', lineBreak: false });
     doc.page.margins.bottom = keep;
   }
 }

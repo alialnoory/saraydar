@@ -206,3 +206,16 @@ document.addEventListener('change', e => {
     main.addEventListener('change', show);
   });
 })();
+// Opened from the home-screen icon the portal runs full screen, with no browser buttons. Files (PDF, Excel, Word,
+// photos) then open in a separate viewer that has Share, Print and Done, instead of replacing the portal.
+(() => {
+  const standalone = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || window.navigator.standalone === true;
+  if (!standalone) return;
+  const isFile = a => /[?&]export=(pdf|xlsx)/.test(a.href) || /\.(pdf|xlsx|docx|csv|zip)(\/~\/[^?]*)?(\?|$)/i.test(a.href) || /\/files\/[0-9a-f-]{36}(\?|$)/i.test(a.href);
+  document.addEventListener('click', e => {
+    const a = e.target.closest('a[href]');
+    if (!a || !isFile(a) || e.defaultPrevented) return;
+    e.preventDefault();
+    window.open(a.href, '_blank', 'noopener');
+  });
+})();

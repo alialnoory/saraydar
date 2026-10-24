@@ -135,7 +135,11 @@ function toPdf(page, { user, when }) {
     const ensure = h => { if (doc.y + h > bottom()) doc.addPage(); };
     const plain = s => String(s).replace(/[^\u0000-ɏ‐-‧‰-⁞€™²³×]/g, '');   // fonts are Latin
     // the same dark heading as every SarayDar document: the page (type) on the right with the record under it
-    brand.band(doc, { title: plain(page.tab && page.tab !== page.title ? page.tab : 'Page export'), sub: plain(page.crumbs || ''), right: [[plain(page.title), { bold: true, size: 11 }]], x: X, width: W });
+    // type = the tab (or the page) exported; under it the record's reference and name
+    const lastCrumb = String(page.crumbs || '').split(' › ').filter(Boolean).pop();
+    const type = page.tab && page.tab !== page.title ? page.tab : lastCrumb && lastCrumb !== page.title ? lastCrumb : 'Summary';
+    const ref = [page.eyebrow ? page.eyebrow.split(' · ')[0] : '', /^Good (morning|afternoon|evening)/.test(page.title) ? '' : page.title].filter(Boolean).join(' · ');
+    brand.band(doc, { title: plain(type), sub: plain(page.crumbs || ''), right: ref ? [[plain(ref), { bold: true, size: 11 }]] : [], x: X, width: W });
     doc.y = 116; doc.x = X;
     doc.font('body').fontSize(8).fillColor(MUTED).text(plain(`${[page.eyebrow, page.meta].filter(Boolean).join(' · ')}${page.eyebrow || page.meta ? '\n' : ''}Exported ${when.toLocaleString('en-GB', { timeZone: 'Asia/Bahrain' })} (Bahrain time) by ${user}. Contents match what this user could see on the page.`), { width: W });
     doc.moveDown(0.6);
