@@ -241,7 +241,7 @@ function mountAgreements(r, ctx) {
       </section>
       <section class="panel"><h2 class="h">Generated versions</h2>
         ${versions.length ? html`<ul class="rows">${versions.map(v => html`<li><div class="grow"><b>Version ${v.version}</b><div class="muted small">${fmtDateTime(v.created_at)} · ${v.who || ''} · template v${v.template_version}</div></div>
-          ${v.has_pdf ? html`<a class="btn small primary" href="/w/${a.ws.id}/agreements/${g.id}/v/${v.version}.pdf${DL.pretty(DL.fileName([g.ref, a.ws.name, `v${v.version}`], 'pdf'))}?view=1" target="_blank" rel="noopener">Preview</a><a class="btn small" href="/w/${a.ws.id}/agreements/${g.id}/v/${v.version}.pdf">PDF</a>` : ''}${v.has_docx ? html`<a class="btn small" href="/w/${a.ws.id}/agreements/${g.id}/v/${v.version}.docx">Word</a>` : ''}</li>`)}</ul>`
+          ${v.has_pdf ? html`<a class="btn small primary" href="/w/${a.ws.id}/agreements/${g.id}/v/${v.version}.pdf${DL.pretty(DL.fileName([g.ref, a.ws.name, `v${v.version}`], 'pdf'))}?view=1" target="_blank" rel="noopener">Preview</a><a class="btn small" href="/w/${a.ws.id}/agreements/${g.id}/v/${v.version}.pdf">PDF</a>` : ''}${v.has_docx ? html`<a class="btn small" href="/w/${a.ws.id}/agreements/${g.id}/v/${v.version}.docx">Word</a>` : ''}${g.status === 'draft' && v.version !== versions[0].version && core.canEdit(a) ? html`<form method="post" action="/w/${a.ws.id}/agreements/${g.id}/v/${v.version}/delete" class="inline">${csrfField(req)}<input type="hidden" name="back" value="/w/${a.ws.id}/agreements/${g.id}"><button class="btn small danger-link" type="submit" data-confirm="Delete version ${v.version}? This cannot be undone.">Delete</button></form>` : ''}</li>`)}</ul>`
           : html`<p class="muted">Nothing generated yet.</p>`}
         ${tpl.kind === 'docx' ? html`<p class="muted small">This is your Word template filled in. Its letterhead is whatever your Word file contains. For a PDF, open it in Word and save as PDF.</p>` : ''}
       </section>
@@ -342,6 +342,25 @@ function mountAgreements(r, ctx) {
       return { g, v };
     }
   };
+
+  // Delete a version that is not needed (owner request 2026-10-24). Only while the agreement is a draft, never the
+  // latest version, and the deletion is kept in the activity log. Issued and signed agreements keep every version.
+  r.post('/w/:id/agreements/:aid/v/:n/delete', async (req, res) => {
+    const a = await access(req, 'edit');
+    const g = await loadAgreement(a, req.params.aid);
+    const n = Number(req.params.n);
+    if (!Number.isInteger(n) || n < 1) throw new NotFound();
+    if (g.status !== 'draft') throw bad('Versions of an issued or signed agreement are kept as they are.');
+    await core.inTx(async db => {
+      const latest = (await db.query('select max(version) as m from agreement_versions where agreement_id = $1', [g.id])).rows[0].m;
+      if (n === latest) throw bad('The latest version cannot be deleted. Generate a new one first if it is wrong.');
+      const del = await db.query('delete from agreement_versions where agreement_id = $1 and version = $2', [g.id, n]);
+      if (!del.rowCount) throw new NotFound();
+      await core.audit(db, { actor: req.user, workspaceId: a.ws.id, action: 'agreement.version_deleted', entity: 'agreement', entityId: g.id, summary: `${g.ref} version ${n} deleted`, ip: req.ip });
+    });
+    const back = String(req.body.back || '');
+    res.redirect(`${/^\/w\/[0-9a-f-]{36}\/(agreements|client)(\/[0-9a-f-]{36})?$/.test(back) ? back : `/w/${a.ws.id}/agreements/${g.id}`}?msg=deleted`);
+  });
 
   r.get('/w/:id/agreements/:aid/v/:file', async (req, res) => {
     const a = await access(req);

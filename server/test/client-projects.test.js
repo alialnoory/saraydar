@@ -121,6 +121,14 @@ test('client projects', { skip: !URL_ && 'set TEST_DATABASE_URL to run' }, async
     assert.match(decodeURIComponent(pr.res.headers.get('content-disposition')), new RegExp(`^inline; .*${ag.ref} - ${pname} - v1\\.pdf`));
     assert.equal((await admin.post(`/w/${p1}/client/agreement`, {}, `/w/${p1}/client`)).status, 302);
     assert.equal((await q1(`select count(*)::int as n from agreement_versions where agreement_id = '${ag.id}'`)).n, 2);
+    // an unused older version of a draft can be deleted; the latest cannot
+    assert.match((await admin.get(`/w/${p1}/agreements`)).text, /\/v\/1\/delete/);
+    assert.equal((await admin.post(`/w/${p1}/agreements/${ag.id}/v/2/delete`, { back: `/w/${p1}/agreements` }, `/w/${p1}/agreements`)).status, 400);
+    const dv = await admin.post(`/w/${p1}/agreements/${ag.id}/v/1/delete`, { back: `/w/${p1}/agreements` }, `/w/${p1}/agreements`);
+    assert.equal(dv.location, `/w/${p1}/agreements?msg=deleted`);
+    assert.equal((await q1(`select count(*)::int as n from agreement_versions where agreement_id = '${ag.id}'`)).n, 1);
+    assert.equal((await q1(`select count(*)::int as n from audit_events where action = 'agreement.version_deleted'`)).n, 1);
+    await admin.post(`/w/${p1}/client/agreement`, {}, `/w/${p1}/client`);
     // p2 gets terms with tax not configured
     await admin.post(`/w/${p2}/terms`, { start_date: `${month}-01`, monthly_fee: '900', tax_mode: 'not_configured' }, `/w/${p2}/client`);
     const t2 = (await q1(`select id from mgmt_terms where workspace_id = '${p2}'`)).id;

@@ -88,3 +88,8 @@ document.addEventListener('submit', e => {
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', go); else go();
   window.addEventListener('load', () => window.scrollTo(0, Math.min(k.y, document.documentElement.scrollHeight)), { once: true });
 })();
+// Buttons that remove something ask first: data-confirm="question"
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-confirm]');
+  if (b && !window.confirm(b.dataset.confirm)) { e.preventDefault(); e.stopImmediatePropagation(); }
+}, true);
