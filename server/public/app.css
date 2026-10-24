@@ -482,3 +482,12 @@ body.pdfview { background: #FFFFFF; margin: 0; color: var(--ink); }
 .pv-msg { color: var(--muted); padding: 40px 16px; text-align: center; }
 @media (max-width: 480px) { .pv-btn { padding: 7px 11px; font-size: 13px; } .pv-ghost { padding: 7px 9px; } .pv-ghost span { display: none; } }
 .client-name { font-weight: 600 !important; }
+
+/* Tabs on a light SarayDar sand strip under the dark header (owner request 2026-10-24) */
+.band .tabs { position: relative; margin-top: 4px; padding: 12px 0 12px; background: #EFE4D8;
+  box-shadow: 0 0 0 100vmax #EFE4D8; clip-path: inset(0 -100vmax); border-bottom: 1px solid #E0D2C6; }
+.band .tabs a { background: #FCF9F6; border: 1px solid #DCCBBC; color: #4A3A31; }
+.band .tabs a:hover { border-color: var(--copper); color: var(--accent); background: #fff; }
+.band .tabs a[aria-current="page"] { background: var(--accent); border-color: var(--accent); color: #FFF8F2; font-weight: 600; }
+.band .tabs { margin-bottom: -1px; }
+.band:has(.tabs) { border-bottom: 0; }
