@@ -24,12 +24,12 @@ function mountCompleteness(r, ctx) {
         add('Client telephone or email', party && (party.phone || party.email), party ? `/clients/${party.id}?edit=1&back=${encodeURIComponent(W('/client'))}#edit` : W('/client'));
         add('Client approvers recorded', party && party.approval_authorities, party ? `/clients/${party.id}?edit=1&back=${encodeURIComponent(W('/client'))}#edit` : W('/client'));
         const t = await one("select status, scope, monthly_fee_minor from mgmt_terms where workspace_id = $1 and status in ('draft','active') order by (status = 'active') desc limit 1", [id]);
-        add('Management terms recorded (fee, period, scope)', t.status && t.scope && t.monthly_fee_minor !== null, W('/client'));
-        add('Terms activated by Finance', await n("select count(*)::int as n from mgmt_terms where workspace_id = $1 and status = 'active'", [id]), W('/client'));
+        add('Management terms recorded (fee, period, scope)', t.status && t.scope && t.monthly_fee_minor !== null, W('/agreements'));
+        add('Terms activated by Finance', await n("select count(*)::int as n from mgmt_terms where workspace_id = $1 and status = 'active'", [id]), W('/agreements'));
       }
       const ag = await one(`select g.status from agreements g join agreement_templates t on t.id = g.template_id where g.workspace_id = $1 ${cpm ? "and t.key = 'pm_services'" : ''} and g.status <> 'cancelled' order by (g.status = 'signed') desc limit 1`, [id]);
       if (cpm) {
-        add('Agreement generated', ag.status, W('/client'));
+        add('Agreement generated', ag.status, W('/agreements'));
         add('Signed agreement recorded', ag.status === 'signed', W('/agreements'), 'Upload the signed copy');
       }
       add('Guided setup completed', (await one('select status from setup_drafts where workspace_id = $1', [id])).status === 'reviewed', W('/setup'));
@@ -49,8 +49,8 @@ function mountCompleteness(r, ctx) {
       const noLease = await n(`select count(*)::int as n from units u where u.workspace_id = $1 and u.archived_at is null and u.status = 'occupied'
           and not exists (select 1 from leases l where l.unit_id = u.id and l.status = 'active')`, [id]);
       add(noLease ? `Leases for occupied units (${noLease} missing)` : 'Leases for occupied units', units && !noLease, W('/leases'));
-      add('Management terms activated', await n("select count(*)::int as n from mgmt_terms where workspace_id = $1 and status = 'active'", [id]), W('/client'));
-      add('Signed management agreement', await n("select count(*)::int as n from agreements where workspace_id = $1 and status = 'signed'", [id]), W('/client'));
+      add('Management terms activated', await n("select count(*)::int as n from mgmt_terms where workspace_id = $1 and status = 'active'", [id]), W('/agreements'));
+      add('Signed management agreement', await n("select count(*)::int as n from agreements where workspace_id = $1 and status = 'signed'", [id]), W('/agreements'));
     }
 
     if (ws.kind === 'listing' || ws.kind === 'request') {

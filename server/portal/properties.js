@@ -51,10 +51,10 @@ function mountProperties(r, ctx) {
   }
   function tabs(a, cur) {
     const id = a.ws.id, f = a.finance !== false;
-    return [['Overview', `/w/${id}`], ['Owner & Agreement', `/w/${id}/client`], ['Property Setup', `/w/${id}/property`], ['Units', `/w/${id}/units`], ['Leases & Tenants', `/w/${id}/leases`],
+    return [['Overview', `/w/${id}`], ['Owner', `/w/${id}/client`], ['Agreements', `/w/${id}/agreements`], ['Property Setup', `/w/${id}/property`], ['Units', `/w/${id}/units`], ['Leases & Tenants', `/w/${id}/leases`],
       ...(f ? [['Rent & Collections', `/w/${id}/rent`], ['Deposits', `/w/${id}/deposits`]] : []), ['Maintenance', `/w/${id}/maintenance`], ['Cleaning & Services', `/w/${id}/services`],
       ...(f ? [['Expenses', `/w/${id}/expenses`], ['Owner Account', `/w/${id}/owner`], ['Fee Billing', `/w/${id}/fees`]] : []), ['Unit History', `/w/${id}/history`], ['Reports', `/w/${id}/reports`],
-      ['Agreements', `/w/${id}/agreements`], ['Documents', `/w/${id}/documents`], ['Access & Invitations', `/w/${id}/access`], ['Activity', `/w/${id}/activity`]].map(([l, h]) => [l, h, l === cur]);
+      ['Documents', `/w/${id}/documents`], ['Access & Invitations', `/w/${id}/access`], ['Activity', `/w/${id}/activity`]].map(([l, h]) => [l, h, l === cur]);
   }
   ctx.tabsFor = ctx.tabsFor || {};
   ctx.tabsFor.props = (a, cur) => tabs({ ...a, finance: a.finance }, cur);

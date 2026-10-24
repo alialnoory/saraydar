@@ -67,9 +67,9 @@ function mountProjects(r, ctx) {
   const budgetTab = a => a.ws.section === 'cpm' ? 'Client Budget & Payments' : 'Budget & Cost';
   function tabs(a, cur) {
     const id = a.ws.id;
-    if (a.ws.section === 'cpm') return [['Overview', `/w/${id}`], ['Client & Agreement', `/w/${id}/client`], ['Setup', `/w/${id}/setup`], ['Land & Plots', `/w/${id}/plots`], ['Plan', `/w/${id}/plan`], ['Tasks & Schedule', `/w/${id}/tasks`],
+    if (a.ws.section === 'cpm') return [['Overview', `/w/${id}`], ['Client', `/w/${id}/client`], ['Agreements', `/w/${id}/agreements`], ['Setup', `/w/${id}/setup`], ['Land & Plots', `/w/${id}/plots`], ['Plan', `/w/${id}/plan`], ['Tasks & Schedule', `/w/${id}/tasks`],
       ...(a.finance !== false ? [['Client Budget & Payments', `/w/${id}/budget`], ['Fee Billing', `/w/${id}/fees`]] : []), ['Client Approvals', `/w/${id}/approvals`], ['Progress Updates', `/w/${id}/updates`], ['Registers', `/w/${id}/registers`],
-      ['Agreements', `/w/${id}/agreements`], ['Documents', `/w/${id}/documents`], ['Reports', `/w/${id}/reports`], ['Access & Invitations', `/w/${id}/access`], ['Activity', `/w/${id}/activity`]]
+      ['Documents', `/w/${id}/documents`], ['Reports', `/w/${id}/reports`], ['Access & Invitations', `/w/${id}/access`], ['Activity', `/w/${id}/activity`]]
       .map(([l, h]) => [l, h, l === cur]);
     return [['Overview', `/w/${id}`], ['Setup', `/w/${id}/setup`], ['Land & Plots', `/w/${id}/plots`], ['Plan', `/w/${id}/plan`], ['Tasks & Schedule', `/w/${id}/tasks`],
       ...(a.finance !== false ? [['Budget & Cost', `/w/${id}/budget`], ['Investors & Funding', `/w/${id}/investors`]] : []), ['Progress Updates', `/w/${id}/updates`], ['Registers', `/w/${id}/registers`],

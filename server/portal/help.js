@@ -23,7 +23,8 @@ const COMMON = {
 
 const BY_KIND = {
   client_project: {
-    'Client & Agreement': ['The client and the agreed management terms. The whole management agreement is generated from these terms.', 'Fee BHD 1,500 a month from 1 Oct 2026, billed in advance, payment due 30 days after the invoice.'],
+    Client: ['Who the client is: contact details, preferred contact and who may approve what. Entered once; the agreement and approvals use it.', 'Main contact Mr. Yusuf Al Mahmood, +973 3900 0000, WhatsApp; approvers: Mr. Yusuf for budgets and payments.'],
+    Agreements: ['The management terms (fee, period, scope), the agreement generated from them, and any other contracts. Record the terms at the top; Finance activates them; then generate the agreement.', 'Fee BHD 1,500 a month from 1 Oct 2026, billed in advance, payment due 30 days after the invoice.'],
     'Client Budget & Payments': ['The client\'s own construction budget, contracts, invoices and payments: never SarayDar money. SarayDar\'s fees go under Fee Billing.', 'Contract with DEMO Building Contractors for BHD 120,000; payment application no. 3 for BHD 18,000.'],
     'Fee Billing': ['SarayDar\'s monthly management-fee invoices to the client, and the client\'s payments to SarayDar.', 'Issue the November 2026 invoice for BHD 1,500; record the bank transfer when it arrives.'],
     'Client Approvals': ['What the client must approve, and their approval recorded with its evidence.', '"Kitchen marble sample" requested from Mrs. Huda on 20 Oct; approved by WhatsApp on 22 Oct.']
@@ -34,7 +35,8 @@ const BY_KIND = {
     'Units & Sales': ['The units being built, their plots, list prices and sales status.', 'Villa 3 on plot 551, 320 m², list price BHD 165,000, Reserved.']
   },
   property: {
-    'Owner & Agreement': ['The owner and the agreed management terms. The management agreement is generated from these terms.', 'Management fee BHD 400 a month from 1 Nov 2026; rent collected by SarayDar.'],
+    Owner: ['Who the owner is and how to reach them. Entered once; the agreement and owner statements use it.', 'Owner Mrs. Fatima Ahmed, +973 3600 0000, prefers email.'],
+    Agreements: ['The management terms, the agreement generated from them, and the leases and other contracts for this property.', 'Management fee BHD 400 a month from 1 Nov 2026; rent collected by SarayDar.'],
     'Property Setup': ['How this property is run: who collects the rent, spending limits and owner approvals.', 'Repairs up to BHD 150 may be done without asking the owner.'],
     Units: ['Every flat, shop or office in the property, with its status.', 'Flat 12: 2 bedrooms, 110 m², Occupied.'],
     'Leases & Tenants': ['Tenants and their leases: rent, dates, deposit and renewal.', 'Ahmed Ali, flat 12, BHD 450 a month, 1 Nov 2026 – 31 Oct 2027.'],
@@ -76,17 +78,17 @@ function tabTip(req, label) {
 
 const KIND_TITLE = { client_project: 'Clients Projects Management', project: 'SarayDar Real Estate Development', property: 'Clients Properties Management', listing: 'Property Sales: selling a property', request: 'Property Acquisition: searching for a buyer' };
 const TAB_ORDER = {
-  client_project: ['Overview', 'Client & Agreement', 'Setup', 'Land & Plots', 'Plan', 'Tasks & Schedule', 'Client Budget & Payments', 'Fee Billing', 'Client Approvals', 'Progress Updates', 'Registers', 'Agreements', 'Documents', 'Reports', 'Access & Invitations', 'Assistant', 'Activity'],
+  client_project: ['Overview', 'Client', 'Agreements', 'Setup', 'Land & Plots', 'Plan', 'Tasks & Schedule', 'Client Budget & Payments', 'Fee Billing', 'Client Approvals', 'Progress Updates', 'Registers', 'Documents', 'Reports', 'Access & Invitations', 'Assistant', 'Activity'],
   project: ['Overview', 'Setup', 'Land & Plots', 'Plan', 'Tasks & Schedule', 'Budget & Cost', 'Investors & Funding', 'Progress Updates', 'Registers', 'Units & Sales', 'Agreements', 'Documents', 'Reports', 'Access & Invitations', 'Assistant', 'Activity'],
-  property: ['Overview', 'Owner & Agreement', 'Property Setup', 'Units', 'Leases & Tenants', 'Rent & Collections', 'Deposits', 'Maintenance', 'Cleaning & Services', 'Expenses', 'Owner Account', 'Fee Billing', 'Unit History', 'Reports', 'Agreements', 'Documents', 'Access & Invitations', 'Assistant', 'Activity'],
+  property: ['Overview', 'Owner', 'Agreements', 'Property Setup', 'Units', 'Leases & Tenants', 'Rent & Collections', 'Deposits', 'Maintenance', 'Cleaning & Services', 'Expenses', 'Owner Account', 'Fee Billing', 'Unit History', 'Reports', 'Documents', 'Access & Invitations', 'Assistant', 'Activity'],
   listing: ['Overview', 'Mandate', 'Property File', 'Marketing', 'Buyers & Viewings', 'Offers & Deal', 'Fee Billing', 'Expenses', 'Agreements', 'Documents', 'Access & Invitations', 'Assistant', 'Activity'],
   request: ['Overview', 'Mandate', 'Brief', 'Matches & Shortlist', 'Viewings & Offers', 'Fee Billing', 'Expenses', 'Agreements', 'Documents', 'Access & Invitations', 'Assistant', 'Activity']
 };
 // the usual order of work for a new record
 const FIRST_STEPS = {
-  client_project: ['Create the project: Clients Projects Management › + Create New Client Project (name, client, location, manager).', 'Client & Agreement: complete the client\'s details (contact, telephone, approvers), then record the management terms.', 'Finance activates the terms; click "Generate the agreement" and send it for signing. Then "Record signed agreement" under Agreements to upload the signed copy.', 'Setup: answer the guided questions, then "Generate draft plan".', 'Plan: check phases and weights, then "Approve plan and save baseline".', 'Client Budget & Payments: enter the budget amounts, contracts, invoices and payments as they happen.', 'Every month: a progress update with photos, and the fee invoice under Fee Billing.'],
+  client_project: ['Create the project: Clients Projects Management › + Create New Client Project (name, client, location, manager).', 'Client: complete the client\'s details (contact, telephone, approvers).', 'Agreements: record the management terms; Finance activates them; click "Generate the agreement" and send it for signing; then "Record signed agreement" to upload the signed copy.', 'Setup: answer the guided questions, then "Generate draft plan".', 'Plan: check phases and weights, then "Approve plan and save baseline".', 'Client Budget & Payments: enter the budget amounts, contracts, invoices and payments as they happen.', 'Every month: a progress update with photos, and the fee invoice under Fee Billing.'],
   project: ['Create the project: SarayDar Real Estate Development › + Create.', 'Land & Plots: record each plot with its title deed and area.', 'Setup: answer the guided questions, then "Generate draft plan".', 'Plan: check it, then "Approve plan and save baseline".', 'Budget & Cost: enter budget amounts; record contracts, invoices and payments.', 'Investors & Funding and Units & Sales as they apply.', 'Every month: a progress update with photos.'],
-  property: ['Create the property under Clients Properties Management.', 'Owner & Agreement: link the owner and record the management terms.', 'Property Setup: rent collection and spending limits.', 'Units: add every unit.', 'Leases & Tenants: add each tenant and lease; rent invoices follow.', 'Every month: record rent received, maintenance and expenses; issue the owner statement.'],
+  property: ['Create the property under Clients Properties Management.', 'Owner: link the owner and complete their details.', 'Agreements: record the management terms and generate the agreement.', 'Property Setup: rent collection and spending limits.', 'Units: add every unit.', 'Leases & Tenants: add each tenant and lease; rent invoices follow.', 'Every month: record rent received, maintenance and expenses; issue the owner statement.'],
   listing: ['Create the listing under Property Sales & Acquisition (seller name).', 'Mandate: record the seller\'s authority, period and fee; verify the authority.', 'Property File: facts, asking price, description and approved photos.', 'Marketing, then Buyers & Viewings and Offers & Deal as they happen.'],
   request: ['Create the request under Property Sales & Acquisition (buyer name).', 'Mandate: record the buyer\'s authority and fee.', 'Brief: what the buyer wants.', 'Matches & Shortlist, then Viewings & Offers.']
 };

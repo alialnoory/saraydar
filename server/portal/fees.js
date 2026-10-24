@@ -53,7 +53,7 @@ function mountFees(r, ctx, P) {
   }
   const own = (t, id, ws) => P.own(t, id, ws);
   const touch = (db, ws) => P.touch(db, ws);
-  const page = (req, a, tab, body) => a.impl.page(req, a, tab === 'Client & Agreement' && a.ws.section === 'props' ? 'Owner & Agreement' : tab, body);
+  const page = (req, a, tab, body) => a.impl.page(req, a, tab === 'Client' && a.ws.section === 'props' ? 'Owner' : tab, body);
 
   // ---------- ledger state (one fee account per client project) ----------
   async function ledger(wsId, db = pool) {
@@ -104,7 +104,7 @@ function mountFees(r, ctx, P) {
         ${L.t.overdue.length ? html`<div class="small err">${L.t.overdue.length} overdue · ${fm(L.t.overdueAmount)}</div>` : ''}</div>`;
     }
     return html`<section class="client-banner"><div><div class="muted small">Client</div><div class="client-name">${client ? html`<a href="/clients/${client.id}">${client.name}</a>` : html`<span class="muted">Not linked yet</span>`}</div></div>
-        <div><div class="muted small">Management fee</div><div class="mid">${terms ? html`${fm(num(terms.monthly_fee_minor), terms.currency)} / month` : html`<a href="/w/${a.ws.id}/client">Terms not recorded</a>`}</div></div>
+        <div><div class="muted small">Management fee</div><div class="mid">${terms ? html`${fm(num(terms.monthly_fee_minor), terms.currency)} / month` : html`<a href="/w/${a.ws.id}/agreements">Terms not recorded</a>`}</div></div>
         ${feeCell}
         <div><div class="muted small">Client approvals pending</div><div class="mid"><a href="/w/${a.ws.id}/approvals">${pend}</a></div></div></section>
       ${devOverview ? await devOverview(req, wsAccess) : ''}`;
@@ -134,13 +134,14 @@ function mountFees(r, ctx, P) {
     return rows.map(x => ['Fees', 'bad', `${x.n} overdue fee invoice${x.n > 1 ? 's' : ''}: ${x.name}`, 'Follow up the client payment or record it.', `/w/${x.id}/fees`]);
   });
 
-  // ---------- Client & Agreement tab ----------
+  // ---------- Client tab, and the terms block of the Agreements tab ----------
   const termLabel = t => `v${t.version} · ${fm(num(t.monthly_fee_minor), t.currency)} / month from ${fmtDate(t.effective_from)}`;
   const taxText = t => t.tax_mode === 'rate' ? `${t.tax_label || 'Tax'} ${fees.pctLabel(t.tax_rate_bp || 0)}` : t.tax_mode === 'none' ? 'No VAT charged' : 'Not configured';
 
-  r.get('/w/:id/client', async (req, res) => {
+  // The Client (Owner) tab holds the client's details; the management terms and the agreement made from them
+  // sit at the top of the Agreements tab (owner request 2026-10-24: one place for everything about the agreement).
+  async function clientAndTerms(req) {
     const a = await access(req);
-    if (a.ws.section === 'sales') return res.redirect(`/w/${a.ws.id}/mandate`);
     const client = await clientOf(a.ws);
     const all = await termsAll(a.ws.id);
     const draft = all.find(t => t.status === 'draft');
@@ -155,8 +156,7 @@ function mountFees(r, ctx, P) {
     if (agr && !base.agreement_ref) { base.agreement_ref = agr.ref; if (!base.signed_on && agr.signed_on) base.signed_on = agr.signed_on; }
     const showTerms = a.finance;
     const tf = (k, label, extra = {}) => field({ name: k, label, value: base[k] instanceof Date ? iso(base[k]) : base[k] ?? '', ...extra });
-    res.send(page(req, a, 'Client & Agreement', html`
-      <div class="split">
+    const clientHtml = html`
         <section class="panel grow1"><div class="row-between"><h2 class="h">${party(a)}</h2>${client ? html`<div class="actions">${edit ? html`<a class="btn small primary" href="/clients/${client.id}?edit=1&back=${encodeURIComponent(`/w/${a.ws.id}/client`)}#edit">Edit ${party(a).toLowerCase()} details</a>` : ''}<a class="btn small" href="/clients/${client.id}">Full profile</a></div>` : ''}</div>
           ${client ? html`<p class="client-name">${client.name}</p><dl class="details">
             <div><dt>Main contact</dt><dd>${client.contact_person || client.representative || html`<span class="muted">Not recorded</span>`}</dd></div>
@@ -168,8 +168,8 @@ function mountFees(r, ctx, P) {
             ${field({ name: 'party_id', label: party(a), options: [['', 'Choose…'], ...clients.map(c => [c.id, c.name])], required: true })}
             ${a.ws.section === 'props' ? field({ name: 'new_name', label: 'Or new owner name' }) : ''}
             <div class="actions full"><button class="btn" type="submit">Save</button>${a.ws.section === 'cpm' ? html`<a class="btn" href="/clients/new">+ New client</a>` : ''}</div></form></details>` : ''}
-        </section>
-        ${showTerms ? html`<section class="panel grow2"><h2 class="h">Management agreement terms</h2>
+        </section>`;
+    const termsHtml = !showTerms ? '' : html`<section class="panel"><h2 class="h">Management agreement terms</h2>
           ${act ? html`<dl class="details">
             <div><dt>In force</dt><dd>${termLabel(act)}</dd></div>
             <div><dt>Agreement</dt><dd>${act.agreement_ref || '—'}${act.signed_on ? ` · signed ${fmtDate(act.signed_on)}` : ''}</dd></div>
@@ -207,10 +207,27 @@ function mountFees(r, ctx, P) {
               ${tf('notes', 'Notes', { type: 'textarea' })}
               <div class="actions full"><button class="btn primary" type="submit">Save draft terms</button></div>
               <p class="muted small full">Saved as a draft. Finance activates it; activation replaces the previous version from the effective date and keeps it in the history.</p></form></details>` : ''}
-        </section>` : ''}
-      </div>
-      ${showTerms && ctx.mgmtAgreement ? await agreementPanel(req, a, base, edit) : ''}`));
+        </section>
+      ${ctx.mgmtAgreement ? await agreementPanel(req, a, base, edit) : ''}`;
+    return { a, client, clientHtml, termsHtml };
+  }
+
+  r.get('/w/:id/client', async (req, res) => {
+    const w = UUID.test(req.params.id || '') ? (await pool.query('select section from workspaces where id = $1', [req.params.id])).rows[0] : null;
+    if (w && w.section === 'sales') return res.redirect(`/w/${req.params.id}/mandate`);
+    const { a, client, clientHtml } = await clientAndTerms(req);
+    const terms = a.finance ? (await termsAll(a.ws.id)).find(t => t.status === 'active') : null;
+    res.send(page(req, a, 'Client', html`${clientHtml}
+      ${a.finance && ['cpm', 'props'].includes(a.ws.section) ? html`<section class="panel"><div class="row-between"><h2 class="h">Management agreement</h2><a class="btn small primary" href="/w/${a.ws.id}/agreements">Open Agreements</a></div>
+        <p class="muted">${terms ? `In force: ${termLabel(terms)}.` : 'No terms in force yet.'} The terms and the agreement document are under the Agreements tab.</p></section>` : ''}`));
   });
+  // the terms and the generated agreement, shown at the top of the Agreements tab
+  ctx.mgmtTermsBlock = async req => {
+    const w = (await pool.query('select section from workspaces where id = $1', [req.params.id])).rows[0];
+    if (!w || !['cpm', 'props'].includes(w.section)) return '';
+    const { termsHtml } = await clientAndTerms(req);
+    return termsHtml;
+  };
 
   // the whole agreement, generated from the terms above plus the standard clauses of the management template
   async function agreementPanel(req, a, terms, edit) {
@@ -237,7 +254,7 @@ function mountFees(r, ctx, P) {
     const a = await access(req, 'edit');
     if (!['cpm', 'props'].includes(a.ws.section)) throw new NotFound();
     const { g, v } = await ctx.mgmtAgreement.generate(req, a);
-    res.redirect(`/w/${a.ws.id}/client?msg=created#agreement`);
+    res.redirect(`/w/${a.ws.id}/agreements?msg=created#agreement`);
   });
 
   r.post('/w/:id/client/link', async (req, res) => {
@@ -300,7 +317,7 @@ function mountFees(r, ctx, P) {
       }
       await core.audit(db, { actor: req.user, workspaceId: a.ws.id, action: 'terms.draft_saved', entity: 'mgmt_terms', entityId: id, summary: `Management terms draft saved: ${formatMoney(t.monthly_fee_minor)} / month from ${t.effective_from}`, after: t, ip: req.ip });
     });
-    res.redirect(`/w/${a.ws.id}/client?msg=saved`);
+    res.redirect(`/w/${a.ws.id}/agreements?msg=saved`);
   });
 
   r.post('/w/:id/terms/:tid/activate', async (req, res) => {
@@ -320,7 +337,7 @@ function mountFees(r, ctx, P) {
       await core.audit(db, { actor: req.user, workspaceId: a.ws.id, action: 'terms.activated', entity: 'mgmt_terms', entityId: t.id, summary: `Management terms v${t.version} in force from ${iso(t.effective_from)}: ${formatMoney(num(t.monthly_fee_minor))} / month`, before: act ? { version: act.version, fee: num(act.monthly_fee_minor) } : null, after: { version: t.version, fee: num(t.monthly_fee_minor) }, ip: req.ip });
       await touch(db, a.ws.id);
     });
-    res.redirect(`/w/${a.ws.id}/client?msg=saved`);
+    res.redirect(`/w/${a.ws.id}/agreements?msg=saved`);
   });
 
   r.post('/w/:id/terms/:tid/withdraw', async (req, res) => {
@@ -331,7 +348,7 @@ function mountFees(r, ctx, P) {
       if (!n) throw bad('Only a draft can be discarded.');
       await core.audit(db, { actor: req.user, workspaceId: a.ws.id, action: 'terms.draft_withdrawn', entity: 'mgmt_terms', entityId: t.id, summary: `Draft terms v${t.version} discarded`, ip: req.ip });
     });
-    res.redirect(`/w/${a.ws.id}/client?msg=saved`);
+    res.redirect(`/w/${a.ws.id}/agreements?msg=saved`);
   });
 
   // ---------- Fee Billing ----------
@@ -359,8 +376,8 @@ function mountFees(r, ctx, P) {
         <div class="card"><div class="muted small">Outstanding</div><div class="big ${L.t.overdue.length ? 'err' : ''}">${fm(L.t.outstanding)}</div><div class="muted small">${L.t.overdue.length ? html`<span class="err">${L.t.overdue.length} overdue · ${fm(L.t.overdueAmount)}</span>` : 'Nothing overdue'}</div></div>
         <div class="card"><div class="muted small">Account balance</div><div class="big">${fm(L.t.balance)}</div><div class="muted small">${L.t.balance < 0 ? 'Credit in the client\'s favour' : 'Invoiced − credited − collected'} · <a href="/w/${id}/fees/statement">Statement</a></div></div>
       </section>
-      ${a.ws.section === 'sales' ? '' : !act ? html`<div class="notice warn">No management-agreement terms are in force. <a href="/w/${id}/client">Record and activate them</a> before preparing monthly invoices.</div>`
-        : act.tax_mode === 'not_configured' ? html`<div class="notice warn">Tax treatment is not configured in the terms. Drafts can be prepared, but invoices cannot be issued until it is set under <a href="/w/${id}/client">Client &amp; Agreement</a>.</div>` : ''}
+      ${a.ws.section === 'sales' ? '' : !act ? html`<div class="notice warn">No management-agreement terms are in force. <a href="/w/${id}/agreements">Record and activate them</a> before preparing monthly invoices.</div>`
+        : act.tax_mode === 'not_configured' ? html`<div class="notice warn">Tax treatment is not configured in the terms. Drafts can be prepared, but invoices cannot be issued until it is set under <a href="/w/${id}/agreements">Client &amp; Agreement</a>.</div>` : ''}
       <section class="panel"><h2 class="h">Invoices</h2>
         ${L.invoices.length ? html`<div class="table-wrap"><table><thead><tr><th>Invoice</th><th>Period / description</th><th>Issued</th><th>Due</th><th class="n">Total</th><th class="n">Credited</th><th class="n">Paid</th><th class="n">Outstanding</th><th>Status</th></tr></thead><tbody>
           ${L.invoices.map(i => { const od = i.status === 'issued' && i.outstanding > 0 && i.due_date && iso(i.due_date) < L.today; return html`<tr>

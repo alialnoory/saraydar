@@ -2,7 +2,7 @@
 // Guided onboarding for Clients Projects Management. Same answer format and draft-plan shape as the
 // development setup (lib/setup-dev.js), so the shared plan, task and register screens work unchanged.
 // The management agreement (fee, billing, tax, approvers) is recorded as structured, versioned terms
-// under "Client & Agreement", not as free answers here.
+// on the Agreements tab, not as free answers here.
 const dev = require('./setup-dev');
 const { parseMoney } = require('./money');
 const CH = require('../portal/choices');
@@ -71,7 +71,7 @@ function review(a, extra = {}) {
     if (isUnknown(a, f.k)) unknown.push(f.label);
     else if (val(a, f.k) === undefined && (f.required || IMPORTANT.includes(f.k))) missing.push({ label: f.label, required: !!f.required, step: s.key });
   }
-  if (extra.noTerms) missing.push({ label: 'Management agreement terms (fee, billing, tax)', required: false, href: 'client' });
+  if (extra.noTerms) missing.push({ label: 'Management agreement terms (fee, billing, tax)', required: false, href: 'agreements' });
   if (val(a, 'start') && val(a, 'target') && val(a, 'target') < val(a, 'start')) conflicts.push('Target completion is before the start date.');
   if (val(a, 'spent_to_date') !== undefined && val(a, 'total_budget') !== undefined && val(a, 'spent_to_date') > val(a, 'total_budget')) conflicts.push('Spent to date is higher than the client budget.');
   if (val(a, 'contingency_pct') !== undefined && val(a, 'contingency_pct') > 25) conflicts.push('Contingency above 25% — check the figure.');

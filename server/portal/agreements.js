@@ -69,8 +69,9 @@ function mountAgreements(r, ctx) {
       from agreements g join agreement_templates t on t.id = g.template_id left join parties p on p.id = g.party_id where g.workspace_id = $1 order by g.created_at desc`, [a.ws.id])).rows;
     const tpls = (await pool.query('select id, name, category, counterparty, starter, kind from agreement_templates where active and $1 = any(sections) order by starter, category, name', [a.ws.section])).rows;
     const edit = core.canEdit(a);
-    res.send(page(req, a, html`
-      <section class="panel"><h2 class="h">Agreements &amp; contracts</h2>
+    const termsBlock = ctx.mgmtTermsBlock ? await ctx.mgmtTermsBlock(req) : '';
+    res.send(page(req, a, html`${termsBlock}
+      <section class="panel"><h2 class="h">${termsBlock ? 'All agreements & contracts' : 'Agreements & contracts'}</h2>
         ${rows.length ? html`<div class="table-wrap"><table><thead><tr><th>Reference</th><th>Agreement</th><th>Other party</th><th>Status</th><th>Versions</th><th>Updated</th></tr></thead><tbody>
           ${rows.map(g => html`<tr><td class="mono">${g.ref}</td><td><a href="/w/${a.ws.id}/agreements/${g.id}"><b>${g.title}</b></a><div class="muted small">${g.tpl}</div></td><td>${g.party_name || html`<span class="muted">Not set</span>`}</td>
             <td>${pill(STATUS[g.status][0], STATUS[g.status][1])}</td><td>${g.v || 0}</td><td class="small">${fmtDate(g.updated_at)}</td></tr>`)}</tbody></table></div>`
@@ -83,7 +84,7 @@ function mountAgreements(r, ctx) {
         ${core.isSuper(req.user) ? html`<p class="small"><a href="/admin/agreements">Manage templates and letterhead</a></p>` : ''}</section>` : ''}`));
   });
 
-  // Answers left empty are taken from the management terms recorded in Client & Agreement (in force, else the draft),
+  // Answers left empty are taken from the management terms recorded on the Agreements tab (in force, else the draft),
   // so the agreement and the billing terms say the same thing. Typed answers always win.
   async function withTerms(wsId, fields, values = {}) {
     const t = (await pool.query("select * from mgmt_terms where workspace_id = $1 and status in ('active','draft') order by (status = 'draft') desc, version desc limit 1", [wsId])).rows[0];
@@ -290,7 +291,7 @@ function mountAgreements(r, ctx) {
     res.redirect(`/w/${a.ws.id}/agreements/${g.id}?msg=created#v${v}`);
   });
 
-  // ---------- the management agreement made from the terms (Client & Agreement tab) ----------
+  // ---------- the management agreement made from the terms (top of the Agreements tab) ----------
   const MGMT_TEMPLATE = { cpm: 'pm_services', props: 'property_management' };
   ctx.mgmtAgreement = {
     // the agreement linked to this workspace's management terms (open one first, else the latest)

@@ -95,11 +95,11 @@ test('client projects', { skip: !URL_ && 'set TEST_DATABASE_URL to run' }, async
     const af = await admin.get(`/w/${p1}/agreements/new?template=${pmTpl}`);
     assert.match(af.text, /name="v_payment_days"[^>]*value="15"/);
     assert.match(af.text, new RegExp(`name="v_start_date"[^>]*value="${month}-01"`));
-    // one window: the whole agreement is generated from the terms on Client & Agreement
-    let ca = await admin.get(`/w/${p1}/client`);
+    // one window: the whole agreement is generated from the terms on the Agreements tab
+    let ca = await admin.get(`/w/${p1}/agreements`);
     assert.match(ca.text, /Agreement document/); assert.match(ca.text, /To write the agreement, add: <b>SarayDar management scope<\/b>/);
     await admin.post(`/w/${p1}/terms`, { agreement_ref: 'PMA-1', start_date: `${month}-15`, effective_from: `${month}-15`, monthly_fee: '1500', billing_timing: 'advance', proration: 'daily', payment_terms_days: '15', tax_mode: 'none', notice_days: '60', scope: 'Full project management of the villa works.' }, `/w/${p1}/client`);
-    ca = await admin.get(`/w/${p1}/client`);
+    ca = await admin.get(`/w/${p1}/agreements`);
     assert.match(ca.text, /Generate the agreement/);
     const gen = await admin.post(`/w/${p1}/client/agreement`, {}, `/w/${p1}/client`);
     assert.equal(gen.status, 302, (gen.text.match(/<main[\s\S]{0,600}/) || [""])[0]);
@@ -111,7 +111,7 @@ test('client projects', { skip: !URL_ && 'set TEST_DATABASE_URL to run' }, async
     assert.equal(ver.values.services, 'Full project management of the villa works.');
     assert.match(ver.values.billing_timing, /in advance/);
     assert.equal(ver.values.governing_law, 'the Kingdom of Bahrain');
-    assert.match((await admin.get(`/w/${p1}/client`)).text, new RegExp(`${ag.ref} · version 1`));
+    assert.match((await admin.get(`/w/${p1}/agreements`)).text, new RegExp(`${ag.ref} · version 1`));
     assert.equal((await admin.post(`/w/${p1}/client/agreement`, {}, `/w/${p1}/client`)).status, 302);
     assert.equal((await q1(`select count(*)::int as n from agreement_versions where agreement_id = '${ag.id}'`)).n, 2);
     // p2 gets terms with tax not configured
@@ -229,7 +229,7 @@ test('client projects', { skip: !URL_ && 'set TEST_DATABASE_URL to run' }, async
 
   await t.test('VAT later: a new terms version with a rate; VAT invoices need SarayDar\'s VAT number', async () => {
     const next = fees.monthOf(fees.addDays(`${month}-28`, 7).slice(0, 7));
-    const form = await admin.get(`/w/${p3}/client`);
+    const form = await admin.get(`/w/${p3}/agreements`);
     assert.match(form.text, /<option value="none" selected>No VAT</);              // the form's default today
     await admin.post(`/w/${p3}/terms`, { start_date: `${month}-01`, monthly_fee: '1000', tax_mode: 'none' }, `/w/${p3}/client`);
     const tA = (await q1(`select id, tax_mode from mgmt_terms where workspace_id = '${p3}'`));
