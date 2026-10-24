@@ -244,6 +244,13 @@ test('development projects', { skip: !URL_ && 'set TEST_DATABASE_URL to run' }, 
     const d = (await pm.raw('POST', `/w/${ws}/updates`, { multipart: fd2 })).location.split('/')[4].split('?')[0];
     assert.equal((await eng.get(`/w/${ws}/updates/${d}`)).status, 404);
     assert.ok(!(await eng.get(`/w/${ws}/updates`)).text.includes('Private draft'));
+    // the author can correct a published update; the task changes only when asked
+    const ed = await eng.post(`/w/${ws}/updates/${upd}/edit`, { title: 'Drawings issued', observed_on: '2026-11-28', reported_progress: '90', workforce: '', completed_work: 'Ground floor plans issued' }, `/w/${ws}/updates/${upd}`);
+    assert.equal(ed.status, 302);
+    assert.equal((await pool.query('select reported_progress from progress_updates where id = $1', [upd])).rows[0].reported_progress, 90);
+    assert.equal((await pool.query('select progress from tasks where id = $1', [taskB])).rows[0].progress, before);
+    assert.equal((await pool.query("select count(*)::int as n from audit_events where action = 'update.edited'")).rows[0].n, 1);
+    assert.equal((await eng.post(`/w/${ws}/updates/${upd}/edit`, { title: 'x', observed_on: '2026-11-28', reported_progress: '150' }, `/w/${ws}/updates/${upd}`)).status, 400);
   });
 
   await t.test('exports: real PDF and xlsx, formula text neutralised, finance sheets only for finance roles', async () => {

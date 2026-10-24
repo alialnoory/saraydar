@@ -1020,6 +1020,17 @@ function mountProjects(r, ctx) {
         ${u.status === 'draft' && core.canContribute(a) ? html`<form method="post" action="/w/${a.ws.id}/updates/${u.id}/publish">${csrfField(req)}<button class="btn primary" type="submit">Publish</button></form>` : ''}
         ${core.canEdit(a) ? html`<form method="post" action="/w/${a.ws.id}/updates/${u.id}/external" class="actions">${csrfField(req)}<input type="hidden" name="on" value="${u.external_visible ? '0' : '1'}">
           <button class="btn small" type="submit">${u.external_visible ? 'Hide from external viewers' : 'Show to external viewers'}</button><span class="muted small">${u.status === 'draft' ? 'Takes effect once published. ' : ''}Issues, notes and workforce are never shown externally.</span></form>` : ''}
+        ${u.author_id === req.user.id || core.canEdit(a) ? html`<details class="inline-form" id="edit" ${req.query.edit ? raw('open') : ''}><summary>Edit this update</summary>
+          <form method="post" action="/w/${a.ws.id}/updates/${u.id}/edit" class="form-grid">${csrfField(req)}
+            ${field({ name: 'title', label: 'Title', value: u.title, required: true, attrs: 'maxlength="200"' })}${field({ name: 'observed_on', label: 'Observation date', type: 'date', required: true, value: iso(u.observed_on) })}
+            ${field({ name: 'reported_progress', label: 'Observed task progress (%)', type: 'number', value: u.reported_progress ?? '', attrs: 'min="0" max="100" step="1" inputmode="numeric"' })}
+            ${field({ name: 'workforce', label: 'Workers on site', type: 'number', value: u.workforce ?? '', attrs: 'min="0" step="1" inputmode="numeric"' })}
+            ${tk ? html`<label class="check full"><input type="checkbox" name="apply_progress" value="1" checked> Also set the task “${tk.title}” to this progress</label>` : ''}
+            ${field({ name: 'completed_work', label: 'Work completed', type: 'textarea', value: u.completed_work || '', full: true })}
+            ${field({ name: 'remaining_work', label: 'Remaining / next', type: 'textarea', value: u.remaining_work || '', full: true })}
+            ${field({ name: 'issues', label: 'Issues', type: 'textarea', value: u.issues || '', full: true })}${field({ name: 'notes', label: 'Notes', type: 'textarea', value: u.notes || '', full: true })}
+            <div class="actions full"><button class="btn primary" type="submit">Save changes</button></div>
+            <p class="muted small full">Changes are recorded in Activity with the old and new values.</p></form></details>` : ''}
       </article>
       <section class="panel"><h2 class="h">Comments and follow-up</h2>
         ${comments.length ? html`<ol class="feed">${comments.map(c => html`<li><div class="pre-line">${c.body}</div><div class="muted small">${c.who || ''} · ${fmtDateTime(c.created_at)}</div></li>`)}</ol>` : html`<p class="muted">No comments.</p>`}
@@ -1034,6 +1045,36 @@ function mountProjects(r, ctx) {
     await core.inTx(async db => {
       const n = (await db.query("update progress_updates set status = 'published', published_at = now(), updated_at = now() where id = $1 and status = 'draft'", [u.id])).rowCount;
       if (n) await core.audit(db, { actor: req.user, workspaceId: a.ws.id, action: 'update.published', entity: 'progress_update', entityId: u.id, summary: `Progress update published: ${u.title}`, ip: req.ip });
+      await touch(db, a.ws.id);
+    });
+    res.redirect(`/w/${a.ws.id}/updates/${u.id}?msg=saved`);
+  });
+
+  // Correct an update after it was saved or published (owner request 2026-10-24); the change is logged with before/after.
+  r.post('/w/:id/updates/:uid/edit', async (req, res) => {
+    const a = await access(req, 'contribute');
+    const u = await own('progress_updates', req.params.uid, a.ws.id);
+    if (u.author_id !== req.user.id && !core.canEdit(a)) throw new Forbidden('Only the author or a manager/editor can change this update.');
+    const title = txt(req.body.title, 200); if (!title) throw bad('Enter a title.');
+    const observed = dateOrNull(req.body.observed_on); if (!observed) throw bad('Enter the observation date.');
+    const rp = req.body.reported_progress === '' || req.body.reported_progress === undefined ? null : Number(req.body.reported_progress);
+    if (rp !== null && (!Number.isInteger(rp) || rp < 0 || rp > 100)) throw bad('Progress must be a whole number from 0 to 100.');
+    const wf = req.body.workforce === '' || req.body.workforce === undefined ? null : Number(req.body.workforce);
+    if (wf !== null && (!Number.isInteger(wf) || wf < 0)) throw bad('Workers must be a whole number.');
+    const after = { title, observed_on: observed, reported_progress: rp, workforce: wf, completed_work: txt(req.body.completed_work, 4000), remaining_work: txt(req.body.remaining_work, 4000), issues: txt(req.body.issues, 2000), notes: txt(req.body.notes, 4000) };
+    const before = { title: u.title, observed_on: iso(u.observed_on), reported_progress: u.reported_progress, workforce: u.workforce, completed_work: u.completed_work, remaining_work: u.remaining_work, issues: u.issues, notes: u.notes };
+    await core.inTx(async db => {
+      await db.query(`update progress_updates set title = $2, observed_on = $3, reported_progress = $4, workforce = $5, completed_work = $6, remaining_work = $7, issues = $8, notes = $9, updated_at = now() where id = $1`,
+        [u.id, after.title, after.observed_on, after.reported_progress, after.workforce, after.completed_work, after.remaining_work, after.issues, after.notes]);
+      if (u.task_id && rp !== null && req.body.apply_progress === '1') {
+        const t = (await db.query('select id, title, progress from tasks where id = $1 and workspace_id = $2', [u.task_id, a.ws.id])).rows[0];
+        if (t && t.progress !== rp) {
+          await db.query("update tasks set progress = $2, status = case when $2 = 100 then 'done' when $2 > 0 and status in ('not_started', 'done') then 'in_progress' when $2 = 0 and status = 'done' then 'not_started' else status end, updated_at = now() where id = $1", [t.id, rp]);
+          await core.audit(db, { actor: req.user, workspaceId: a.ws.id, action: 'task.updated', entity: 'task', entityId: t.id, summary: `Task progress set from update: ${t.title} → ${rp}%`, before: { progress: t.progress }, after: { progress: rp }, ip: req.ip });
+        }
+      }
+      const changed = Object.keys(after).filter(k => String(after[k] ?? '') !== String(before[k] ?? ''));
+      await core.audit(db, { actor: req.user, workspaceId: a.ws.id, action: 'update.edited', entity: 'progress_update', entityId: u.id, summary: `Progress update edited: ${title}${changed.length ? ` (${changed.join(', ').replace(/_/g, ' ')})` : ''}`, before, after, ip: req.ip });
       await touch(db, a.ws.id);
     });
     res.redirect(`/w/${a.ws.id}/updates/${u.id}?msg=saved`);
