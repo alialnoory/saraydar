@@ -83,10 +83,29 @@ function mountAgreements(r, ctx) {
         ${core.isSuper(req.user) ? html`<p class="small"><a href="/admin/agreements">Manage templates and letterhead</a></p>` : ''}</section>` : ''}`));
   });
 
+  // Answers left empty are taken from the management terms recorded in Client & Agreement (in force, else the draft),
+  // so the agreement and the billing terms say the same thing. Typed answers always win.
+  async function withTerms(wsId, fields, values = {}) {
+    const t = (await pool.query("select * from mgmt_terms where workspace_id = $1 and status in ('active','draft') order by (status = 'active') desc, version desc limit 1", [wsId])).rows[0];
+    if (!t) return { values, filled: [] };
+    const iso = d => d ? String(d instanceof Date ? d.toISOString() : d).slice(0, 10) : null;
+    let months = null;
+    if (t.start_date && t.end_date) { const s0 = new Date(iso(t.start_date)), e0 = new Date(iso(t.end_date)); e0.setUTCDate(e0.getUTCDate() + 1); months = Math.round((e0 - s0) / (30.4375 * 864e5)); }
+    const from = { services: t.scope, scope: t.scope, exclusions: t.exclusions, monthly_fee_amount: t.monthly_fee_minor === null ? null : Number(t.monthly_fee_minor), monthly_fee: t.monthly_fee_minor === null ? null : Number(t.monthly_fee_minor),
+      start_date: iso(t.start_date), end_date: iso(t.end_date), duration_months: months, payment_days: t.payment_terms_days, approvers: t.client_approvers };
+    const out = { ...values }, filled = [];
+    for (const f of fields) {
+      const v = from[f.key];
+      if ((out[f.key] === undefined || out[f.key] === null || out[f.key] === '') && v !== undefined && v !== null && v !== '') { out[f.key] = v; filled.push(f.key); }
+    }
+    return { values: out, filled };
+  }
+  ctx.agreementTerms = withTerms;
+
   // ---------- form (new / edit) ----------
   async function form(req, res, a, tpl, g = null, err = '') {
     const fields = A.fieldsFor(tpl);
-    const values = g ? g.values : {};
+    const values = (await withTerms(a.ws.id, fields, g ? g.values : {})).values;
     const party = g && g.party_id ? (await pool.query('select * from parties where id = $1', [g.party_id])).rows[0] : null;
     const parties = (await pool.query('select id, name, kind, id_number, address, phone, email, representative, representative_title from parties where archived_at is null order by name limit 1000')).rows;
     const co = await company();
@@ -189,6 +208,10 @@ function mountAgreements(r, ctx) {
     const versions = (await pool.query(`select v.id, v.version, v.template_version, v.created_at, v.pdf is not null as has_pdf, v.docx is not null as has_docx, coalesce(nullif(u.name,''), u.email) as who
       from agreement_versions v left join users u on u.id = v.created_by where v.agreement_id = $1 order by v.version desc`, [g.id])).rows;
     const signed = (await pool.query("select id, original_name, uploaded_at from files where entity = 'agreement' and entity_id = $1 and workspace_id = $2 and archived_at is null order by uploaded_at desc", [g.id, a.ws.id])).rows;
+    const wt = await withTerms(a.ws.id, fields, g.values);
+    const open0 = !['signed', 'cancelled'].includes(g.status);
+    if (open0) g.values = wt.values;                      // a signed agreement shows exactly what was signed
+    const fromTerms = open0 ? new Set(wt.filled) : new Set();
     const missing = A.missingRequired(fields, g.values);
     const partyMissing = !party || !party.name;
     const edit = core.canEdit(a);
@@ -198,7 +221,7 @@ function mountAgreements(r, ctx) {
         <p class="muted small">${tpl.name}${tpl.starter ? ' · starter draft (legal review required)' : ''} · created ${fmtDateTime(g.created_at)}${g.signed_on ? ` · signed ${fmtDate(g.signed_on)}` : ''}${g.cancel_reason ? ` · cancelled: ${g.cancel_reason}` : ''}</p>
         <div class="split">
           <div class="grow1"><h3 class="h3">${tpl.counterparty}</h3>${party ? html`<dl class="details">${PARTY_FIELDS.map(([k, l]) => html`<div><dt>${l}</dt><dd>${party[k] || html`<span class="muted">—</span>`}</dd></div>`)}</dl>` : html`<p class="err">Not set yet.</p>`}</div>
-          <div class="grow1"><h3 class="h3">Terms</h3><dl class="details">${fields.map(f => html`<div><dt>${f.label}${f.required ? ' *' : ''}</dt><dd class="pre-line">${A.display(f, g.values[f.key]) ?? html`<span class="${f.required ? 'err' : 'muted'}">${f.required ? 'Required' : 'Left blank'}</span>`}</dd></div>`)}</dl></div>
+          <div class="grow1"><h3 class="h3">Terms</h3><dl class="details">${fields.map(f => html`<div><dt>${f.label}${f.required ? ' *' : ''}</dt><dd class="pre-line">${A.display(f, g.values[f.key]) ?? html`<span class="${f.required ? 'err' : 'muted'}">${f.required ? 'Required' : 'Left blank'}</span>`}${fromTerms.has(f.key) ? html`<div class="muted small">From the management terms</div>` : ''}</dd></div>`)}</dl></div>
         </div>
         ${edit && open ? html`<div class="actions"><a class="btn" href="/w/${a.ws.id}/agreements/${g.id}/edit">Edit details</a>
           ${missing.length || partyMissing ? html`<span class="err small">To generate: ${[partyMissing ? `${tpl.counterparty} name` : null, ...missing.map(f => f.label)].filter(Boolean).join(', ')}</span>`
@@ -229,6 +252,7 @@ function mountAgreements(r, ctx) {
     const fields = A.fieldsFor(tpl);
     const party = g.party_id ? (await pool.query('select * from parties where id = $1', [g.party_id])).rows[0] : null;
     if (!party || !party.name) throw bad(`Enter the ${tpl.counterparty.toLowerCase()}'s name first.`);
+    g.values = (await withTerms(a.ws.id, fields, g.values)).values;
     const miss = A.missingRequired(fields, g.values);
     if (miss.length) throw bad(`Fill in: ${miss.map(f => f.label).join(', ')}.`);
     const co = await company();

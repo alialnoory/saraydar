@@ -89,6 +89,12 @@ test('client projects', { skip: !URL_ && 'set TEST_DATABASE_URL to run' }, async
     assert.equal((await pm.post(`/w/${p1}/terms/${tid}/activate`, {}, `/w/${p1}/client`)).status, 403);
     assert.equal((await admin.post(`/w/${p1}/terms/${tid}/activate`, {}, `/w/${p1}/client`)).status, 302);
     assert.equal((await q1(`select status from mgmt_terms where id = '${tid}'`)).status, 'active');
+    // a new management agreement starts with the answers already in the terms
+    await admin.get(`/w/${p1}/agreements`);
+    const pmTpl = (await q1("select id from agreement_templates where key = 'pm_services'")).id;
+    const af = await admin.get(`/w/${p1}/agreements/new?template=${pmTpl}`);
+    assert.match(af.text, /name="v_payment_days"[^>]*value="15"/);
+    assert.match(af.text, new RegExp(`name="v_start_date"[^>]*value="${month}-01"`));
     // p2 gets terms with tax not configured
     await admin.post(`/w/${p2}/terms`, { start_date: `${month}-01`, monthly_fee: '900', tax_mode: 'not_configured' }, `/w/${p2}/client`);
     const t2 = (await q1(`select id from mgmt_terms where workspace_id = '${p2}'`)).id;
