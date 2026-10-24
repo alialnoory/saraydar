@@ -126,6 +126,7 @@ Last updated: 2026-10-24
 - Browser check (Chromium) at 1366 px and 390 px: sign-in → MFA enrolment → dashboard → section → workspace → upload; no horizontal scroll.
 
 ## Not yet built
+- Requested next (owner, 2026-10-24): AI "Search the market" on acquisition requests — web search of public Bahrain property sites from the brief, candidates with links marked unverified, agent adds as external opportunity. Needs ANTHROPIC_API_KEY. Reminder set for 2026-10-31.
 - Arabic RTL interface (owner decision: English only), tenant self-service portal, payment gateway, configurable sales pipeline stages, currency conversion, automatic monthly fee issuing, object storage for large photo volumes. See docs/REQUIREMENTS.md.
 
 ## External dependencies (not available yet)
