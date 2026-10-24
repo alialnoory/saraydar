@@ -24,6 +24,8 @@ function createApp({ pool, jwtSecret, corsOrigins = [], mailer, env = process.en
     // "no-referrer" makes browsers send Origin: null on form posts, which the same-origin check would reject
     referrerPolicy: { policy: 'same-origin' }
   }));
+  // browsers also ask for /favicon.ico directly (before any page has loaded)
+  app.get('/favicon.ico', (req, res) => res.set('Cache-Control', 'public, max-age=86400').sendFile(path.join(__dirname, 'public', 'favicon.ico')));
   app.use('/static', express.static(path.join(__dirname, 'public'), { maxAge: '1h', index: false }));
   app.get('/favicon.ico', (req, res) => res.status(204).end());
   app.get('/healthz', (req, res) => res.json({ ok: true }));
