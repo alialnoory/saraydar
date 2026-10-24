@@ -1,4 +1,5 @@
 'use strict';
+const U = require('../lib/undo');
 // Property Sales & Acquisition — people and pipeline: prospective buyers and their per-property opportunities,
 // follow-ups and duplicates; viewings; offers with immutable versions and externally recorded decisions;
 // deals (reservation, completion with evidence, fall-through); commissions on the shared fee ledger; sales
@@ -210,12 +211,12 @@ function mountSalesCrm(r, ctx) {
     await gate(req);
     const cur = await buyerOf(req); if (cur.merged) throw new NotFound();
     const { p, b } = readProfile(req.body);
-    await core.inTx(async db => {
+    await core.inTx(async db => U.track(db, req.user, { label: `Edited buyer ${cur.name}`, returnTo: `/sales/buyers/${cur.id}`, targets: [['parties', cur.id], ['buyer_profiles', cur.id]] }, async () => {
       await db.query('update parties set name = $2, phone = $3, email = $4, preferred_contact = $5, preferred_language = $6, lead_source = $7, agent_id = $8, updated_at = now() where id = $1', [cur.id, p.name, p.phone, p.email, p.preferred_contact, p.preferred_language, p.lead_source, p.agent_id]);
       const cols = Object.keys(b);
       await db.query(`update buyer_profiles set ${cols.map((c, i) => `${c} = $${i + 2}`).join(', ')}, updated_at = now() where party_id = $1`, [cur.id, ...cols.map(c => b[c])]);
       await core.audit(db, { actor: req.user, action: 'buyer.updated', entity: 'party', entityId: cur.id, summary: `Buyer updated: ${p.name}`, ip: req.ip });
-    });
+    }));
     res.redirect(`/sales/buyers/${cur.id}?msg=saved`);
   });
   r.post('/sales/buyers/:pid/status', async (req, res) => {

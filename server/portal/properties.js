@@ -1,4 +1,5 @@
 'use strict';
+const U = require('../lib/undo');
 // Clients Properties Management: property set-up (how money flows, limits, owners), units, tenants and leases,
 // opening balances, and the property overview/portfolio figures. Rent, payments and deposits are in rent.js;
 // maintenance, expenses and services in maintenance.js; owner account, unit history and reports in owner.js.
@@ -350,11 +351,11 @@ function mountProperties(r, ctx) {
     const cur = await own('units', req.params.uid, a.ws.id);
     const u = readUnit(req.body, a.finance);
     try {
-      await core.inTx(async db => {
+      await core.inTx(async db => U.track(db, req.user, { label: `Edited unit ${cur.ref}`, workspaceId: a.ws.id, returnTo: `/w/${a.ws.id}/units/${cur.id}`, targets: [['units', cur.id]] }, async () => {
         const cols = Object.keys(u);
         await db.query(`update units set ${cols.map((c, i) => `${c} = $${i + 2}`).join(', ')} where id = $1`, [cur.id, ...cols.map(c => u[c])]);
         await core.audit(db, { actor: req.user, workspaceId: a.ws.id, action: 'unit.updated', entity: 'unit', entityId: cur.id, summary: `Unit ${u.ref} updated`, ip: req.ip });
-      });
+      }));
     } catch (e) { if (e.code === '23505') throw bad('That unit number is already used in this property.'); throw e; }
     res.redirect(`/w/${a.ws.id}/units/${cur.id}?msg=saved`);
   });

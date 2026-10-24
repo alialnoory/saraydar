@@ -399,3 +399,7 @@ details.edit-panel:not([open]) { align-self: flex-start; }
   .details > div { grid-template-columns: minmax(96px, 38%) 1fr; gap: 10px; padding-bottom: 6px; }
   .details dt { font-size: 13px; } .details dd { font-size: 14.5px; overflow-wrap: anywhere; }
 }
+/* undo / redo beside Back and Home */
+.navform { display: inline-flex; margin: 0; }
+.navbtn[disabled] { opacity: .38; cursor: default; }
+button.navbtn { font: inherit; cursor: pointer; }

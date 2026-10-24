@@ -1,4 +1,5 @@
 'use strict';
+const U = require('../lib/undo');
 const crypto = require('crypto');
 const multer = require('multer');
 const sharp = require('sharp');
@@ -287,14 +288,14 @@ function mountWorkspaces(r, ctx) {
     const before = { name: w.name, location: w.location, stage: w.stage, status: w.status, manager_id: w.manager_id };
     const changed = Object.keys(after).filter(k => (after[k] || null) !== (before[k] || null));
     if (!changed.length) return res.redirect(`/w/${w.id}`);
-    await core.inTx(async db => {
+    await core.inTx(async db => U.track(db, req.user, { label: `Edited ${w.name} (${changed.join(', ')})`, workspaceId: w.id, returnTo: `/w/${w.id}`, targets: [['workspaces', w.id]] }, async () => {
       await db.query(`update workspaces set name = $2, location = $3, stage = $4, status = $5, manager_id = $6, updated_at = now(),
         archived_at = case when $5 = 'archived' then coalesce(archived_at, now()) else null end where id = $1`,
         [w.id, after.name, after.location, after.stage, after.status, after.manager_id]);
       if (manager) await db.query("insert into workspace_members (workspace_id, user_id, role, added_by) values ($1,$2,'manager',$3) on conflict (workspace_id, user_id) do update set revoked_at = null", [w.id, manager, req.user.id]);
       await core.audit(db, { actor: req.user, workspaceId: w.id, action: 'workspace.updated', entity: 'workspace', entityId: w.id,
         summary: `Changed ${changed.join(', ')}`, before: Object.fromEntries(changed.map(k => [k, before[k]])), after: Object.fromEntries(changed.map(k => [k, after[k]])), ip: req.ip });
-    });
+    }));
     res.redirect(`/w/${w.id}?msg=saved`);
   });
 

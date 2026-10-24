@@ -1,4 +1,5 @@
 'use strict';
+const U = require('../lib/undo');
 // Land & Plots: a project can sit on several plots (e.g. four villas on four plots as one project).
 const crypto = require('crypto');
 const multer = require('multer');
@@ -135,13 +136,13 @@ function mountPlots(r, ctx) {
     }
     const p = read(req.body, a.finance);
     try {
-      await core.inTx(async db => {
+      await core.inTx(async db => U.track(db, req.user, { label: `Edited plot ${cur.ref}`, workspaceId: a.ws.id, returnTo: `/w/${a.ws.id}/plots`, targets: [['plots', cur.id]] }, async () => {
         await db.query(`update plots set ref = $2, title_deed = $3, area_m2 = $4, frontage_m = $5, depth_m = $6, location = $7, tenure = $8, owner_text = $9, zoning = $10, status = $11, notes = $12
           ${a.finance ? ', purchase_price_minor = $13, purchase_date = $14' : ''} where id = $1`,
           [cur.id, p.ref, p.title_deed, p.area_m2, p.frontage_m, p.depth_m, p.location, p.tenure, p.owner_text, p.zoning, p.status, p.notes, ...(a.finance ? [p.purchase_price_minor, p.purchase_date] : [])]);
         const before = { ref: cur.ref, area_m2: n2(cur.area_m2), status: cur.status, title_deed: cur.title_deed, purchase_price_minor: n2(cur.purchase_price_minor) };
         await core.audit(db, { actor: req.user, workspaceId: a.ws.id, action: 'plot.updated', entity: 'plot', entityId: cur.id, summary: `Plot ${p.ref} updated`, before, after: p, ip: req.ip });
-      });
+      }));
     } catch (e) { if (e.code === '23505') throw bad(`Plot ${p.ref} is already recorded in this project.`); throw e; }
     res.redirect(`/w/${a.ws.id}/plots?msg=saved`);
   });

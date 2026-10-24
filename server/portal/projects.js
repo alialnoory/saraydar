@@ -1,4 +1,5 @@
 'use strict';
+const U = require('../lib/undo');
 // SarayDar Real Estate Development workspaces: guided setup, plan & baseline, tasks, budget & cost,
 // progress updates with photos, registers and units. Every nested record is looked up together with
 // its workspace ID, so an ID from another workspace is never reachable.
@@ -520,11 +521,11 @@ function mountProjects(r, ctx) {
     const w = req.body.weight === '' ? null : Number(req.body.weight);
     if (w !== null && (!isFinite(w) || w < 0)) throw bad('Weight must be zero or more.');
     const sort = Number.isInteger(Number(req.body.sort)) ? Number(req.body.sort) : p.sort;
-    await core.inTx(async db => {
+    await core.inTx(async db => U.track(db, req.user, { label: `Edited phase ${p.name}`, workspaceId: a.ws.id, returnTo: `/w/${a.ws.id}/tasks`, targets: [['phases', p.id]] }, async () => {
       await db.query('update phases set name = $2, weight = $3, sort = $4 where id = $1', [p.id, name, w, sort]);
       await core.audit(db, { actor: req.user, workspaceId: a.ws.id, action: 'phase.updated', entity: 'phase', entityId: p.id, summary: `Phase updated: ${name}`, before: { name: p.name, weight: p.weight === null ? null : Number(p.weight) }, after: { name, weight: w }, ip: req.ip });
       await touch(db, a.ws.id);
-    });
+    }));
     res.redirect(`/w/${a.ws.id}/tasks?msg=saved`);
   });
 
@@ -615,7 +616,7 @@ function mountProjects(r, ctx) {
     }
     if (req.body.verify === '1') v.verified = true;
     const newDeps = edit ? [].concat(req.body.deps || []).filter(x => UUID.test(x)) : null;
-    await core.inTx(async db => {
+    await core.inTx(async db => U.track(db, req.user, { label: `Edited task ${t.title}`, workspaceId: a.ws.id, returnTo: `/w/${a.ws.id}/tasks`, targets: [['tasks', t.id]] }, async () => {
       if (newDeps) {
         const valid = (await db.query('select id from tasks where workspace_id = $1 and id = any($2::uuid[]) and archived_at is null', [a.ws.id, newDeps])).rows.map(x => x.id);
         const edges = (await db.query('select d.* from task_deps d join tasks x on x.id = d.task_id where x.workspace_id = $1 and d.task_id <> $2', [a.ws.id, t.id])).rows;
@@ -629,7 +630,7 @@ function mountProjects(r, ctx) {
       const changed = cols.filter(c => JSON.stringify(before[c]) !== JSON.stringify(v[c]));
       if (changed.length || newDeps) await core.audit(db, { actor: req.user, workspaceId: a.ws.id, action: 'task.updated', entity: 'task', entityId: t.id, summary: `Task updated: ${v.title || t.title}${changed.length ? ` (${changed.join(', ')})` : ''}`, before: Object.fromEntries(changed.map(c => [c, before[c]])), after: Object.fromEntries(changed.map(c => [c, v[c]])), ip: req.ip });
       await touch(db, a.ws.id);
-    });
+    }));
     res.redirect(`/w/${a.ws.id}/tasks/${t.id}?msg=saved`);
   });
 
@@ -1062,16 +1063,16 @@ function mountProjects(r, ctx) {
     const a = await access(req, 'contribute');
     const x = await own('register_items', req.params.rid, a.ws.id);
     if (req.body.archive === '1') {
-      await core.inTx(async db => { await db.query('update register_items set archived_at = now() where id = $1', [x.id]); await core.audit(db, { actor: req.user, workspaceId: a.ws.id, action: `register.${x.kind}_archived`, entity: 'register_item', entityId: x.id, summary: `Archived: ${x.title}`, ip: req.ip }); });
+      await core.inTx(async db => U.track(db, req.user, { label: `Archived ${x.title}`, workspaceId: a.ws.id, returnTo: `/w/${a.ws.id}/registers?kind=${x.kind}`, targets: [['register_items', x.id]] }, async () => { await db.query('update register_items set archived_at = now() where id = $1', [x.id]); await core.audit(db, { actor: req.user, workspaceId: a.ws.id, action: `register.${x.kind}_archived`, entity: 'register_item', entityId: x.id, summary: `Archived: ${x.title}`, ip: req.ip }); }));
       return res.redirect(`/w/${a.ws.id}/registers?kind=${x.kind}&msg=archived`);
     }
     const v = readReg(req.body, x.kind);
-    await core.inTx(async db => {
+    await core.inTx(async db => U.track(db, req.user, { label: `Edited ${x.title}`, workspaceId: a.ws.id, returnTo: `/w/${a.ws.id}/registers?kind=${x.kind}`, targets: [['register_items', x.id]] }, async () => {
       await db.query('update register_items set title = $2, owner_text = $3, description = $4, due_date = $5, likelihood = $6, impact = $7, status = coalesce($8, status), suggested = false, updated_at = now() where id = $1',
         [x.id, v.title, v.owner_text, v.description, v.due_date, v.likelihood, v.impact, v.status]);
       await core.audit(db, { actor: req.user, workspaceId: a.ws.id, action: `register.${x.kind}_updated`, entity: 'register_item', entityId: x.id, summary: `Updated: ${v.title}`, before: { status: x.status, impact: x.impact }, after: { status: v.status, impact: v.impact }, ip: req.ip });
       await touch(db, a.ws.id);
-    });
+    }));
     res.redirect(`/w/${a.ws.id}/registers?kind=${x.kind}&msg=saved`);
   });
 
@@ -1121,12 +1122,12 @@ function mountProjects(r, ctx) {
     const a = devOnly(await access(req, 'edit'));
     const cur = await own('dev_units', req.params.uid, a.ws.id);
     const u = await readUnit(req, a);
-    await core.inTx(async db => {
+    await core.inTx(async db => U.track(db, req.user, { label: `Edited unit ${cur.name}`, workspaceId: a.ws.id, returnTo: `/w/${a.ws.id}/units`, targets: [['dev_units', cur.id]] }, async () => {
       await db.query('update dev_units set name = $2, unit_type = $3, area_m2 = $4, list_price_minor = coalesce($5, list_price_minor), status = coalesce($6, status), notes = $7, plot_id = $8 where id = $1',
         [cur.id, u.name, u.unit_type, u.area_m2, u.price === undefined ? null : u.price, u.status || null, u.notes, u.plot_id]);
       if (a.finance && u.price === null && cur.list_price_minor !== null) await db.query('update dev_units set list_price_minor = null where id = $1', [cur.id]);
       await core.audit(db, { actor: req.user, workspaceId: a.ws.id, action: 'unit.updated', entity: 'dev_unit', entityId: cur.id, summary: `Unit updated: ${u.name}`, before: { status: cur.status, price: num(cur.list_price_minor) }, after: { status: u.status, price: u.price }, ip: req.ip });
-    });
+    }));
     res.redirect(`/w/${a.ws.id}/units?msg=saved`);
   });
 

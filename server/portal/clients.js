@@ -1,4 +1,5 @@
 'use strict';
+const U = require('../lib/undo');
 // Client register for Clients Projects Management: profiles, linked projects and agreements,
 // correspondence log and a client-level fee statement across that client's projects.
 // Only projects the signed-in user can open are listed or counted.
@@ -124,12 +125,12 @@ function mountClients(r, ctx, F) {
     const g = await gate(req); if (!g.canEdit) throw new Forbidden('Your role cannot edit clients.');
     const c = await load(req);
     const v = readClient(req.body);
-    await core.inTx(async db => {
+    await core.inTx(async db => U.track(db, req.user, { label: `Edited client ${c.name}`, returnTo: `/clients/${c.id}`, targets: [['parties', c.id]] }, async () => {
       const cols = Object.keys(v);
       await db.query(`update parties set ${cols.map((k, i) => `${k} = $${i + 2}`).join(', ')}, updated_at = now() where id = $1`, [c.id, ...cols.map(k => v[k])]);
       const changed = cols.filter(k => (c[k] || null) !== v[k]);
       await core.audit(db, { actor: req.user, action: 'client.updated', entity: 'party', entityId: c.id, summary: `Client updated: ${v.name}${changed.length ? ` (${changed.join(', ')})` : ''}`, before: Object.fromEntries(changed.map(k => [k, c[k]])), after: Object.fromEntries(changed.map(k => [k, v[k]])), ip: req.ip });
-    });
+    }));
     res.redirect(backOf(req.query.back) ? `${backOf(req.query.back)}?msg=saved` : `/clients/${c.id}?msg=saved`);
   });
 

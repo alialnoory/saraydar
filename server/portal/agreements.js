@@ -206,7 +206,7 @@ function mountAgreements(r, ctx) {
       </section>
       <section class="panel"><h2 class="h">Generated versions</h2>
         ${versions.length ? html`<ul class="rows">${versions.map(v => html`<li><div class="grow"><b>Version ${v.version}</b><div class="muted small">${fmtDateTime(v.created_at)} · ${v.who || ''} · template v${v.template_version}</div></div>
-          ${v.has_pdf ? html`<a class="btn small" href="/w/${a.ws.id}/agreements/${g.id}/v/${v.version}.pdf">PDF</a>` : ''}${v.has_docx ? html`<a class="btn small" href="/w/${a.ws.id}/agreements/${g.id}/v/${v.version}.docx">Word</a>` : ''}</li>`)}</ul>`
+          ${v.has_pdf ? html`<a class="btn small primary" href="/w/${a.ws.id}/agreements/${g.id}/v/${v.version}.pdf?view=1" target="_blank" rel="noopener">Preview</a><a class="btn small" href="/w/${a.ws.id}/agreements/${g.id}/v/${v.version}.pdf">PDF</a>` : ''}${v.has_docx ? html`<a class="btn small" href="/w/${a.ws.id}/agreements/${g.id}/v/${v.version}.docx">Word</a>` : ''}</li>`)}</ul>`
           : html`<p class="muted">Nothing generated yet.</p>`}
         ${tpl.kind === 'docx' ? html`<p class="muted small">This is your Word template filled in. Its letterhead is whatever your Word file contains. For a PDF, open it in Word and save as PDF.</p>` : ''}
       </section>
@@ -258,9 +258,10 @@ function mountAgreements(r, ctx) {
     const m = /^(\d+)\.(pdf|docx)$/.exec(req.params.file); if (!m) throw new NotFound();
     const v = (await pool.query(`select ${m[2]} as data from agreement_versions where agreement_id = $1 and version = $2`, [g.id, Number(m[1])])).rows[0];
     if (!v || !v.data) throw new NotFound();
-    await core.audit(null, { actor: req.user, workspaceId: a.ws.id, action: 'agreement.downloaded', entity: 'agreement', entityId: g.id, summary: `${g.ref} v${m[1]} ${m[2].toUpperCase()} downloaded`, ip: req.ip });
+    const view = m[2] === 'pdf' && req.query.view === '1';     // Preview: open in the browser instead of downloading
+    await core.audit(null, { actor: req.user, workspaceId: a.ws.id, action: view ? 'agreement.previewed' : 'agreement.downloaded', entity: 'agreement', entityId: g.id, summary: `${g.ref} v${m[1]} ${m[2].toUpperCase()} ${view ? 'previewed' : 'downloaded'}`, ip: req.ip });
     res.set({ 'Content-Type': m[2] === 'pdf' ? 'application/pdf' : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      'Content-Disposition': `attachment; filename="${g.ref}-v${m[1]}.${m[2]}"`, 'Cache-Control': 'private, no-store' });
+      'Content-Disposition': `${view ? 'inline' : 'attachment'}; filename="${g.ref}-v${m[1]}.${m[2]}"`, 'Cache-Control': 'private, no-store' });
     res.end(v.data);
   });
 

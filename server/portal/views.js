@@ -10,7 +10,7 @@ const ROLE_LABELS = {
 };
 
 const MESSAGES = {
-  saved: 'Saved.', created: 'Created.', uploaded: 'Uploaded.', archived: 'Archived.', added: 'Added.', revoked: 'Access removed.',
+  saved: 'Saved.', undone: 'Your last change was undone.', redone: 'Your change was redone.', nothing_to_undo: 'There is nothing to undo.', nothing_to_redo: 'There is nothing to redo.', created: 'Created.', uploaded: 'Uploaded.', archived: 'Archived.', added: 'Added.', revoked: 'Access removed.',
   password: 'Your password has been changed.', mfa_on: 'Two-step verification is on.', mfa_off: 'Two-step verification is off.',
   reset_sent: 'If that account exists and email is configured, a reset link has been sent. Otherwise ask your administrator.',
   reset_done: 'Your password has been reset. Sign in with the new password.', signed_out: 'You have signed out.',
@@ -54,10 +54,18 @@ function layout(req, { title, crumbs = [], heading = null, sub = null, tabs = nu
   const I = {
     back: raw('<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>'),
     home: raw('<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/></svg>'),
-    file: raw('<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11"/><path d="M7 10l5 5 5-5"/><path d="M5 20h14"/></svg>')
+    file: raw('<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11"/><path d="M7 10l5 5 5-5"/><path d="M5 20h14"/></svg>'),
+    undo: raw('<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg>'),
+    redo: raw('<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 14l5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/></svg>')
   };
+  const here = (() => { const q = new URLSearchParams(req.query || {}); q.delete('msg'); const s = q.toString(); return `${req.path}${s ? `?${s}` : ''}`; })();
+  const us = req.undoState;
+  const undoNav = us ? html`<div class="navgroup" aria-label="Undo and redo">
+      <form method="post" action="/undo" class="navform"><input type="hidden" name="_csrf" value="${req.csrfToken || ''}"><input type="hidden" name="back" value="${here}"><button class="navbtn" type="submit" ${us.undo ? '' : raw('disabled')} title="${us.undo ? `Undo: ${us.undo.label}` : 'Nothing to undo'}">${I.undo}Undo</button></form>
+      <form method="post" action="/redo" class="navform"><input type="hidden" name="_csrf" value="${req.csrfToken || ''}"><input type="hidden" name="back" value="${here}"><button class="navbtn" type="submit" ${us.redo ? '' : raw('disabled')} title="${us.redo ? `Redo: ${us.redo.label}` : 'Nothing to redo'}">${I.redo}Redo</button></form></div>` : '';
   const pagenav = !u || bare ? '' : html`<div class="pagenav" role="navigation" aria-label="Page navigation">
     <div class="navgroup"><a class="navbtn" href="${parent}" data-back>${I.back}Back</a><a class="navbtn" href="${home}">${I.home}Home</a></div>
+    ${undoNav}
     ${exportable ? html`<div class="navgroup" aria-label="Export"><a class="navbtn" href="${exportHref('pdf')}" rel="nofollow">${I.file}PDF</a><a class="navbtn" href="${exportHref('xlsx')}" rel="nofollow">${I.file}Excel</a></div>` : ''}
   </div>`;
   const msg = MESSAGES[req.query && req.query.msg];
