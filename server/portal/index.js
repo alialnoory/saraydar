@@ -24,6 +24,7 @@ const { mountExternal } = require('./external');
 const { mountInvestors } = require('./investors');
 const { mountAssistant } = require('./assistant');
 const { mountUndo } = require('./undo');
+const { mountCompleteness } = require('./completeness');
 const { layout, html } = require('./views');
 const pageExport = require('../lib/page-export');
 
@@ -118,6 +119,7 @@ function createPortal({ pool, secret, mailer, env = process.env }) {
   });
   mountAuth(r, ctx);
   mountUndo(r, ctx);
+  mountCompleteness(r, ctx);
   mountInvitations(r, ctx);
   mountExternal(r, ctx);
   mountAccount(r, ctx);

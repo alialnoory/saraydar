@@ -99,7 +99,7 @@ function mountWorkspaces(r, ctx) {
 
   // ---------- section portfolio ----------
   // one workspace as a small card on the section page (the whole card opens it)
-  function wsCard(w, s, partyLabel, extra, pcols) {
+  function wsCard(w, s, partyLabel, extra, pcols, todo) {
     const x = extra ? extra[w.id] || {} : null;
     const facts = [];
     const who = s.key === 'cpm' ? ['Client', w.party_name] : partyLabel ? [partyLabel.label, w.party_name] : null;
@@ -110,7 +110,7 @@ function mountWorkspaces(r, ctx) {
     return html`<li><a class="ws-tile" href="/w/${w.id}">
       <div class="ws-tile-top"><div class="grow"><b class="ws-tile-name">${w.name}</b><div class="muted small">${w.ref}${w.stage ? ` · ${w.stage}` : ''}</div></div>${statusPill(w.status)}</div>
       <dl class="ws-tile-facts">${facts.map(([l, v]) => html`<div><dt>${l}</dt><dd>${v === null || v === undefined || v === '' ? '—' : v}</dd></div>`)}</dl>
-      <div class="ws-tile-foot"><span>Updated ${fmtDate(w.updated_at)}</span>${x && !pcols && x.alerts ? pill(`${x.alerts} alert${x.alerts === 1 ? '' : 's'}`, 'bad') : ''}<span class="ws-tile-go" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></span></div></a></li>`;
+      <div class="ws-tile-foot"><span>Updated ${fmtDate(w.updated_at)}</span>${todo ? pill(`${todo} to complete`, 'warn') : ''}${x && !pcols && x.alerts ? pill(`${x.alerts} alert${x.alerts === 1 ? '' : 's'}`, 'bad') : ''}<span class="ws-tile-go" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></span></div></a></li>`;
   }
 
   r.get('/s/:section', async (req, res) => {
@@ -145,7 +145,7 @@ function mountWorkspaces(r, ctx) {
         <select name="status" aria-label="Status">${[['open', 'Active & on hold'], ['active', 'Active'], ['on_hold', 'On hold'], ['completed', 'Completed'], ['archived', 'Archived'], ['all', 'All']].map(([v, l]) => html`<option value="${v}" ${v === status ? raw('selected') : ''}>${l}</option>`)}</select>
         <select name="sort" aria-label="Sort">${[['updated', 'Recently updated'], ['name', 'Name'], ['ref', 'Reference'], ['created', 'Newest']].map(([v, l]) => html`<option value="${v}" ${v === (req.query.sort || 'updated') ? raw('selected') : ''}>${l}</option>`)}</select>
         <button class="btn" type="submit">Apply</button></form>
-      ${rows.length && !req.exportAll ? html`<ul class="ws-grid" aria-label="${s.name}">${rows.map(w => wsCard(w, s, partyLabel, extra, pcols))}</ul>${pager(req, total, page, PER_PAGE)}`
+      ${rows.length && !req.exportAll ? html`<ul class="ws-grid" aria-label="${s.name}">${await Promise.all(rows.map(async w => wsCard(w, s, partyLabel, extra, pcols, ctx.completeness && ['active', 'on_hold'].includes(w.status) ? (await ctx.completeness(w)).missing.length : 0)))}</ul>${pager(req, total, page, PER_PAGE)}`
         : rows.length ? html`<div class="table-wrap"><table><thead><tr>${s.key === 'cpm' ? html`<th>Client</th>` : ''}<th>Name</th><th>Reference</th>${partyLabel && s.key !== 'cpm' ? html`<th>${partyLabel.label}</th>` : ''}<th>Location</th><th>Manager</th>${extra && pcols ? pcols.map(c => html`<th>${c[0]}</th>`) : extra ? html`<th>Progress</th><th>Next milestone</th>${s.key === 'cpm' ? html`<th>Unpaid fees</th>` : ''}<th>Alerts</th>` : ''}<th>Status</th><th>Updated</th></tr></thead><tbody>
         ${rows.map(w => html`<tr>${s.key === 'cpm' ? html`<td class="client-cell">${w.party_name || html`<span class="muted">Not linked</span>`}</td>` : ''}<td><a href="/w/${w.id}"><b>${w.name}</b></a>${w.stage ? html`<div class="muted small">${w.stage}</div>` : ''}</td><td class="mono">${w.ref}</td>${partyLabel && s.key !== 'cpm' ? html`<td>${w.party_name || '—'}</td>` : ''}<td>${w.location || '—'}</td><td>${w.manager_name || '—'}</td>${extra && pcols ? pcols.map(c => html`<td class="small">${extra[w.id][c[1]]}</td>`) : extra ? html`<td>${extra[w.id].progress}</td><td class="small">${extra[w.id].next}</td>${s.key === 'cpm' ? html`<td class="n">${extra[w.id].fees}</td>` : ''}<td>${extra[w.id].alerts ? pill(String(extra[w.id].alerts), 'bad') : '—'}</td>` : ''}<td>${statusPill(w.status)}</td><td class="small">${fmtDate(w.updated_at)}</td></tr>`)}
         </tbody></table></div>${pager(req, total, page, PER_PAGE)}`
@@ -240,7 +240,7 @@ function mountWorkspaces(r, ctx) {
         <dl class="stats inline"><div><dt>Tasks</dt><dd>${n.tasks || 0}</dd></div><div><dt>Budget lines</dt><dd>${n.costs || 0}</dd></div><div><dt>Risks</dt><dd>${n.risks || 0}</dd></div><div><dt>Site log entries</dt><dd>${n.log || 0}</dd></div></dl>
         <a class="btn" href="https://saraydar.netlify.app" rel="noopener">Open the current tracker</a></section>`;
     }
-    const extras = ctx.overviewExtras && ctx.overviewExtras[w.section] ? await ctx.overviewExtras[w.section](req, a) : '';
+    const extras = html`${ctx.completenessPanel ? await ctx.completenessPanel(a) : ''}${ctx.overviewExtras && ctx.overviewExtras[w.section] ? await ctx.overviewExtras[w.section](req, a) : ''}`;
     const editable = core.canEdit(a);
     const users = editable ? (await pool.query("select id, coalesce(nullif(name,''), email) as label from users where active and kind = 'internal' order by 2")).rows : [];
     res.send(wsLayout(req, a, 'overview', html`${extras}

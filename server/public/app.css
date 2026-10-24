@@ -403,3 +403,17 @@ details.edit-panel:not([open]) { align-self: flex-start; }
 .navform { display: inline-flex; margin: 0; }
 .navbtn[disabled] { opacity: .38; cursor: default; }
 button.navbtn { font: inherit; cursor: pointer; }
+/* "What's missing" guide */
+.guide { border-color: var(--copper); }
+.guide-count { font-weight: 600; color: var(--accent); font-size: 14px; }
+.guide-bar { height: 6px; border-radius: 6px; background: var(--sunken); overflow: hidden; margin: 8px 0 12px; }
+.guide-bar span { display: block; height: 100%; background: var(--copper); border-radius: 6px; }
+.guide-list { list-style: none; margin: 0 0 8px; padding: 0; display: grid; gap: 6px; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); }
+.guide-list a { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border: 1px solid var(--line); border-radius: 10px; color: var(--ink); text-decoration: none; background: var(--surface); }
+.guide-list a:hover { border-color: var(--copper); }
+.guide-dot { width: 9px; height: 9px; border-radius: 50%; background: #C9772E; flex-shrink: 0; }
+.guide-go { color: var(--accent); font-weight: 600; font-size: 13px; white-space: nowrap; }
+.guide-list.done { display: block; margin-top: 8px; } .guide-list.done li { padding: 3px 0; color: var(--muted); }
+.guide-tick { color: var(--ok); font-weight: 700; margin-right: 6px; }
+.guide-done { border-color: var(--line); }
+@media (max-width: 640px) { .guide-list { grid-template-columns: 1fr; } }
