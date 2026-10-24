@@ -166,7 +166,7 @@ ${SIGN('Buyer')}`
     key: 'pm_services', name: 'Project Management Services Agreement', sections: ['cpm'], category: 'Management agreement', counterparty: 'Client',
     fields: { ...COMMON, services: { label: 'Management services', type: 'textarea', required: true }, exclusions: { label: 'Exclusions', type: 'textarea' },
       monthly_fee_amount: { label: 'Monthly management fee', type: 'money', required: true }, start_date: { label: 'Start date', type: 'date', required: true }, duration_months: { label: 'Duration (months)', type: 'number' },
-      billing_day: { label: 'Invoice issued on day of month', type: 'number' }, payment_days: { label: 'Payment due within (days)', type: 'number' }, approvers: { label: 'Client approvers', type: 'textarea' } },
+      billing_timing: { label: 'When the monthly fee is invoiced', type: 'text', default: 'in arrears, after the end of each month' }, payment_days: { label: 'Payment due within (days)', type: 'number' }, approvers: { label: 'Client approvers', type: 'textarea' } },
     body: `# Project Management Services Agreement
 
 ${PARTIES('Client')}
@@ -183,7 +183,7 @@ Exclusions: {{exclusions}}
 
 ## Fees
 
-The Client will pay SarayDar a monthly management fee of {{monthly_fee_amount}}, invoiced on day {{billing_day}} of each month and payable within {{payment_days}} days. The Client's construction budget, contractor payments and consultant fees are the Client's own costs and are not part of SarayDar's fee.
+The Client will pay SarayDar a monthly management fee of {{monthly_fee_amount}}, invoiced {{billing_timing}} and payable within {{payment_days}} days of the invoice. The Client's construction budget, contractor payments and consultant fees are the Client's own costs and are not part of SarayDar's fee.
 
 ## Term
 

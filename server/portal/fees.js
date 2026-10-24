@@ -195,6 +195,7 @@ function mountFees(r, ctx, P) {
               ${field({ name: 'billing_timing', label: 'Billed', value: base.billing_timing || 'advance', options: [['advance', 'In advance (start of the month)'], ['arrears', 'In arrears (after the month)']] })}
               ${field({ name: 'proration', label: 'Part months', value: base.proration || 'daily', options: [['daily', 'Prorate by day'], ['none', 'Full monthly fee']] })}
               ${field({ name: 'payment_terms_days', label: 'Payment due (days after issue)', type: 'number', value: base.payment_terms_days ?? 30, attrs: 'min="0" max="365"' })}
+              ${field({ name: 'notice_days', label: 'Termination notice (days)', type: 'number', value: base.notice_days ?? '', attrs: 'min="0" max="365"', hint: 'Printed in the agreement.' })}
               ${field({ name: 'tax_mode', label: 'Tax treatment', value: base.tax_mode || 'none', options: [['none', 'No VAT charged on the fee'], ['rate', 'Charge VAT at a rate'], ['not_configured', 'Not yet confirmed']], hint: 'When VAT starts, record a new version of the terms from that date with the rate. Earlier invoices stay as issued.' })}
               ${field({ name: 'tax_rate', label: 'Tax rate (%)', value: base.tax_rate_bp !== undefined && base.tax_rate_bp !== null ? base.tax_rate_bp / 100 : '', attrs: 'inputmode="decimal"' })}
               ${tf('tax_label', 'Tax name on invoices', { hint: 'For example VAT.' })}
@@ -204,7 +205,36 @@ function mountFees(r, ctx, P) {
               <div class="actions full"><button class="btn primary" type="submit">Save draft terms</button></div>
               <p class="muted small full">Saved as a draft. Finance activates it; activation replaces the previous version from the effective date and keeps it in the history.</p></form></details>` : ''}
         </section>` : ''}
-      </div>`));
+      </div>
+      ${showTerms && ctx.mgmtAgreement ? await agreementPanel(req, a, base, edit) : ''}`));
+  });
+
+  // the whole agreement, generated from the terms above plus the standard clauses of the management template
+  async function agreementPanel(req, a, terms, edit) {
+    const g = await ctx.mgmtAgreement.current(a.ws.id, a.ws.section);
+    const id = a.ws.id;
+    const hasTerms = !!terms.start_date;
+    const locked = g && ['signed', 'cancelled'].includes(g.status);
+    const missing = hasTerms ? await ctx.mgmtAgreement.missing(a) : [];
+    return html`<section class="panel"><div class="row-between"><h2 class="h">Agreement document</h2>${g ? html`<span>${pill(g.ref, 'muted')} ${pill(g.status === 'signed' ? 'Signed' : g.status === 'issued' ? 'Issued for signature' : g.status === 'cancelled' ? 'Cancelled' : 'Draft', g.status === 'signed' ? 'ok' : 'warn')}</span>` : ''}</div>
+      <p class="muted small">The full agreement is written from the terms above (parties, scope, exclusions, fee, billing, payment, term, approvers, notice) together with the standard clauses: governing law, entire agreement and signature boxes. Edit the terms, then generate again — each generation is kept as a numbered version.</p>
+      ${g && g.versions.length ? html`<ul class="rows">${g.versions.slice(0, 5).map(v => html`<li><div class="grow"><b>${g.ref} · version ${v.version}</b><div class="muted small">${fmtDateTime(v.created_at)}</div></div>
+          ${v.has_pdf ? html`<a class="btn small primary" href="/w/${id}/agreements/${g.id}/v/${v.version}.pdf?view=1" target="_blank" rel="noopener">Preview</a><a class="btn small" href="/w/${id}/agreements/${g.id}/v/${v.version}.pdf">PDF</a>` : ''}${v.has_docx ? html`<a class="btn small" href="/w/${id}/agreements/${g.id}/v/${v.version}.docx">Word</a>` : ''}</li>`)}</ul>` : html`<p class="muted">No agreement generated yet.</p>`}
+      <div class="actions">
+        ${missing.length ? html`<div class="notice warn full">To write the agreement, add: <b>${missing.join(', ')}</b>.</div>` : ''}
+        ${edit && hasTerms && a.ws.party_id && !missing.length ? html`<form method="post" action="/w/${id}/client/agreement" class="inline">${csrfField(req)}<button class="btn primary" type="submit">${locked ? 'Prepare a new agreement from these terms' : g && g.versions.length ? 'Generate again from the terms' : 'Generate the agreement'}</button></form>` : ''}
+        ${g ? html`<a class="btn" href="/w/${id}/agreements/${g.id}">Issue for signature / upload the signed copy</a>` : ''}
+      </div>
+      ${!hasTerms ? html`<p class="muted small">Record the terms first.</p>` : !a.ws.party_id ? html`<p class="muted small">Link the ${a.ws.section === 'props' ? 'owner' : 'client'} first.</p>` : ''}
+      ${locked ? html`<p class="muted small">${g.ref} is ${g.status}; it stays exactly as signed. Generating again starts a new agreement (for example an amendment) with a new reference.</p>` : ''}
+    </section>`;
+  }
+
+  r.post('/w/:id/client/agreement', async (req, res) => {
+    const a = await access(req, 'edit');
+    if (!['cpm', 'props'].includes(a.ws.section)) throw new NotFound();
+    const { g, v } = await ctx.mgmtAgreement.generate(req, a);
+    res.redirect(`/w/${a.ws.id}/client?msg=created#agreement`);
   });
 
   r.post('/w/:id/client/link', async (req, res) => {
@@ -239,7 +269,8 @@ function mountFees(r, ctx, P) {
       const [w, f = ''] = v.split('.'); tax_rate_bp = Number(w) * 100 + Number((f + '00').slice(0, 2));
     }
     const days = parseInt(b.payment_terms_days, 10);
-    return { agreement_ref: txt(b.agreement_ref, 80), signed_on: dateOrNull(b.signed_on), start_date: start, end_date: end, effective_from: eff,
+    const notice = parseInt(b.notice_days, 10);
+    return { notice_days: Number.isFinite(notice) && notice >= 0 && notice <= 365 ? notice : null, agreement_ref: txt(b.agreement_ref, 80), signed_on: dateOrNull(b.signed_on), start_date: start, end_date: end, effective_from: eff,
       monthly_fee_minor: fee, billing_timing: b.billing_timing === 'arrears' ? 'arrears' : 'advance', proration: b.proration === 'none' ? 'none' : 'daily',
       payment_terms_days: Number.isFinite(days) && days >= 0 && days <= 365 ? days : 30, tax_mode, tax_rate_bp, tax_label: txt(b.tax_label, 40) || (tax_mode === 'rate' ? 'VAT' : null),
       client_approvers: txt(b.client_approvers, 2000), scope: txt(b.scope, 4000), responsibilities: txt(b.responsibilities, 4000), exclusions: txt(b.exclusions, 4000), notes: txt(b.notes, 2000) };

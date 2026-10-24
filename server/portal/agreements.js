@@ -86,13 +86,23 @@ function mountAgreements(r, ctx) {
   // Answers left empty are taken from the management terms recorded in Client & Agreement (in force, else the draft),
   // so the agreement and the billing terms say the same thing. Typed answers always win.
   async function withTerms(wsId, fields, values = {}) {
-    const t = (await pool.query("select * from mgmt_terms where workspace_id = $1 and status in ('active','draft') order by (status = 'active') desc, version desc limit 1", [wsId])).rows[0];
+    const t = (await pool.query("select * from mgmt_terms where workspace_id = $1 and status in ('active','draft') order by (status = 'draft') desc, version desc limit 1", [wsId])).rows[0];
     if (!t) return { values, filled: [] };
     const iso = d => d ? String(d instanceof Date ? d.toISOString() : d).slice(0, 10) : null;
     let months = null;
     if (t.start_date && t.end_date) { const s0 = new Date(iso(t.start_date)), e0 = new Date(iso(t.end_date)); e0.setUTCDate(e0.getUTCDate() + 1); months = Math.round((e0 - s0) / (30.4375 * 864e5)); }
     const from = { services: t.scope, scope: t.scope, exclusions: t.exclusions, monthly_fee_amount: t.monthly_fee_minor === null ? null : Number(t.monthly_fee_minor), monthly_fee: t.monthly_fee_minor === null ? null : Number(t.monthly_fee_minor),
-      start_date: iso(t.start_date), end_date: iso(t.end_date), duration_months: months, payment_days: t.payment_terms_days, approvers: t.client_approvers };
+      start_date: iso(t.start_date), end_date: iso(t.end_date), duration_months: months, payment_days: t.payment_terms_days, approvers: t.client_approvers,
+      notices_days: t.notice_days, agreement_date: iso(t.signed_on),
+      billing_timing: t.billing_timing === 'advance' ? `in advance, at the start of each month${t.proration === 'daily' ? ' (part months charged by the day)' : ''}` : t.billing_timing === 'arrears' ? `in arrears, after the end of each month${t.proration === 'daily' ? ' (part months charged by the day)' : ''}` : null };
+    const prof = (await pool.query('select * from property_profiles where workspace_id = $1', [wsId])).rows[0];
+    if (prof) {
+      const who = { saraydar: 'SarayDar', owner: 'the Owner', other: 'another party' };
+      from.rent_collection = `Rent is collected by ${who[prof.rent_collector] || prof.rent_collector}. Tenant deposits are held by ${who[prof.deposit_holder] || prof.deposit_holder}. Suppliers are paid by ${who[prof.supplier_payer] || prof.supplier_payer}.${prof.payment_instructions ? ` ${prof.payment_instructions}` : ''}`;
+      from.spending_limit_amount = prof.maintenance_limit_minor === null || prof.maintenance_limit_minor === undefined ? null : Number(prof.maintenance_limit_minor);
+      from.fee_deduction = prof.fee_deduction_allowed ? 'allowed, with each deduction shown on the owner statement' : 'not allowed; fees are invoiced to the Owner';
+      if (prof.reporting_prefs) from.reporting = prof.reporting_prefs;
+    }
     const out = { ...values }, filled = [];
     for (const f of fields) {
       const v = from[f.key];
@@ -244,15 +254,14 @@ function mountAgreements(r, ctx) {
         ${field({ name: 'reason', label: 'Reason', required: true })}<button class="btn" type="submit">Cancel agreement</button></form></details>` : ''}`));
   });
 
-  r.post('/w/:id/agreements/:aid/generate', async (req, res) => {
-    const a = await access(req, 'edit');
-    const g = await loadAgreement(a, req.params.aid);
+  async function generateVersion(req, a, g) {
     if (['signed', 'cancelled'].includes(g.status)) throw bad('Signed or cancelled agreements cannot be regenerated.');
     const tpl = await loadTemplate(g.template_id);
     const fields = A.fieldsFor(tpl);
     const party = g.party_id ? (await pool.query('select * from parties where id = $1', [g.party_id])).rows[0] : null;
     if (!party || !party.name) throw bad(`Enter the ${tpl.counterparty.toLowerCase()}'s name first.`);
     g.values = (await withTerms(a.ws.id, fields, g.values)).values;
+    for (const f of fields) if ((g.values[f.key] === undefined || g.values[f.key] === '') && f.default) g.values[f.key] = f.default === 'today' ? new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Bahrain' }) : f.default;
     const miss = A.missingRequired(fields, g.values);
     if (miss.length) throw bad(`Fill in: ${miss.map(f => f.label).join(', ')}.`);
     const co = await company();
@@ -261,11 +270,10 @@ function mountAgreements(r, ctx) {
     if (tpl.kind === 'docx') docxBuf = A.fillDocx(tpl.docx, map);
     else {
       const text = A.fill(tpl.body, map);
-      const lh = co.letterhead ? { data: co.letterhead, mime: co.letterhead_mime } : null;
-      pdf = await A.renderPdf({ text, ref: g.ref, company: co, letterhead: lh && lh.data, marginTop: co.margin_top_mm, marginBottom: co.margin_bottom_mm, notice: tpl.starter });
-      docxBuf = await A.renderDocx({ text, ref: g.ref, company: co, letterhead: lh && lh.data, letterheadType: lh && lh.mime, marginTop: co.margin_top_mm, marginBottom: co.margin_bottom_mm, notice: tpl.starter });
+      pdf = await A.renderPdf({ text, ref: g.ref, company: co, notice: tpl.starter });
+      docxBuf = await A.renderDocx({ text, ref: g.ref, company: co, notice: tpl.starter });
     }
-    const v = await core.inTx(async db => {
+    return core.inTx(async db => {
       await db.query('select id from agreements where id = $1 for update', [g.id]);
       const n = (await db.query('select coalesce(max(version),0)+1 as n from agreement_versions where agreement_id = $1', [g.id])).rows[0].n;
       await db.query('insert into agreement_versions (agreement_id, version, template_version, values, pdf, docx, created_by) values ($1,$2,$3,$4,$5,$6,$7)', [g.id, n, tpl.version, { ...g.values, _party: party }, pdf, docxBuf, req.user.id]);
@@ -273,8 +281,65 @@ function mountAgreements(r, ctx) {
       await core.audit(db, { actor: req.user, workspaceId: a.ws.id, action: 'agreement.generated', entity: 'agreement', entityId: g.id, summary: `Agreement ${g.ref} version ${n} generated`, ip: req.ip });
       return n;
     });
+  }
+
+  r.post('/w/:id/agreements/:aid/generate', async (req, res) => {
+    const a = await access(req, 'edit');
+    const g = await loadAgreement(a, req.params.aid);
+    const v = await generateVersion(req, a, g);
     res.redirect(`/w/${a.ws.id}/agreements/${g.id}?msg=created#v${v}`);
   });
+
+  // ---------- the management agreement made from the terms (Client & Agreement tab) ----------
+  const MGMT_TEMPLATE = { cpm: 'pm_services', props: 'property_management' };
+  ctx.mgmtAgreement = {
+    // the agreement linked to this workspace's management terms (open one first, else the latest)
+    async current(wsId, section) {
+      const key = MGMT_TEMPLATE[section]; if (!key) return null;
+      const g = (await pool.query(`select g.*, (select max(version) from agreement_versions v where v.agreement_id = g.id) as last_version
+          from agreements g join agreement_templates t on t.id = g.template_id where g.workspace_id = $1 and t.key = $2
+          order by (g.status in ('draft','issued')) desc, g.created_at desc limit 1`, [wsId, key])).rows[0];
+      if (!g) return null;
+      g.versions = (await pool.query('select version, created_at, pdf is not null as has_pdf, docx is not null as has_docx from agreement_versions where agreement_id = $1 order by version desc', [g.id])).rows;
+      return g;
+    },
+    // what the terms still lack before the agreement can be written (required answers that are empty)
+    async missing(a) {
+      await ensureStarters();
+      const key = MGMT_TEMPLATE[a.ws.section]; if (!key) return [];
+      const tpl = (await pool.query('select * from agreement_templates where key = $1 and active order by version desc limit 1', [key])).rows[0];
+      if (!tpl) return [];
+      const fields = A.fieldsFor(tpl);
+      const vals = (await withTerms(a.ws.id, fields, {})).values;
+      for (const f of fields) if ((vals[f.key] === undefined || vals[f.key] === '') && f.default) vals[f.key] = f.default;
+      const WHERE = { services: 'SarayDar management scope', monthly_fee_amount: 'Monthly fee', start_date: 'Agreement start', rent_collection: 'Property Setup (who collects rent and holds deposits)' };
+      return A.missingRequired(fields, vals).map(f => WHERE[f.key] || f.label);
+    },
+    // create the agreement if needed (or a new one after a signed one), then generate a version from the terms
+    async generate(req, a) {
+      await ensureStarters();
+      const key = MGMT_TEMPLATE[a.ws.section]; if (!key) throw bad('No management agreement for this kind of workspace.');
+      const tpl = (await pool.query('select * from agreement_templates where key = $1 and active order by version desc limit 1', [key])).rows[0];
+      if (!tpl) throw bad('The management agreement template is not available.');
+      if (!a.ws.party_id) throw bad(`Link the ${a.ws.section === 'props' ? 'owner' : 'client'} first.`);
+      let g = await this.current(a.ws.id, a.ws.section);
+      if (!g || ['signed', 'cancelled'].includes(g.status)) {
+        const id = await core.inTx(async db => {
+          const year = new Date().toLocaleString('en-GB', { year: 'numeric', timeZone: 'Asia/Bahrain' });
+          const ref = `AGR-${year}-${String(await core.nextNumber(db, `AGR-${year}`)).padStart(3, '0')}`;
+          const row = (await db.query('insert into agreements (workspace_id, template_id, ref, title, party_id, values, created_by) values ($1,$2,$3,$4,$5,$6,$7) returning id', [a.ws.id, tpl.id, ref, tpl.name, a.ws.party_id, {}, req.user.id])).rows[0];
+          await core.audit(db, { actor: req.user, workspaceId: a.ws.id, action: 'agreement.created', entity: 'agreement', entityId: row.id, summary: `Agreement ${ref} drafted from the management terms`, ip: req.ip });
+          return row.id;
+        });
+        g = (await pool.query('select * from agreements where id = $1', [id])).rows[0];
+      } else if (g.party_id !== a.ws.party_id) await pool.query('update agreements set party_id = $2 where id = $1', [g.id, a.ws.party_id]);
+      g.party_id = a.ws.party_id;
+      const v = await generateVersion(req, a, g);
+      // the terms point at this agreement
+      await pool.query("update mgmt_terms set agreement_ref = $2 where workspace_id = $1 and status in ('draft','active') and coalesce(agreement_ref, '') <> $2", [a.ws.id, g.ref]);
+      return { g, v };
+    }
+  };
 
   r.get('/w/:id/agreements/:aid/v/:file', async (req, res) => {
     const a = await access(req);

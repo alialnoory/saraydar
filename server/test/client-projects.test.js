@@ -95,6 +95,25 @@ test('client projects', { skip: !URL_ && 'set TEST_DATABASE_URL to run' }, async
     const af = await admin.get(`/w/${p1}/agreements/new?template=${pmTpl}`);
     assert.match(af.text, /name="v_payment_days"[^>]*value="15"/);
     assert.match(af.text, new RegExp(`name="v_start_date"[^>]*value="${month}-01"`));
+    // one window: the whole agreement is generated from the terms on Client & Agreement
+    let ca = await admin.get(`/w/${p1}/client`);
+    assert.match(ca.text, /Agreement document/); assert.match(ca.text, /To write the agreement, add: <b>SarayDar management scope<\/b>/);
+    await admin.post(`/w/${p1}/terms`, { agreement_ref: 'PMA-1', start_date: `${month}-15`, effective_from: `${month}-15`, monthly_fee: '1500', billing_timing: 'advance', proration: 'daily', payment_terms_days: '15', tax_mode: 'none', notice_days: '60', scope: 'Full project management of the villa works.' }, `/w/${p1}/client`);
+    ca = await admin.get(`/w/${p1}/client`);
+    assert.match(ca.text, /Generate the agreement/);
+    const gen = await admin.post(`/w/${p1}/client/agreement`, {}, `/w/${p1}/client`);
+    assert.equal(gen.status, 302, (gen.text.match(/<main[\s\S]{0,600}/) || [""])[0]);
+    const ag = await q1(`select g.id, g.ref, (select count(*)::int from agreement_versions v where v.agreement_id = g.id and v.pdf is not null and v.docx is not null) as n from agreements g where g.workspace_id = '${p1}'`);
+    assert.equal(ag.n, 1);
+    assert.equal((await q1(`select agreement_ref from mgmt_terms where workspace_id = '${p1}' and status = 'draft'`)).agreement_ref, ag.ref);
+    const ver = await q1(`select values from agreement_versions where agreement_id = '${ag.id}'`);
+    assert.equal(ver.values.monthly_fee_amount, 1500000); assert.equal(ver.values.payment_days, 15); assert.equal(ver.values.notices_days, 60);
+    assert.equal(ver.values.services, 'Full project management of the villa works.');
+    assert.match(ver.values.billing_timing, /in advance/);
+    assert.equal(ver.values.governing_law, 'the Kingdom of Bahrain');
+    assert.match((await admin.get(`/w/${p1}/client`)).text, new RegExp(`${ag.ref} · version 1`));
+    assert.equal((await admin.post(`/w/${p1}/client/agreement`, {}, `/w/${p1}/client`)).status, 302);
+    assert.equal((await q1(`select count(*)::int as n from agreement_versions where agreement_id = '${ag.id}'`)).n, 2);
     // p2 gets terms with tax not configured
     await admin.post(`/w/${p2}/terms`, { start_date: `${month}-01`, monthly_fee: '900', tax_mode: 'not_configured' }, `/w/${p2}/client`);
     const t2 = (await q1(`select id from mgmt_terms where workspace_id = '${p2}'`)).id;
