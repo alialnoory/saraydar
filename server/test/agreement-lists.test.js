@@ -17,9 +17,9 @@ test('agreement lists', async () => {
 });
 
 test('the other party: CPR for individuals, CR for companies, and who represents them', () => {
-  const person = A.builtins({ party: { name: 'Sara Alsamaheeji', kind: 'person', representative: 'Mahdi Al Maskati', representative_title: 'Attorney' } });
+  const person = A.builtins({ party: { name: 'Sara Alsamaheeji', kind: 'person', representative: 'Mahdi Al Maskati', representative_title: 'Attorney', representative_cpr: '800101234' } });
   assert.equal(person['party.id_label'], 'CPR No.');
-  assert.equal(person['party.represented_by'], ', represented by Mahdi Al Maskati, Attorney');
+  assert.equal(person['party.represented_by'], ', represented by Mahdi Al Maskati (CPR No. 800101234), Attorney');
   assert.equal(person['party.signatory'], 'Mahdi Al Maskati');
   const co = A.builtins({ party: { name: 'ACME WLL', kind: 'company', contact_person: 'Ahmed Ali' } });
   assert.equal(co['party.id_label'], 'CR No.');

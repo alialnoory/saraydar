@@ -66,7 +66,8 @@ function builtins({ company = {}, ws = {}, party = {}, agreement = {} }) {
   // otherwise their main contact (an individual with neither signs for themselves)
   const repName = party.representative || (party.contact_person && party.contact_person !== party.name ? party.contact_person : '');
   const repTitle = party.representative ? party.representative_title : '';
-  const rep = repName ? `, represented by ${repName}${repTitle ? `, ${repTitle}` : ''}` : '';
+  const repCpr = party.representative ? party.representative_cpr : '';
+  const rep = repName ? `, represented by ${repName}${repCpr ? ` (CPR No. ${repCpr})` : ''}${repTitle ? `, ${repTitle}` : ''}` : '';
   return {
     'company.legal_name': company.legal_name || company.trade_name, 'company.trade_name': company.trade_name, 'company.cr_number': company.cr_number,
     'company.address': company.address, 'company.phone': company.phone, 'company.email': company.email,

@@ -13,7 +13,7 @@ const txt = (v, n = 300) => { const s = String(v ?? '').trim().slice(0, n); retu
 const fm = m => formatMoney(m || 0);
 const KINDS = { call: 'Call', email: 'Email', meeting: 'Meeting', letter: 'Letter', message: 'Message', other: 'Other' };
 const FIELDS = [
-  ['kind', 'Individual or company'], ['name', 'Name'], ['contact_person', 'Main contact'], ['representative', 'Represented by (signs agreements)'], ['representative_title', 'Their title / capacity'], ['representatives', 'Other authorised representatives'],
+  ['kind', 'Individual or company'], ['name', 'Name'], ['contact_person', 'Main contact'], ['representative', 'Represented by (signs agreements)'], ['representative_title', 'Their title / capacity'], ['representative_cpr', 'Their CPR number'], ['representatives', 'Other authorised representatives'],
   ['phone', 'Telephone'], ['email', 'Email'], ['address', 'Address'], ['preferred_contact', 'Preferred communication'], ['id_number', 'CPR / CR / passport'],
   ['billing_name', 'Billing name'], ['billing_address', 'Billing address'], ['billing_email', 'Billing email'], ['tax_number', 'Tax registration number'],
   ['client_reference', 'Client reference'], ['approval_authorities', 'Approval authorities'], ['communication_notes', 'Communication responsibilities'], ['notes', 'Notes']
@@ -45,7 +45,7 @@ function mountClients(r, ctx, F) {
     return v;
   }
   // the essentials first; billing and other details folded away (billing name and address follow the client unless different)
-  const MAIN = ['kind', 'name', 'contact_person', 'representative', 'representative_title', 'phone', 'email', 'preferred_contact', 'approval_authorities'];
+  const MAIN = ['kind', 'name', 'contact_person', 'representative', 'representative_title', 'representative_cpr', 'phone', 'email', 'preferred_contact', 'approval_authorities'];
   const one = (c, k, l) => k === 'kind' ? field({ name: k, label: l, value: c.kind || 'person', options: [['person', 'Individual'], ['company', 'Company']] })
     : k === 'preferred_contact' ? field({ name: k, label: l, value: c[k] || '', options: [['', 'Not stated'], ...(c[k] && !CH.CONTACT_CHANNELS.includes(c[k]) ? [[c[k], c[k]]] : []), ...CH.CONTACT_CHANNELS.map(x => [x, x])] })
     : field({ name: k, label: l, value: k === 'billing_name' ? (c.billing_name || c.name || '') : c[k] || '', required: k === 'name', type: LONG.has(k) ? 'textarea' : k.includes('email') ? 'email' : k === 'phone' ? 'tel' : 'text', full: LONG.has(k),

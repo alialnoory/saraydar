@@ -18,7 +18,7 @@ const txt = (v, n = 300) => { const s = String(v ?? '').trim().slice(0, n); retu
 const STATUS = { draft: ['Draft', 'muted'], issued: ['Issued for signature', 'warn'], signed: ['Signed', 'ok'], cancelled: ['Cancelled', 'muted'] };
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 15 * 1024 * 1024, files: 1, fields: 80 } });
 const today = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Bahrain' });
-const PARTY_FIELDS = [['name', 'Full name / company name', true], ['id_number', 'CPR / CR / passport number'], ['address', 'Address'], ['phone', 'Telephone'], ['email', 'Email'], ['representative', 'Represented by (for companies)'], ['representative_title', 'Representative title']];
+const PARTY_FIELDS = [['name', 'Full name / company name', true], ['id_number', 'CPR / CR / passport number'], ['address', 'Address'], ['phone', 'Telephone'], ['email', 'Email'], ['representative', 'Represented by (for companies)'], ['representative_title', 'Representative title'], ['representative_cpr', 'Representative CPR number']];
 
 function mountAgreements(r, ctx) {
   const { pool, core, NotFound, Forbidden } = ctx;
@@ -119,7 +119,7 @@ function mountAgreements(r, ctx) {
     const fields = A.fieldsFor(tpl);
     const values = (await withTerms(a.ws.id, fields, g ? g.values : {})).values;
     const party = g && g.party_id ? (await pool.query('select * from parties where id = $1', [g.party_id])).rows[0] : null;
-    const parties = (await pool.query('select id, name, kind, id_number, address, phone, email, representative, representative_title from parties where archived_at is null order by name limit 1000')).rows;
+    const parties = (await pool.query('select id, name, kind, id_number, address, phone, email, representative, representative_title, representative_cpr from parties where archived_at is null order by name limit 1000')).rows;
     const co = await company();
     const coMissing = ['legal_name', 'cr_number', 'address', 'signatory_name'].filter(k => !co[k]);
     const dflt = f => f.default === 'today' ? today() : f.default;
@@ -160,13 +160,13 @@ function mountAgreements(r, ctx) {
     if (id) {
       const cur = (await db.query('select * from parties where id = $1', [id])).rows[0];
       if (!cur) throw bad('That party no longer exists.');
-      if (p.name) await db.query('update parties set name = $2, kind = $3, id_number = $4, address = $5, phone = $6, email = $7, representative = $8, representative_title = $9 where id = $1',
-        [id, p.name, kind, p.id_number, p.address, p.phone, p.email, p.representative, p.representative_title]);
+      if (p.name) await db.query('update parties set name = $2, kind = $3, id_number = $4, address = $5, phone = $6, email = $7, representative = $8, representative_title = $9, representative_cpr = $10 where id = $1',
+        [id, p.name, kind, p.id_number, p.address, p.phone, p.email, p.representative, p.representative_title, p.representative_cpr]);
       return id;
     }
     if (!p.name) return null;
-    return (await db.query('insert into parties (name, kind, id_number, address, phone, email, representative, representative_title, roles, created_by) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) returning id',
-      [p.name, kind, p.id_number, p.address, p.phone, p.email, p.representative, p.representative_title, [tplCounterparty.toLowerCase()], req.user.id])).rows[0].id;
+    return (await db.query('insert into parties (name, kind, id_number, address, phone, email, representative, representative_title, representative_cpr, roles, created_by) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) returning id',
+      [p.name, kind, p.id_number, p.address, p.phone, p.email, p.representative, p.representative_title, p.representative_cpr, [tplCounterparty.toLowerCase()], req.user.id])).rows[0].id;
   }
 
   r.post('/w/:id/agreements', async (req, res) => {
