@@ -172,7 +172,7 @@ function drawSignBoxes(doc, boxes, X, W, limit) {
       for (let k = b.rows.length; k < rowsMax; k++) y += 22;
       line('Signature', '', 58);
       line('Date', '');
-      if (b.stamp) { doc.font('body').fontSize(8).fillColor('#6E5B50').text('Company stamp', x + 10, y + 6, { lineBreak: false }); doc.save().lineWidth(0.6).dash(3, { space: 3 }).strokeColor('#BFAE9F').rect(x + 78, y + 4, 90, 52).stroke().undash().restore(); y += 62; }
+      if (b.stamp) { doc.font('body').fontSize(8).fillColor('#6E5B50').text('Company stamp', x + 10, y + 6, { lineBreak: false }); y += 62; }      // empty space for the stamp, no frame
     });
     doc.x = X; doc.y = y0 + H + 14;
   }
@@ -235,7 +235,7 @@ async function renderDocx({ text, ref, letterhead, letterheadType, company = {},
         children: [new TextRun({ text: `${label}  `, font: 'IBM Plex Sans', size: 16, color: '6E5B50' }), new TextRun({ text: value || '', font: 'IBM Plex Sans', size: 19, bold: true })] });
       const cell = bx => new TableCell({ width: { size: 50, type: WidthType.PERCENTAGE }, borders: { top: edge, bottom: edge, left: edge, right: edge }, margins: { top: 0, bottom: 160, left: 140, right: 140 },
         children: [new Paragraph({ shading: { type: ShadingType.CLEAR, color: 'auto', fill: '140D0A' }, spacing: { before: 0, after: 80 }, children: [new TextRun({ text: bx.title, font: 'IBM Plex Sans', bold: true, size: 18, color: 'F1E6DA' })] }),
-          ...bx.rows.map(([k, v]) => field(k, v)), field('Signature', '', true), field('Date', ''), ...(bx.stamp ? [field('Company stamp', '', true)] : [])] });
+          ...bx.rows.map(([k, v]) => field(k, v)), field('Signature', '', true), field('Date', ''), ...(bx.stamp ? [new Paragraph({ spacing: { before: 160, after: 900 }, children: [new TextRun({ text: 'Company stamp', font: 'IBM Plex Sans', size: 16, color: '6E5B50' })] })] : [])] });
       for (let r = 0; r < b.boxes.length; r += 2) {
         const row = b.boxes.slice(r, r + 2);
         children.push(new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, borders: { insideVertical: { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' } }, rows: [new TableRow({ cantSplit: true, children: row.map(cell).concat(row.length < 2 ? [new TableCell({ children: [new Paragraph('')], borders: { top: { style: BorderStyle.NONE }, bottom: { style: BorderStyle.NONE }, left: { style: BorderStyle.NONE }, right: { style: BorderStyle.NONE } } })] : []) })] }));
