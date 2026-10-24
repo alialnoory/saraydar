@@ -1,21 +1,41 @@
 'use strict';
 // The SarayDar dark heading used on every generated PDF (owner decision 2026-10-24: the same dark band as the
 // page exports, on invoices, receipts, statements, reports and agreements too; no letterhead image).
+const path = require('path');
+const LOGO_FONT = path.join(__dirname, '..', 'fonts', 'jost-latin-500-normal.ttf');
 const BAND = '#140D0A', BAND_INK = '#F1E6DA', BAND_MUTED = '#B9A595', COPPER = '#D29466';
+
+// The SΛRΛYDΛR wordmark in its own typeface (Jost). Jost has no Greek Λ, so each Λ is Jost's V turned upside
+// down, which is the same geometric shape. size = font size in pt; returns the width drawn.
+function logo(doc, x, y, { size = 20, color = BAND_INK, tracking = 0.34 } = {}) {
+  if (!doc._registeredFonts || !doc._registeredFonts.sdlogo) doc.registerFont('sdlogo', LOGO_FONT);
+  doc.font('sdlogo').fontSize(size).fillColor(color);
+  const f = doc._font, asc = f.ascender / 1000 * size, cap = (f.capHeight || 700) / 1000 * size;
+  const cy = y + asc - cap / 2;                      // middle of the capitals
+  let cx = x;
+  for (const ch of 'SΛRΛYDΛR') {
+    const g = ch === 'Λ' ? 'V' : ch;
+    const w = doc.widthOfString(g);
+    if (ch === 'Λ') { doc.save(); doc.translate(0, 2 * cy).scale(1, -1); doc.text(g, cx, y, { lineBreak: false }); doc.restore(); }
+    else doc.text(g, cx, y, { lineBreak: false });
+    cx += w + size * tracking;
+  }
+  return cx - x - size * tracking;
+}
 
 // Draws the band across the top of the current page and leaves doc.y just below it.
 // title: big line; sub: small line under it; right: [[text, {bold?, color?}]...] shown on the right.
 function band(doc, { title, sub = '', right = [], x = 40, width }) {
-  const W = width || doc.page.width - 2 * x, H = 92;
+  const W = width || doc.page.width - 2 * x, H = 104;
   doc.save();
   doc.rect(0, 0, doc.page.width, H).fill(BAND);
   doc.rect(0, H - 3, 96, 3).fill(COPPER);
   doc.restore();
   const rightW = right.length ? Math.min(220, W * 0.42) : 0;
-  doc.font('display').fontSize(12).fillColor(BAND_INK).text('SARAYDAR', x, 22, { characterSpacing: 5, lineBreak: false });
-  doc.font('display').fontSize(19).fillColor(BAND_INK).text(title, x, 40, { width: W - rightW - 12, height: 26, ellipsis: true });
-  if (sub) doc.font('body').fontSize(8.5).fillColor(BAND_MUTED).text(sub, x, 68, { width: W - rightW - 12, height: 12, ellipsis: true });
-  let ry = 26;
+  logo(doc, x, 18, { size: 20 });
+  doc.font('display').fontSize(17).fillColor(BAND_INK).text(title, x, 52, { width: W - rightW - 12, height: 24, ellipsis: true });
+  if (sub) doc.font('body').fontSize(8.5).fillColor(BAND_MUTED).text(sub, x, 78, { width: W - rightW - 12, height: 12, ellipsis: true });
+  let ry = 24;
   for (const [t, o = {}] of right) {
     doc.font(o.bold ? 'bold' : 'body').fontSize(o.size || 10).fillColor(o.color || BAND_INK).text(t, x + W - rightW, ry, { width: rightW, align: 'right', lineBreak: false });
     ry += (o.size || 10) + 6;
@@ -41,4 +61,4 @@ function footer(doc, { company = {}, ref = '', x = 40, width, fromBottom = 32 })
   }
 }
 
-module.exports = { band, footer, BAND };
+module.exports = { band, footer, logo, BAND };

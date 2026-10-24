@@ -3,6 +3,7 @@
 // It works from the HTML the signed-in user would see, so exports can never contain more than the page shows.
 // Forms, buttons, navigation and scripts are dropped; headings, key/value details, figures, lists and tables are kept.
 const path = require('path');
+const brand = require('./pdf-brand');
 const { parse } = require('node-html-parser');
 const ExcelJS = require('exceljs');
 const PDFDocument = require('pdfkit');
@@ -133,11 +134,12 @@ function toPdf(page, { user, when }) {
     const W = doc.page.width - 80, X = 40, bottom = () => doc.page.height - 50;
     const ensure = h => { if (doc.y + h > bottom()) doc.addPage(); };
     const plain = s => String(s).replace(/[^\u0000-ɏ‐-‧‰-⁞€™²³×]/g, '');   // fonts are Latin
-    doc.rect(0, 0, doc.page.width, 92).fill('#140D0A');
-    doc.font('display').fontSize(12).fillColor('#F1E6DA').text('SARAYDAR', X, 22, { characterSpacing: 5 });
-    doc.font('display').fontSize(19).text(plain(page.title), X, 40, { width: W });
-    doc.font('body').fontSize(8.5).fillColor('#B9A595').text(plain([page.crumbs, page.tab && page.tab !== page.title && !page.crumbs.endsWith(page.tab) ? page.tab : null].filter(Boolean).join(' · ')), X, 68, { width: W });
-    doc.y = 104; doc.x = X;
+    doc.rect(0, 0, doc.page.width, 104).fill('#140D0A');
+    doc.rect(0, 101, 96, 3).fill('#D29466');
+    brand.logo(doc, X, 18, { size: 20 });
+    doc.font('display').fontSize(17).fillColor('#F1E6DA').text(plain(page.title), X, 52, { width: W, height: 24, ellipsis: true });
+    doc.font('body').fontSize(8.5).fillColor('#B9A595').text(plain([page.crumbs, page.tab && page.tab !== page.title && !page.crumbs.endsWith(page.tab) ? page.tab : null].filter(Boolean).join(' · ')), X, 78, { width: W, height: 12, ellipsis: true });
+    doc.y = 116; doc.x = X;
     doc.font('body').fontSize(8).fillColor(MUTED).text(plain(`${[page.eyebrow, page.meta].filter(Boolean).join(' · ')}${page.eyebrow || page.meta ? '\n' : ''}Exported ${when.toLocaleString('en-GB', { timeZone: 'Asia/Bahrain' })} (Bahrain time) by ${user}. Contents match what this user could see on the page.`), { width: W });
     doc.moveDown(0.6);
     for (const b of page.blocks) {
