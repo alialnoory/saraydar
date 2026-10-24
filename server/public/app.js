@@ -155,6 +155,7 @@ function syncAbout(sel) {
   const box = sel.form && sel.form.querySelector('[data-task-only]'); if (!box) return;
   const opt = sel.options[sel.selectedIndex];
   box.hidden = !sel.value.startsWith('task:');
+  const hint = sel.form.querySelector('[data-no-task]'); if (hint) hint.hidden = !box.hidden;
   const r = box.querySelector('input[type="range"]');
   if (r && opt && opt.dataset.progress !== undefined) { r.value = opt.dataset.progress; r.dispatchEvent(new Event('input', { bubbles: true })); }
 }
@@ -174,3 +175,34 @@ document.addEventListener('change', e => {
   if (st.value === 'done' && r.value !== '100') { r.value = 100; r.dispatchEvent(new Event('input', { bubbles: true })); }
   if (st.value === 'not_started' && r.value !== '0') { r.value = 0; r.dispatchEvent(new Event('input', { bubbles: true })); }
 });
+// Photo uploads on phones and tablets: a "Take photo" button opens the camera directly; each photo taken is added to
+// the files already chosen, and a short list shows what will be uploaded (owner request 2026-10-24).
+(() => {
+  const touch = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+  if (!touch || typeof DataTransfer === 'undefined') return;
+  document.querySelectorAll('input[type="file"]').forEach(main => {
+    if (!/image/.test(main.accept || '') || main.dataset.cam) return;
+    main.dataset.cam = '1';
+    const cam = document.createElement('input');
+    cam.type = 'file'; cam.accept = 'image/*'; cam.setAttribute('capture', 'environment'); cam.hidden = true;
+    const btn = document.createElement('button');
+    btn.type = 'button'; btn.className = 'btn small cam-btn'; btn.textContent = '📷 Take photo';
+    const list = document.createElement('small'); list.className = 'cam-list muted';
+    const bar = document.createElement('div'); bar.className = 'cam-bar'; bar.append(btn, list, cam);
+    main.insertAdjacentElement('afterend', bar);
+    const show = () => { const n = main.files.length; list.textContent = n ? `${n} file${n > 1 ? 's' : ''} ready: ${[...main.files].map(f => f.name).join(', ')}` : ''; };
+    btn.addEventListener('click', () => cam.click());
+    cam.addEventListener('change', () => {
+      if (!cam.files.length) return;
+      const dt = new DataTransfer();
+      if (main.multiple) for (const f of main.files) dt.items.add(f);
+      for (const f of cam.files) {
+        const named = new File([f], `photo-${new Date().toISOString().slice(0, 19).replace(/[-:T]/g, '')}-${dt.items.length + 1}.jpg`, { type: f.type || 'image/jpeg' });
+        dt.items.add(named);
+      }
+      main.files = dt.files; cam.value = '';
+      main.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    main.addEventListener('change', show);
+  });
+})();

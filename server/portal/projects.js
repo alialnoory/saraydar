@@ -945,6 +945,7 @@ function mountProjects(r, ctx) {
           ${tasks.some(t => !t.phase_id) ? html`<optgroup label="Other tasks">${tasks.filter(t => !t.phase_id).map(t => html`<option value="task:${t.id}" data-progress="${t.progress || 0}">${t.title}</option>`)}</optgroup>` : ''}
         </select><small>Pick a task to record its progress; the update is named after it.</small></label>
       ${field({ name: 'observed_on', label: 'Observation date', type: 'date', required: true, value: todayBH() })}
+      <p class="full notice info" data-no-task>To record progress, choose a task in “What is this update about?”. The progress slider then appears here, starting from the task's current %.</p>
       <div class="full" data-task-only hidden>${progressField({ name: 'reported_progress', label: 'Progress of this task now', value: 0 })}
       <label class="field check"><input type="checkbox" name="apply_progress" value="1" checked> <span>Also set the task's progress to this %</span></label></div>
       ${field({ name: 'completed_work', label: 'Work completed', type: 'textarea', full: true })}

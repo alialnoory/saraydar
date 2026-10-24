@@ -458,3 +458,6 @@ form.inline { display: inline; }
 .pp-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
 .pp-chips .chip { border: 1px solid var(--line-strong); background: var(--surface); border-radius: 999px; padding: 5px 12px; font: inherit; font-size: 13px; cursor: pointer; color: var(--ink); }
 .pp-chips .chip:hover { border-color: var(--accent); color: var(--accent); }
+.cam-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 8px; }
+.cam-btn { font-size: 15px; padding: 10px 16px; }
+.cam-list { flex: 1 1 200px; }
