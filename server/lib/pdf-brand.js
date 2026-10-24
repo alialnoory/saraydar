@@ -31,15 +31,16 @@ function band(doc, { title, sub = '', right = [], x = 40, width }) {
   doc.rect(0, 0, doc.page.width, H).fill(BAND);
   doc.rect(0, H - 3, doc.page.width, 3).fill(COPPER);
   doc.restore();
-  // left: the logo with the company line under it; right: the document number, then the type of document under it
+  // left: the logo with the company line under it; right: the type of document, then its number under it
   const rightW = Math.min(260, W * 0.5);
   logo(doc, x, 24, { size: 20 });
   if (sub) doc.font('body').fontSize(8.5).fillColor(BAND_MUTED).text(sub, x, 62, { width: W - rightW - 12, height: 12, ellipsis: true });
   const [first, ...rest] = right;
   let ry = first ? 24 : 34;
   const line = (t, o = {}) => { doc.font(o.display ? 'display' : o.bold ? 'bold' : 'body').fontSize(o.size || 10).fillColor(o.color || BAND_INK).text(t, x + W - rightW, ry, { width: rightW, align: 'right', lineBreak: false }); ry += (o.size || 10) + (o.display ? 5 : 6); };
-  if (first) line(first[0], first[1]);
+  ry = 22;
   line(title, { display: true, size: 17 });
+  if (first) line(first[0], first[1]);
   for (const [t, o] of rest) line(t, o);
   doc.x = x; doc.y = H + 16;
 }
