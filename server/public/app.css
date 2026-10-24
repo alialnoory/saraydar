@@ -474,3 +474,4 @@ body.pdfview { background: #3A2B23; margin: 0; }
 .pv-page { background: #fff; box-shadow: 0 2px 10px rgba(0,0,0,.35); max-width: 100%; }
 .pv-msg { color: #F1E6DA; padding: 40px 16px; text-align: center; }
 @media (max-width: 480px) { .pv-btn { padding: 7px 9px; font-size: 13px; } #pv-dl { display: none; } }
+.client-name { font-weight: 600 !important; }

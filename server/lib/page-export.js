@@ -64,6 +64,7 @@ function extract(htmlString) {
         continue;
       }
       if (cls.includes('gallery')) { const n = el.querySelectorAll('img').length; if (n) blocks.push({ kind: 'text', text: `${n} photo(s) — view them in the portal.` }); continue; }
+      if (cls.includes('client-name')) { const t = cellText(el); if (t) blocks.push({ kind: 'name', text: t }); continue; }   // a client's or owner's name: large and bold
       if (tag === 'p' || cls.includes('empty') || cls.includes('notice')) { const t = cellText(el); if (t) blocks.push({ kind: 'text', text: t }); continue; }
       if (el.childNodes.length) walk(el);
     }
@@ -109,6 +110,7 @@ async function toXlsx(page, { user, when }) {
     if (b.kind === 'heading') { heading = b.text; addRow(sum, [b.text], true); continue; }
     if (b.kind === 'kv') { for (const [k, v] of b.pairs) addRow(sum, [k, v]); continue; }
     if (b.kind === 'list') { for (const it of b.items) addRow(sum, ['', it]); continue; }
+    if (b.kind === 'name') { const r = addRow(sum, ['', b.text]); if (r && r.getCell) r.getCell(2).font = { bold: true, size: 13 }; continue; }
     if (b.kind === 'text') { addRow(sum, ['', b.text]); continue; }
     if (b.kind === 'table') {
       const ws = wb.addWorksheet(sheetName(heading));
@@ -145,6 +147,7 @@ function toPdf(page, { user, when }) {
     doc.moveDown(0.6);
     for (const b of page.blocks) {
       if (b.kind === 'heading') { ensure(40); doc.moveDown(0.4).font('display').fontSize(b.level <= 2 ? 13.5 : 11.5).fillColor(ACC).text(plain(b.text), X, doc.y, { width: W }).moveDown(0.25); continue; }
+      if (b.kind === 'name') { ensure(26); doc.font('bold').fontSize(14).fillColor(INK).text(plain(b.text), X, doc.y, { width: W }).moveDown(0.35); continue; }
       if (b.kind === 'text') { ensure(20); doc.font('body').fontSize(9).fillColor(MUTED).text(plain(b.text), X, doc.y, { width: W }).moveDown(0.3); continue; }
       if (b.kind === 'list') { for (const it of b.items) { ensure(16); doc.font('body').fontSize(9).fillColor(INK).text(plain(`•  ${it.replace(/\n/g, ' · ')}`), X, doc.y, { width: W }).moveDown(0.15); } doc.moveDown(0.3); continue; }
       if (b.kind === 'kv') {
