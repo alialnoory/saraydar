@@ -97,6 +97,15 @@ function blocks(text) {
   return out;
 }
 
+// **text** in a template prints in bold (used for the parties' names).
+const segments = t => String(t).split(/\*\*(.+?)\*\*/s).map((x, i) => ({ t: x, b: i % 2 === 1 })).filter(x => x.t !== '');
+function richText(doc, t, opts, size = 10) {
+  const segs = segments(t);
+  if (!segs.length) return doc;
+  segs.forEach((g, i) => doc.font(g.b ? 'bold' : 'body').fontSize(size).fillColor('#2A1C15').text(g.t, i === 0 ? { ...opts, continued: i < segs.length - 1 } : { continued: i < segs.length - 1 }));
+  return doc;
+}
+
 const NOTICE = 'STARTER DRAFT — prepared from a generic template. Have it reviewed by your legal adviser before signing.';
 
 function renderPdf({ text, ref, letterhead, company = {}, marginTop = 45, marginBottom = 30, notice = false }) {
@@ -115,8 +124,8 @@ function renderPdf({ text, ref, letterhead, company = {}, marginTop = 45, margin
         doc.font('display').fontSize(18).fillColor('#2A1C15').text(b.t, { align: 'center', width: W }).moveDown(0.6);
         if (notice) doc.font('bold').fontSize(8.5).fillColor('#7A4F0C').text(NOTICE, { align: 'center', width: W }).moveDown(0.8);
       } else if (b.k === 'h') { if (doc.y > doc.page.height - mm(marginBottom) - 60) doc.addPage(); doc.moveDown(0.4).font('bold').fontSize(11).fillColor('#2A1C15').text(b.t, { width: W }).moveDown(0.25); }
-      else if (b.k === 'li') doc.font('body').fontSize(10).fillColor('#2A1C15').text(`•  ${b.t}`, { width: W, indent: 10 }).moveDown(0.15);
-      else doc.font('body').fontSize(10).fillColor('#2A1C15').text(b.t, { width: W, align: 'justify', lineGap: 1.5 }).moveDown(0.55);
+      else if (b.k === 'li') richText(doc, `•  ${b.t}`, { width: W, indent: 10 }).moveDown(0.15);
+      else richText(doc, b.t, { width: W, align: 'justify', lineGap: 1.5 }).moveDown(0.55);
     }
     brand.footer(doc, { company, ref });
     doc.end();
@@ -126,7 +135,9 @@ function renderPdf({ text, ref, letterhead, company = {}, marginTop = 45, margin
 async function renderDocx({ text, ref, letterhead, letterheadType, company = {}, marginTop = 45, marginBottom = 30, notice = false }) {
   letterhead = null; marginTop = 40; marginBottom = 20;     // dark SarayDar heading instead of a letterhead image
   const { Document, Packer, Paragraph, TextRun, ImageRun, Header, Footer, AlignmentType, PageNumber, ShadingType, TabStopType, convertMillimetersToTwip } = docx;
-  const runs = (t, opts = {}) => t.split('\n').map((line, i) => new TextRun({ text: line, break: i ? 1 : 0, font: 'IBM Plex Sans', size: 20, ...opts }));
+  const runs = (t, opts = {}) => { const out = []; let first = true;
+    for (const g of segments(t)) g.t.split('\n').forEach((line, i) => { out.push(new TextRun({ text: line, break: i ? 1 : 0, font: 'IBM Plex Sans', size: 20, bold: g.b, ...opts })); first = false; });
+    return out; };
   const children = [];
   for (const b of blocks(text)) {
     if (b.k === 'title') {

@@ -11,9 +11,9 @@ const COMMON = {
 
 const PARTIES = cp => `This Agreement is made on {{agreement_date}} (reference {{agreement.ref}}) between:
 
-1. {{company.legal_name}}, commercial registration {{company.cr_number}}, of {{company.address}}, represented by {{company.signatory_name}}, {{company.signatory_title}} ("SarayDar"); and
+1. **{{company.legal_name}}**, commercial registration {{company.cr_number}}, of {{company.address}}, represented by {{company.signatory_name}}, {{company.signatory_title}} ("SarayDar"); and
 
-2. {{party.name}}, ID / CR {{party.id_number}}, of {{party.address}}, telephone {{party.phone}}, email {{party.email}}{{party.represented_by}} (the "${cp}").`;
+2. **{{party.name}}**, ID / CR {{party.id_number}}, of {{party.address}}, telephone {{party.phone}}, email {{party.email}}{{party.represented_by}} (the "${cp}").`;
 
 const SIGN = cp => `## Signatures
 
