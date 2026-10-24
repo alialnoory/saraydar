@@ -29,7 +29,7 @@ const { layout, html } = require('./views');
 const pageExport = require('../lib/page-export');
 
 const UNSAFE = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
-const PUBLIC_PATHS = [/^\/invite\/[^/]+$/, /^\/login$/, /^\/forgot$/, /^\/reset\/[^/]+$/, /^\/static\//, /^\/healthz$/];
+const PUBLIC_PATHS = [/^\/invite\/[^/]+$/, /^\/login$/, /^\/forgot$/, /^\/reset\/[^/]+$/, /^\/static\//, /^\/healthz$/, /^\/launch$/];
 const PRE_MFA_PATHS = [/^\/mfa(\/setup)?$/, /^\/logout$/];
 // external viewers may open only these pages (deny by default); /w/:id links send them to their portal
 const EXTERNAL_READ_OK = [/^\/my$/, /^\/p\/[0-9a-f-]{36}(\/[a-z]+)?$/i, /^\/files\/[0-9a-f-]{36}(\/thumb)?$/i, /^\/account(\/[\w-]+)?$/, /^\/users\/[0-9a-f-]{36}\/photo$/i, /^\/mfa(\/setup)?$/, /^\/logout$/];

@@ -1,7 +1,8 @@
 {
   "name": "SarayDar Management System",
   "short_name": "SarayDar",
-  "start_url": "/",
+  "start_url": "/launch",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#F3ECE5",
   "theme_color": "#140D0A",

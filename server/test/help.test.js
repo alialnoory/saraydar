@@ -41,3 +41,23 @@ test('tips on workspace tabs; help page', { skip: !URL_ && 'set TEST_DATABASE_UR
     assert.match((await admin.get('/')).text, /href="\/help"/);
   });
 });
+
+test('opening from the home-screen icon asks for the sign-in again', { skip: !URL_ && 'set TEST_DATABASE_URL to run' }, async t => {
+  const pool = new Pool({ connectionString: URL_ });
+  await pool.query('drop schema public cascade; create schema public;');
+  await db.migrate(pool); await db.seed(pool);
+  await db.ensureAdmin(pool, { ADMIN_EMAIL: 'ali@example.com', ADMIN_PASSWORD: 'admin-pass-123' });
+  const server = createApp({ pool, jwtSecret: 's'.repeat(40), corsOrigins: [], env: {} }).listen(0);
+  const base = `http://127.0.0.1:${server.address().port}`;
+  t.after(async () => { server.close(); await pool.end(); });
+  const admin = client(base); await admin.post('/login', { identifier: 'ali@example.com', password: 'admin-pass-123' }, '/login');
+  assert.equal((await admin.get('/')).status, 200);
+  // a link from another site does not sign anyone out
+  const cross = await admin.raw('GET', '/launch', { headers: { 'sec-fetch-site': 'cross-site' } });
+  assert.equal(cross.location, '/');
+  assert.equal((await admin.get('/')).status, 200);
+  // the home-screen launch ends the session and shows the sign-in page
+  const l = await admin.raw('GET', '/launch', { headers: { 'sec-fetch-site': 'none' } });
+  assert.equal(l.location, '/login');
+  assert.match((await admin.raw('GET', '/')).location || '', /^\/login/);
+});

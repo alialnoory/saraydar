@@ -81,6 +81,18 @@ function mountAuth(r, ctx) {
     res.redirect(next || homeFor(u));
   });
 
+  // Opening the portal from the phone's home-screen icon always asks for the sign-in (owner request 2026-10-24).
+  // The icon starts at /launch (see manifest). Only a launch the person made themselves (no other site involved)
+  // ends the current session, so a link from elsewhere cannot sign anyone out.
+  r.get('/launch', async (req, res) => {
+    const own = ['none', 'same-origin', undefined].includes(req.get('sec-fetch-site'));
+    if (req.user && own) {
+      await core.audit(null, { actor: req.user, action: 'logout', entity: 'user', entityId: req.user.id, summary: 'Signed out when the app was opened from the home screen', ip: req.ip });
+      await core.endSession(req, res);
+    }
+    res.redirect(req.user && !own ? '/' : '/login');
+  });
+
   r.post('/logout', async (req, res) => {
     if (req.user) await core.audit(null, { actor: req.user, action: 'logout', entity: 'user', entityId: req.user.id, ip: req.ip });
     await core.endSession(req, res);
