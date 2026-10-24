@@ -52,7 +52,11 @@ function layout(req, { title, crumbs = [], heading = null, sub = null, tabs = nu
     && /<table|class="(details|stats|kv|card|rows|feed|empty|ws-grid)|<p[ >]/.test(bodyStr.replace(/<form[\s\S]*?<\/form>/g, ''));
   // Preview opens the same PDF in a new tab instead of downloading it; the file name rides at the end of the address
   // so a phone saves it under that name
-  const previewHref = () => { const q = new URLSearchParams(req.query); q.delete('msg'); q.delete('page'); q.set('export', 'pdf'); q.set('view', '1'); return `${req.path.replace(/\/$/, '')}/~/${encodeURIComponent(`${String(req.path === '/' ? 'SarayDar Home' : title || 'SarayDar').replace(/[\\/:*?"<>|]+/g, ' ').trim()}.pdf`)}?${q}`; };
+  // the same name the downloaded file gets: "Reference - name - tab - date" (see page-export nameParts)
+  const pdfName = () => { const DL = require('../lib/download'); const ref = sub && sub.above ? String(sub.above).split(' · ')[0] : '';
+    const name = req.path === '/' ? 'SarayDar Home' : String(heading || title || 'SarayDar'); const cur = tabs ? (tabs.find(t => t[2]) || [])[0] : null;
+    return DL.fileName([ref, name, cur && cur !== name ? cur : null, DL.today()], 'pdf'); };
+  const previewHref = () => { const q = new URLSearchParams(req.query); q.delete('msg'); q.delete('page'); q.set('export', 'pdf'); q.set('view', '1'); return `${req.path.replace(/\/$/, '')}/~/${encodeURIComponent(pdfName())}?${q}`; };
   const exportHref = fmt => { const q = new URLSearchParams(req.query); q.delete('msg'); q.delete('page'); q.set('export', fmt); return `${req.path}?${q}`; };
   const I = {
     back: raw('<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>'),
