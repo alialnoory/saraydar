@@ -126,7 +126,7 @@ Last updated: 2026-10-24
 - Browser check (Chromium) at 1366 px and 390 px: sign-in → MFA enrolment → dashboard → section → workspace → upload; no horizontal scroll.
 
 ## Not yet built
-- Requested next (owner, 2026-10-24): AI "Search the market" on acquisition requests — web search of public Bahrain property sites from the brief, candidates with links marked unverified, agent adds as external opportunity. Needs ANTHROPIC_API_KEY. Reminder set for Monday 2026-10-26.
+- Requested next (owner, 2026-10-24): AI "Search the market" on acquisition requests — web search of public Bahrain property sites from the brief, candidates with links marked unverified, agent adds as external opportunity. Must include spend controls (owner, 2026-10-24): max 5 web searches per click; a monthly AI spending cap enforced in the portal (set by Super Admin); actual cost of every AI call recorded from the API usage report, with per-search and monthly totals in Administration. Estimated $0.11–0.17 per search. Needs ANTHROPIC_API_KEY. Reminder set for Monday 2026-10-26.
 - Arabic RTL interface (owner decision: English only), tenant self-service portal, payment gateway, configurable sales pipeline stages, currency conversion, automatic monthly fee issuing, object storage for large photo volumes. See docs/REQUIREMENTS.md.
 
 ## External dependencies (not available yet)
