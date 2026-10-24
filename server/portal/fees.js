@@ -148,12 +148,15 @@ function mountFees(r, ctx, P) {
     const canPost = core.isSuper(req.user) || await core.can(req.user, 'finance:post');
     const role = a.ws.section === 'props' ? 'owner' : 'client';
     const clients = edit ? (await pool.query("select id, name from parties where $1 = any(roles) and archived_at is null order by name limit 500", [role])).rows : [];
-    const base = draft || act || {};
+    const base = { ...(draft || act || {}) };
+    // the reference fills itself from this workspace's agreement (signed first, then issued, then the latest draft)
+    const agr = (await pool.query("select ref, signed_on, status from agreements where workspace_id = $1 and status <> 'cancelled' order by case status when 'signed' then 0 when 'issued' then 1 else 2 end, created_at desc limit 1", [a.ws.id])).rows[0];
+    if (agr && !base.agreement_ref) { base.agreement_ref = agr.ref; if (!base.signed_on && agr.signed_on) base.signed_on = agr.signed_on; }
     const showTerms = a.finance;
     const tf = (k, label, extra = {}) => field({ name: k, label, value: base[k] instanceof Date ? iso(base[k]) : base[k] ?? '', ...extra });
     res.send(page(req, a, 'Client & Agreement', html`
       <div class="split">
-        <section class="panel grow1"><div class="row-between"><h2 class="h">${party(a)}</h2>${client ? html`<a class="btn small" href="/clients/${client.id}">Full ${party(a).toLowerCase()} profile</a>` : ''}</div>
+        <section class="panel grow1"><div class="row-between"><h2 class="h">${party(a)}</h2>${client ? html`<div class="actions">${edit ? html`<a class="btn small primary" href="/clients/${client.id}?edit=1&back=${encodeURIComponent(`/w/${a.ws.id}/client`)}#edit">Edit ${party(a).toLowerCase()} details</a>` : ''}<a class="btn small" href="/clients/${client.id}">Full profile</a></div>` : ''}</div>
           ${client ? html`<p class="client-name">${client.name}</p><dl class="details">
             <div><dt>Main contact</dt><dd>${client.contact_person || client.representative || html`<span class="muted">Not recorded</span>`}</dd></div>
             <div><dt>Telephone</dt><dd>${client.phone || '—'}</dd></div><div><dt>Email</dt><dd>${client.email || '—'}</dd></div>
@@ -185,7 +188,7 @@ function mountFees(r, ctx, P) {
             <p class="muted small">Earlier versions are kept. A new version applies from its effective date; invoices for earlier periods keep using the terms in force then.</p>` : ''}
           ${edit ? html`<details class="inline-form" ${!act && !draft ? raw('open') : ''}><summary>${draft ? `Edit draft v${draft.version}` : act ? 'Change the terms (new version)' : 'Record the terms'}</summary>
             <form method="post" action="/w/${a.ws.id}/terms" class="form-grid">${csrfField(req)}
-              ${tf('agreement_ref', 'Agreement reference')}${tf('signed_on', 'Signed on', { type: 'date' })}
+              ${tf('agreement_ref', 'Agreement reference', agr ? { hint: `Filled from ${agr.ref} (${agr.status}) in the Agreements tab.` } : { hint: 'Filled automatically once an agreement is prepared in the Agreements tab.' })}${tf('signed_on', 'Signed on', { type: 'date' })}
               ${tf('start_date', 'Agreement start', { type: 'date', required: true })}${tf('end_date', 'Agreement end', { type: 'date', hint: 'Empty = open-ended.' })}
               ${field({ name: 'effective_from', label: 'These terms apply from', type: 'date', required: true, value: draft ? iso(draft.effective_from) : act ? '' : iso(base.start_date) || '', hint: act ? 'The date the change takes effect.' : 'Usually the agreement start.' })}
               ${field({ name: 'monthly_fee', label: 'Monthly management fee (BHD)', required: true, value: base.monthly_fee_minor !== undefined ? toInput(num(base.monthly_fee_minor)) : '', attrs: 'inputmode="decimal" placeholder="0.000"' })}

@@ -87,6 +87,7 @@ function mountClients(r, ctx, F) {
     return c;
   }
 
+  const backOf = b => typeof b === 'string' && /^\/w\/[0-9a-f-]{36}\/client$/i.test(b) ? b : null;   // return to the workspace after editing
   r.get('/clients/:pid', async (req, res) => {
     const g = await gate(req);
     const c = await load(req);
@@ -116,7 +117,7 @@ function mountClients(r, ctx, F) {
           ${field({ name: 'kind', label: 'Type', options: Object.entries(KINDS) })}${field({ name: 'occurred_on', label: 'Date', type: 'date', required: true, value: new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Bahrain' }) })}
           ${field({ name: 'workspace_id', label: 'Project', options: [['', 'General'], ...projects.map(w => [w.id, w.name])] })}
           ${field({ name: 'summary', label: 'Summary', type: 'textarea', required: true, full: true })}<div class="actions full"><button class="btn" type="submit">Save</button></div></form></details></section>
-      ${g.canEdit ? html`<details class="panel inline-form"><summary><b>Edit profile</b></summary>${form(req, c, `/clients/${c.id}`, 'Save profile')}</details>` : ''}`));
+      ${g.canEdit ? html`<details class="panel inline-form" id="edit" ${req.query.edit ? raw('open') : ''}><summary><b>Edit profile</b></summary>${form(req, c, `/clients/${c.id}${backOf(req.query.back) ? `?back=${encodeURIComponent(backOf(req.query.back))}` : ''}`, 'Save profile')}</details>` : ''}`));
   });
 
   r.post('/clients/:pid', async (req, res) => {
@@ -129,7 +130,7 @@ function mountClients(r, ctx, F) {
       const changed = cols.filter(k => (c[k] || null) !== v[k]);
       await core.audit(db, { actor: req.user, action: 'client.updated', entity: 'party', entityId: c.id, summary: `Client updated: ${v.name}${changed.length ? ` (${changed.join(', ')})` : ''}`, before: Object.fromEntries(changed.map(k => [k, c[k]])), after: Object.fromEntries(changed.map(k => [k, v[k]])), ip: req.ip });
     });
-    res.redirect(`/clients/${c.id}?msg=saved`);
+    res.redirect(backOf(req.query.back) ? `${backOf(req.query.back)}?msg=saved` : `/clients/${c.id}?msg=saved`);
   });
 
   r.post('/clients/:pid/correspondence', async (req, res) => {
