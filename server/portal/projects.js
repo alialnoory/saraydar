@@ -941,7 +941,7 @@ function mountProjects(r, ctx) {
       <label class="field full" for="f-about"><span>What is this update about? <i class="req" aria-hidden="true">*</i></span>
         <select id="f-about" name="about" data-about>
           <option value="">General site update (whole project)</option>
-          ${phases.map(p => html`<optgroup label="${p.name}"><option value="phase:${p.id}">${p.name}: whole phase</option>${tasks.filter(t => t.phase_id === p.id).map(t => html`<option value="task:${t.id}" data-progress="${t.progress || 0}" ${req.query.task === t.id ? raw('selected') : ''}>${t.title}${t.progress ? ` (now ${t.progress}%)` : ''}</option>`)}</optgroup>`)}
+          ${phases.filter(p => tasks.some(t => t.phase_id === p.id)).map(p => html`<optgroup label="${p.name}">${tasks.filter(t => t.phase_id === p.id).map(t => html`<option value="task:${t.id}" data-progress="${t.progress || 0}" ${req.query.task === t.id ? raw('selected') : ''}>${t.title}${t.progress ? ` (now ${t.progress}%)` : ''}</option>`)}</optgroup>`)}
           ${tasks.some(t => !t.phase_id) ? html`<optgroup label="Other tasks">${tasks.filter(t => !t.phase_id).map(t => html`<option value="task:${t.id}" data-progress="${t.progress || 0}">${t.title}</option>`)}</optgroup>` : ''}
         </select><small>Pick a task to record its progress; the update is named after it.</small></label>
       ${field({ name: 'observed_on', label: 'Observation date', type: 'date', required: true, value: todayBH() })}
@@ -962,7 +962,7 @@ function mountProjects(r, ctx) {
   r.post('/w/:id/updates', upload.array('photos', 12), async (req, res) => {
     if (!core.checkCsrf(req)) throw new Forbidden('Your form expired. Reload the page and try again.');
     const a = await access(req, 'contribute');
-    // one choice "what is this update about": a task (its phase follows), a whole phase, or the whole project;
+    // one choice "what is this update about": a task (its phase follows) or the whole project;
     // the update takes its name from that choice (title / phase_id / task_id are still accepted)
     const about = String(req.body.about || '');
     const task = about.startsWith('task:') ? await own('tasks', about.slice(5), a.ws.id) : req.body.task_id ? await own('tasks', req.body.task_id, a.ws.id) : null;
