@@ -50,10 +50,14 @@ function layout(req, { title, crumbs = [], heading = null, sub = null, tabs = nu
   const bodyStr = String(body || '');
   const exportable = !!u && !bare && !noExport && !(u.kind === 'external' && !req.canExport) && req.method === 'GET' && !/^\/(mfa|reset|login|forgot)/.test(req.path)
     && /<table|class="(details|stats|kv|card|rows|feed|empty|ws-grid)|<p[ >]/.test(bodyStr.replace(/<form[\s\S]*?<\/form>/g, ''));
+  // Preview opens the same PDF in a new tab instead of downloading it; the file name rides at the end of the address
+  // so a phone saves it under that name
+  const previewHref = () => { const q = new URLSearchParams(req.query); q.delete('msg'); q.delete('page'); q.set('export', 'pdf'); q.set('view', '1'); return `${req.path.replace(/\/$/, '')}/~/${encodeURIComponent(`${String(req.path === '/' ? 'SarayDar Home' : title || 'SarayDar').replace(/[\\/:*?"<>|]+/g, ' ').trim()}.pdf`)}?${q}`; };
   const exportHref = fmt => { const q = new URLSearchParams(req.query); q.delete('msg'); q.delete('page'); q.set('export', fmt); return `${req.path}?${q}`; };
   const I = {
     back: raw('<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>'),
     home: raw('<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/></svg>'),
+    eye: raw('<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>'),
     file: raw('<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11"/><path d="M7 10l5 5 5-5"/><path d="M5 20h14"/></svg>'),
     undo: raw('<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg>'),
     redo: raw('<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 14l5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/></svg>')
@@ -66,7 +70,7 @@ function layout(req, { title, crumbs = [], heading = null, sub = null, tabs = nu
   const pagenav = !u || bare ? '' : html`<div class="pagenav" role="navigation" aria-label="Page navigation">
     <div class="navgroup"><a class="navbtn" href="${parent}" data-back>${I.back}Back</a><a class="navbtn" href="${home}">${I.home}Home</a></div>
     ${undoNav}
-    ${exportable ? html`<div class="navgroup" aria-label="Export"><a class="navbtn" href="${exportHref('pdf')}" rel="nofollow">${I.file}PDF</a><a class="navbtn" href="${exportHref('xlsx')}" rel="nofollow">${I.file}Excel</a></div>` : ''}
+    ${exportable ? html`<div class="navgroup" aria-label="Export"><a class="navbtn" href="${previewHref()}" target="_blank" rel="nofollow noopener">${I.eye}Preview</a><a class="navbtn" href="${exportHref('pdf')}" rel="nofollow">${I.file}PDF</a><a class="navbtn" href="${exportHref('xlsx')}" rel="nofollow">${I.file}Excel</a></div>` : ''}
   </div>`;
   const msg = MESSAGES[req.query && req.query.msg];
   const header = bare ? html`

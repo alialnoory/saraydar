@@ -119,7 +119,7 @@ function createPortal({ pool, secret, mailer, env = process.env }) {
         const ws = (/^\/[wp]\/([0-9a-f-]{36})/.exec(req.path) || [])[1] || null;
         await core.audit(null, { actor: req.user, workspaceId: ws, action: `export.${fmt}`, entity: 'page', entityId: req.path.slice(0, 200), summary: `Exported “${page.title}${page.tab && page.tab !== page.title ? ' · ' + page.tab : ''}” as ${fmt === 'pdf' ? 'PDF' : 'Excel'}`, ip: req.ip });
         res.set({ 'Content-Type': fmt === 'pdf' ? 'application/pdf' : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-          'Content-Disposition': require('../lib/download').disposition(require('../lib/download').fileName(pageExport.nameParts(page), fmt)), 'Cache-Control': 'private, no-store' });
+          'Content-Disposition': require('../lib/download').disposition(require('../lib/download').fileName(pageExport.nameParts(page), fmt), fmt === 'pdf' && req.query.view === '1'), 'Cache-Control': 'private, no-store' });
         res.end(buf);
       })().catch(next);
       return res;

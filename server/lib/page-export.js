@@ -187,5 +187,5 @@ function toPdf(page, { user, when }) {
 const fileBase = page => (page.eyebrow.split(' · ')[0] || page.title).concat(page.tab && page.tab !== page.title ? `-${page.tab}` : '').replace(/[^A-Za-z0-9-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 80) || 'saraydar-export';
 
 // download name: reference - name - page, e.g. "CPM-2026-001 - SAMAVILLA - Tasks & Schedule - 2026-10-24"
-const nameParts = page => { const ref = page.eyebrow.split(' · ')[0]; return [ref, page.title, page.tab && page.tab !== page.title ? page.tab : null, require('./download').today()]; };
+const nameParts = page => { const ref = page.eyebrow.split(' · ')[0]; const title = /^Good (morning|afternoon|evening)/.test(page.title) ? 'SarayDar Home' : page.title; return [ref, title, page.tab && page.tab !== page.title ? page.tab : null, require('./download').today()]; };
 module.exports = { extract, toXlsx, toPdf, typed, safe, fileBase, nameParts };
