@@ -98,3 +98,45 @@ document.addEventListener('change', e => {
   const t = e.target.closest('[data-hides]'); if (!t) return;
   const g = document.getElementById(t.dataset.hides); if (g) g.hidden = t.checked;
 });
+// Telephone fields: a country-code picker (Bahrain +973 first) beside the number; the saved value is "+973 3333 2677".
+// Numbers already stored keep their code; "Other" lets you type a full international number.
+(() => {
+  const CODES = [['+973', 'Bahrain'], ['+966', 'Saudi Arabia'], ['+974', 'Qatar'], ['+971', 'UAE'], ['+965', 'Kuwait'], ['+968', 'Oman'],
+    ['+20', 'Egypt'], ['+962', 'Jordan'], ['+961', 'Lebanon'], ['+964', 'Iraq'], ['+91', 'India'], ['+92', 'Pakistan'], ['+63', 'Philippines'],
+    ['+44', 'United Kingdom'], ['+1', 'USA / Canada'], ['', 'Other']];
+  const flag = { '+973': '🇧🇭', '+966': '🇸🇦', '+974': '🇶🇦', '+971': '🇦🇪', '+965': '🇰🇼', '+968': '🇴🇲', '+20': '🇪🇬', '+962': '🇯🇴', '+961': '🇱🇧', '+964': '🇮🇶', '+91': '🇮🇳', '+92': '🇵🇰', '+63': '🇵🇭', '+44': '🇬🇧', '+1': '🇺🇸' };
+  const split = v => {
+    v = String(v || '').trim();
+    if (!v) return ['+973', ''];
+    const s = v.replace(/^00/, '+');
+    const hit = CODES.filter(c => c[0] && s.replace(/\s/g, '').startsWith(c[0])).sort((a, b) => b[0].length - a[0].length)[0];
+    if (hit) return [hit[0], s.replace(/\s/g, '').slice(hit[0].length)];
+    if (/^\+/.test(s)) return ['', s];
+    return ['+973', s];
+  };
+  // Bahrain numbers read as 3333 2677; other countries keep the digits as typed (spaces tidied)
+  const group = (d, c) => c === '+973' ? d.replace(/\D/g, '').replace(/(\d{4})(?=\d)/g, '$1 ') : d.replace(/[^\d ]/g, '').replace(/\s+/g, ' ').trim();
+  document.querySelectorAll('input[type="tel"]:not([data-cc])').forEach(real => {
+    if (real.disabled || real.readOnly) return;
+    real.dataset.cc = '1';
+    const [code, num] = split(real.value);
+    const box = document.createElement('div'); box.className = 'tel-wrap';
+    const sel = document.createElement('select'); sel.setAttribute('aria-label', 'Country code'); sel.className = 'tel-cc';
+    CODES.forEach(([c, n]) => { const o = document.createElement('option'); o.value = c; sel.appendChild(o); });
+    // the list shows country names while open; the closed box shows just the flag and code so the number has room
+    const label = full => [...sel.options].forEach((o, i) => { const [c, n] = CODES[i]; o.textContent = full ? (c ? `${flag[c] || ''} ${c}  ${n}` : 'Other: type +code') : (c ? `${flag[c] || ''} ${c}` : 'Other'); });
+    label(false);
+    sel.addEventListener('focus', () => label(true)); sel.addEventListener('mousedown', () => label(true));
+    sel.addEventListener('blur', () => label(false));
+    sel.value = code;
+    const vis = real.cloneNode(); vis.removeAttribute('name'); if (real.id) { vis.id = real.id; real.id = `${real.id}-full`; } vis.value = code ? group(num, code) : num; vis.placeholder = code === '+973' ? '3333 2677' : 'Number';
+    vis.setAttribute('inputmode', 'tel'); vis.dataset.cc = '1';
+    real.type = 'hidden';
+    real.parentNode.insertBefore(box, real); box.append(sel, vis, real);
+    const sync = () => { const d = vis.value.trim(); real.value = !d ? '' : sel.value ? `${sel.value} ${group(d, sel.value)}` : d; };
+    sel.addEventListener('change', () => { label(false); vis.placeholder = sel.value === '+973' ? '3333 2677' : sel.value ? 'Number' : '+code number'; sync(); });
+    vis.addEventListener('input', sync);
+    vis.addEventListener('blur', () => { if (sel.value) vis.value = group(vis.value, sel.value); sync(); });
+    sync();
+  });
+})();

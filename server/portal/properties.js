@@ -405,7 +405,7 @@ function mountProperties(r, ctx) {
       ${edit && units.length ? html`<section class="panel"><h2 class="h">New lease</h2><form method="post" action="/w/${a.ws.id}/leases" class="form-grid">${csrfField(req)}
         ${field({ name: 'unit_id', label: 'Unit', required: true, value: pre, options: [['', 'Choose…'], ...units.map(u => [u.id, `${u.ref} · ${UNIT_STATUS[u.status]}`])] })}
         ${field({ name: 'tenant_id', label: 'Existing tenant', options: [['', 'New tenant…'], ...tenants.map(t => [t.id, t.name])] })}
-        ${field({ name: 'tenant_name', label: 'New tenant name' })}${field({ name: 'tenant_phone', label: 'Tenant phone' })}${field({ name: 'tenant_email', label: 'Tenant email', type: 'email', hint: 'Needed to email rent invoices.' })}${field({ name: 'tenant_id_number', label: 'CPR / CR / passport' })}
+        ${field({ name: 'tenant_name', label: 'New tenant name' })}${field({ name: 'tenant_phone', label: 'Tenant phone', type: 'tel' })}${field({ name: 'tenant_email', label: 'Tenant email', type: 'email', hint: 'Needed to email rent invoices.' })}${field({ name: 'tenant_id_number', label: 'CPR / CR / passport' })}
         ${field({ name: 'start_date', label: 'Start', type: 'date', required: true })}${field({ name: 'end_date', label: 'End', type: 'date', required: true })}
         ${field({ name: 'rent', label: 'Rent per month (BHD)', required: true })}${field({ name: 'frequency_months', label: 'Billed', value: '1', options: Object.entries(FREQ) })}
         ${field({ name: 'proration', label: 'Part months', value: 'daily', options: [['daily', 'Prorate by day'], ['none', 'Full month']] })}${field({ name: 'due_day_offset', label: 'Rent due (days after the period starts)', type: 'number', value: '0', attrs: 'min="0" max="60"' })}

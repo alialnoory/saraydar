@@ -157,7 +157,7 @@ function mountInvestors(r, ctx, P) {
           ${field({ name: 'party', label: 'Investor (existing contact)', options: [['', 'New investor — enter below'], ...parties.map(x => [x.id, x.name])] })}
           ${field({ name: 'new_name', label: 'New investor name', attrs: 'maxlength="160"' })}
           ${field({ name: 'new_kind', label: 'Individual or company', options: [['person', 'Individual'], ['company', 'Company']] })}
-          ${field({ name: 'new_email', label: 'Email', type: 'email' })}${field({ name: 'new_phone', label: 'Phone' })}${field({ name: 'new_rep', label: 'Authorised representative' })}
+          ${field({ name: 'new_email', label: 'Email', type: 'email' })}${field({ name: 'new_phone', label: 'Phone', type: 'tel' })}${field({ name: 'new_rep', label: 'Authorised representative' })}
           ${field({ name: 'participation', label: 'Participation type', options: Object.entries(TYPE), value: 'unconfirmed' })}
           ${field({ name: 'currency', label: 'Currency', options: [['BHD', 'BHD'], ['USD', 'USD'], ['SAR', 'SAR'], ['AED', 'AED']] })}
           ${field({ name: 'committed', label: 'Agreed contribution', hint: 'Leave empty if not yet agreed.' })}

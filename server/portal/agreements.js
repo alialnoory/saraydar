@@ -134,7 +134,7 @@ function mountAgreements(r, ctx) {
         <section class="panel form-grid" style="width:100%"><h2 class="h full">${tpl.counterparty}</h2>
           ${field({ name: 'party_id', label: `Existing ${tpl.counterparty.toLowerCase()}`, value: party ? party.id : '', options: [['', `New ${tpl.counterparty.toLowerCase()}`], ...parties.map(p => [p.id, p.name])], attrs: 'data-party-select', full: true })}
           ${field({ name: 'party_kind', label: 'Type', value: party ? party.kind : 'person', options: [['person', 'Individual'], ['company', 'Company']] })}
-          ${PARTY_FIELDS.map(([k, l, req2]) => field({ name: `p_${k}`, label: l, value: party ? party[k] || '' : '', attrs: `data-party-field="${k}" maxlength="200"`, hint: req2 ? 'Required to generate the document.' : '' }))}
+          ${PARTY_FIELDS.map(([k, l, req2]) => field({ name: `p_${k}`, label: l, type: k === 'phone' ? 'tel' : k === 'email' ? 'email' : 'text', value: party ? party[k] || '' : '', attrs: `data-party-field="${k}" maxlength="200"`, hint: req2 ? 'Required to generate the document.' : '' }))}
           <script type="application/json" id="party-data">${raw(JSON.stringify(Object.fromEntries(parties.map(p => [p.id, p]))).replace(/</g, '\\u003c'))}</script>
           <p class="muted small full">Choosing an existing name fills these fields. Changes you make here update that person's or company's record.</p></section>
         <section class="panel form-grid" style="width:100%"><h2 class="h full">Terms</h2>
@@ -425,7 +425,7 @@ function mountAgreements(r, ctx) {
         <section class="panel grow1"><h2 class="h">Company details used in agreements</h2>
           <form method="post" action="/admin/agreements/company" class="form-grid">${csrfField(req)}
             ${[['legal_name', 'Legal name'], ['trade_name', 'Trade name'], ['cr_number', 'Commercial registration (CR)'], ['vat_number', 'VAT registration number (leave empty while not charging VAT)'], ['address', 'Address'], ['phone', 'Telephone'], ['email', 'Email'], ['signatory_name', 'Authorised signatory'], ['signatory_title', 'Signatory title']]
-              .map(([k, l]) => field({ name: k, label: l, value: co[k] || '' }))}
+              .map(([k, l]) => field({ name: k, label: l, type: k === 'phone' ? 'tel' : 'text', value: co[k] || '' }))}
             <div class="actions full"><button class="btn primary" type="submit">Save</button></div></form></section>
         <section class="panel grow1"><h2 class="h">Letterhead</h2>
           <div class="notice info">Generated PDFs and Word files use the SarayDar dark heading, with the company details above in the footer of every page (owner decision, 24 Oct 2026). An uploaded letterhead image is kept here but not printed.</div>

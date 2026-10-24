@@ -15,7 +15,7 @@ const KINDS = { call: 'Call', email: 'Email', meeting: 'Meeting', letter: 'Lette
 // Client details first, then who signs for the client, then billing and other details (owner request 2026-10-24).
 const CLIENT_F = [['kind', 'Individual or company'], ['name', 'Name'], ['id_number', 'CPR / CR number'], ['phone', 'Telephone'], ['email', 'Email'],
   ['preferred_contact', 'Preferred communication'], ['contact_person', 'Day-to-day contact (if not the client)'], ['address', 'Address']];
-const REP_F = [['representative', 'Representative name'], ['representative_title', 'Title / capacity'], ['representative_cpr', 'Representative CPR number']];
+const REP_F = [['representative', 'Representative name'], ['representative_title', 'Title / capacity'], ['representative_cpr', 'Representative CPR number'], ['representative_phone', 'Representative telephone'], ['representative_email', 'Representative email']];
 const MORE_F = [['representatives', 'Other authorised representatives'], ['billing_name', 'Billing name'], ['billing_address', 'Billing address'], ['billing_email', 'Billing email'],
   ['tax_number', 'Tax registration number'], ['client_reference', 'Client reference'], ['communication_notes', 'Communication responsibilities'], ['notes', 'Notes']];
 const FIELDS = [...CLIENT_F, ...REP_F, ...MORE_F];
@@ -39,17 +39,18 @@ function mountClients(r, ctx, F) {
     v.kind = v.kind === 'company' ? 'company' : 'person';
     if (!v.name) throw bad('Enter the client name.');
     v.signs_personally = b.signs_personally === '1';
-    if (v.signs_personally) { v.representative = null; v.representative_title = null; v.representative_cpr = null; }
+    if (v.signs_personally) { v.representative = null; v.representative_title = null; v.representative_cpr = null; v.representative_phone = null; v.representative_email = null; }
     if (!v.billing_name) v.billing_name = v.name;          // the billing name is the client's name unless a different one is entered
     if (!v.billing_address) v.billing_address = v.address;
     if (!v.billing_email) v.billing_email = v.email;
     if (v.email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v.email)) throw bad('Check the email address.');
+    if (v.representative_email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v.representative_email)) throw bad('Check the representative\'s email address.');
     if (v.billing_email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v.billing_email)) throw bad('Check the billing email address.');
     return v;
   }
   const one = (c, k, l) => k === 'kind' ? field({ name: k, label: l, value: c.kind || 'person', options: [['person', 'Individual'], ['company', 'Company']] })
     : k === 'preferred_contact' ? field({ name: k, label: l, value: c[k] || '', options: [['', 'Not stated'], ...(c[k] && !CH.CONTACT_CHANNELS.includes(c[k]) ? [[c[k], c[k]]] : []), ...CH.CONTACT_CHANNELS.map(x => [x, x])] })
-    : field({ name: k, label: l, value: k === 'billing_name' ? (c.billing_name || c.name || '') : c[k] || '', required: k === 'name', type: LONG.has(k) ? 'textarea' : k.includes('email') ? 'email' : k === 'phone' ? 'tel' : 'text', full: LONG.has(k),
+    : field({ name: k, label: l, value: k === 'billing_name' ? (c.billing_name || c.name || '') : c[k] || '', required: k === 'name', type: LONG.has(k) ? 'textarea' : k.includes('email') ? 'email' : /phone/.test(k) ? 'tel' : 'text', full: LONG.has(k),
         hint: k === 'id_number' ? 'CPR for an individual, CR for a company. Printed in agreements.' : k === 'representative' ? 'Printed in agreements as "represented by …" and in the signature box.'
           : k === 'representative_title' ? 'For example Attorney under power of attorney, Managing Director. Empty = "Client\'s Representative".' : k === 'billing_name' ? 'Same as the client name unless different.'
           : k === 'billing_address' ? 'Leave empty to use the address above.' : k === 'billing_email' ? 'Leave empty to use the email.' : '' });
