@@ -19,7 +19,7 @@ So one database backup is a complete backup. There is no separate attachments fo
 | `server/scripts/test-restore.sh` | Rehearses the full cycle: backup → restore into an empty scratch database → compare the fingerprints. |
 | `.github/workflows/backup.yml` | Nightly encrypted backup at 02:30 Bahrain time, kept for 30 days as a private GitHub artifact. It stays inactive until the two secrets below are added. |
 
-You need `pg_dump` and `pg_restore` of the **same major version as the server, or newer**. The workflow installs version 17.
+You need `pg_dump` and `pg_restore` of the **same major version as the server, or newer**. The workflow installs version 18, matching the Render database (PostgreSQL 18).
 
 ## Schedule and retention (recommended)
 

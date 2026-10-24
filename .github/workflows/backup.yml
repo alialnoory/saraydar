@@ -21,14 +21,14 @@ jobs:
           if [ -z "$DB" ] || [ -z "$PP" ]; then echo "Backup secrets are not set; nothing to do."; echo "ready=no" >> "$GITHUB_OUTPUT"; else echo "ready=yes" >> "$GITHUB_OUTPUT"; fi
       - uses: actions/checkout@v4
         if: steps.cfg.outputs.ready == 'yes'
-      - name: Install PostgreSQL 17 client
+      - name: Install PostgreSQL 18 client (must match or exceed the Render server version)
         if: steps.cfg.outputs.ready == 'yes'
         run: |
           sudo install -d /usr/share/postgresql-common/pgdg
           sudo curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
           echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
-          sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client-17
-          echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
+          sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client-18
+          echo "/usr/lib/postgresql/18/bin" >> "$GITHUB_PATH"
       - name: Back up and encrypt
         if: steps.cfg.outputs.ready == 'yes'
         env: { DATABASE_URL: '${{ secrets.BACKUP_DATABASE_URL }}', BACKUP_PASSPHRASE: '${{ secrets.BACKUP_PASSPHRASE }}' }
