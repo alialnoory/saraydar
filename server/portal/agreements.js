@@ -267,7 +267,7 @@ function mountAgreements(r, ctx) {
     const miss = A.missingRequired(fields, g.values);
     if (miss.length) throw bad(`Fill in: ${miss.map(f => f.label).join(', ')}.`);
     const co = await company();
-    const map = A.resolve(fields, g.values, A.builtins({ company: co, ws: a.ws, party, agreement: g }));
+    const map = A.resolve(fields, g.values, A.builtins({ company: co, ws: a.ws, party, agreement: g, counterparty: tpl.counterparty }));
     let pdf = null, docxBuf = null;
     if (tpl.kind === 'docx') docxBuf = A.fillDocx(tpl.docx, map);
     else {

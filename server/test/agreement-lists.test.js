@@ -24,5 +24,6 @@ test('the other party: CPR for individuals, CR for companies, and who represents
   const co = A.builtins({ party: { name: 'ACME WLL', kind: 'company', contact_person: 'Ahmed Ali' } });
   assert.equal(co['party.id_label'], 'CR No.');
   assert.equal(co['party.represented_by'], ', represented by Ahmed Ali');
+  assert.equal(co['party.signatory_title'], "Client's Representative");
   assert.equal(A.builtins({ party: { name: 'Sara', kind: 'person' } })['party.represented_by'], '');
 });

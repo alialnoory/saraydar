@@ -61,7 +61,7 @@ function readValues(fields, body) {
   return out;
 }
 
-function builtins({ company = {}, ws = {}, party = {}, agreement = {} }) {
+function builtins({ company = {}, ws = {}, party = {}, agreement = {}, counterparty = 'Client' }) {
   // the other party is "represented by" whoever signs for them: the representative recorded on their profile,
   // otherwise their main contact (an individual with neither signs for themselves)
   const repName = party.representative || (party.contact_person && party.contact_person !== party.name ? party.contact_person : '');
@@ -75,7 +75,7 @@ function builtins({ company = {}, ws = {}, party = {}, agreement = {} }) {
     'workspace.name': ws.name, 'workspace.ref': ws.ref, 'workspace.location': ws.location,
     'party.name': party.name, 'party.id_number': party.id_number, 'party.id_label': party.kind === 'company' ? 'CR No.' : 'CPR No.', 'party.address': party.address, 'party.phone': party.phone, 'party.email': party.email,
     'party.representative': party.representative, 'party.representative_title': party.representative_title,
-    'party.represented_by': party.name ? rep : '', 'party.signatory': repName || party.name, 'party.signatory_title': repName ? repTitle || '' : '',
+    'party.represented_by': party.name ? rep : '', 'party.signatory': repName || party.name, 'party.signatory_title': repName ? repTitle || `${counterparty}'s Representative` : '',    // someone signing for the party without a recorded title
     'agreement.ref': agreement.ref, 'agreement.title': agreement.title, 'agreement.date': fmtDate(new Date().toISOString().slice(0, 10))
   };
 }
