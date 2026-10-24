@@ -49,7 +49,7 @@ function layout(req, { title, crumbs = [], heading = null, sub = null, tabs = nu
   const parent = linked.length ? linked[linked.length - 1][1] : home;
   const bodyStr = String(body || '');
   const exportable = !!u && !bare && !noExport && !(u.kind === 'external' && !req.canExport) && req.method === 'GET' && !/^\/(mfa|reset|login|forgot)/.test(req.path)
-    && /<table|class="(details|stats|kv|card|rows|feed|empty)|<p[ >]/.test(bodyStr.replace(/<form[\s\S]*?<\/form>/g, ''));
+    && /<table|class="(details|stats|kv|card|rows|feed|empty|ws-grid)|<p[ >]/.test(bodyStr.replace(/<form[\s\S]*?<\/form>/g, ''));
   const exportHref = fmt => { const q = new URLSearchParams(req.query); q.delete('msg'); q.delete('page'); q.set('export', fmt); return `${req.path}?${q}`; };
   const I = {
     back: raw('<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>'),

@@ -97,6 +97,21 @@ function mountWorkspaces(r, ctx) {
   });
 
   // ---------- section portfolio ----------
+  // one workspace as a small card on the section page (the whole card opens it)
+  function wsCard(w, s, partyLabel, extra, pcols) {
+    const x = extra ? extra[w.id] || {} : null;
+    const facts = [];
+    const who = s.key === 'cpm' ? ['Client', w.party_name] : partyLabel ? [partyLabel.label, w.party_name] : null;
+    if (who) facts.push([who[0], who[1] || 'Not linked']);
+    facts.push(['Location', w.location || '—'], ['Manager', w.manager_name || '—']);
+    if (x && pcols) for (const [l, k] of pcols) facts.push([l.replace(' (due / collected)', ' (due / in)'), x[k]]);
+    else if (x) { facts.push(['Progress', x.progress], ['Next milestone', x.next]); if (s.key === 'cpm') facts.push(['Unpaid fees', x.fees]); }
+    return html`<li><a class="ws-tile" href="/w/${w.id}">
+      <div class="ws-tile-top"><div class="grow"><b class="ws-tile-name">${w.name}</b><div class="muted small">${w.ref}${w.stage ? ` · ${w.stage}` : ''}</div></div>${statusPill(w.status)}</div>
+      <dl class="ws-tile-facts">${facts.map(([l, v]) => html`<div><dt>${l}</dt><dd>${v === null || v === undefined || v === '' ? '—' : v}</dd></div>`)}</dl>
+      <div class="ws-tile-foot"><span>Updated ${fmtDate(w.updated_at)}</span>${x && !pcols && x.alerts ? pill(`${x.alerts} alert${x.alerts === 1 ? '' : 's'}`, 'bad') : ''}<span class="ws-tile-go" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></span></div></a></li>`;
+  }
+
   r.get('/s/:section', async (req, res) => {
     if (core.isExternal(req.user)) return res.redirect('/my');
     const s = sectionOf(req.params.section);
@@ -129,7 +144,8 @@ function mountWorkspaces(r, ctx) {
         <select name="status" aria-label="Status">${[['open', 'Active & on hold'], ['active', 'Active'], ['on_hold', 'On hold'], ['completed', 'Completed'], ['archived', 'Archived'], ['all', 'All']].map(([v, l]) => html`<option value="${v}" ${v === status ? raw('selected') : ''}>${l}</option>`)}</select>
         <select name="sort" aria-label="Sort">${[['updated', 'Recently updated'], ['name', 'Name'], ['ref', 'Reference'], ['created', 'Newest']].map(([v, l]) => html`<option value="${v}" ${v === (req.query.sort || 'updated') ? raw('selected') : ''}>${l}</option>`)}</select>
         <button class="btn" type="submit">Apply</button></form>
-      ${rows.length ? html`<div class="table-wrap"><table><thead><tr>${s.key === 'cpm' ? html`<th>Client</th>` : ''}<th>Name</th><th>Reference</th>${partyLabel && s.key !== 'cpm' ? html`<th>${partyLabel.label}</th>` : ''}<th>Location</th><th>Manager</th>${extra && pcols ? pcols.map(c => html`<th>${c[0]}</th>`) : extra ? html`<th>Progress</th><th>Next milestone</th>${s.key === 'cpm' ? html`<th>Unpaid fees</th>` : ''}<th>Alerts</th>` : ''}<th>Status</th><th>Updated</th></tr></thead><tbody>
+      ${rows.length && !req.exportAll ? html`<ul class="ws-grid" aria-label="${s.name}">${rows.map(w => wsCard(w, s, partyLabel, extra, pcols))}</ul>${pager(req, total, page, PER_PAGE)}`
+        : rows.length ? html`<div class="table-wrap"><table><thead><tr>${s.key === 'cpm' ? html`<th>Client</th>` : ''}<th>Name</th><th>Reference</th>${partyLabel && s.key !== 'cpm' ? html`<th>${partyLabel.label}</th>` : ''}<th>Location</th><th>Manager</th>${extra && pcols ? pcols.map(c => html`<th>${c[0]}</th>`) : extra ? html`<th>Progress</th><th>Next milestone</th>${s.key === 'cpm' ? html`<th>Unpaid fees</th>` : ''}<th>Alerts</th>` : ''}<th>Status</th><th>Updated</th></tr></thead><tbody>
         ${rows.map(w => html`<tr>${s.key === 'cpm' ? html`<td class="client-cell">${w.party_name || html`<span class="muted">Not linked</span>`}</td>` : ''}<td><a href="/w/${w.id}"><b>${w.name}</b></a>${w.stage ? html`<div class="muted small">${w.stage}</div>` : ''}</td><td class="mono">${w.ref}</td>${partyLabel && s.key !== 'cpm' ? html`<td>${w.party_name || '—'}</td>` : ''}<td>${w.location || '—'}</td><td>${w.manager_name || '—'}</td>${extra && pcols ? pcols.map(c => html`<td class="small">${extra[w.id][c[1]]}</td>`) : extra ? html`<td>${extra[w.id].progress}</td><td class="small">${extra[w.id].next}</td>${s.key === 'cpm' ? html`<td class="n">${extra[w.id].fees}</td>` : ''}<td>${extra[w.id].alerts ? pill(String(extra[w.id].alerts), 'bad') : '—'}</td>` : ''}<td>${statusPill(w.status)}</td><td class="small">${fmtDate(w.updated_at)}</td></tr>`)}
         </tbody></table></div>${pager(req, total, page, PER_PAGE)}`
         : emptyState(q || status !== 'open' ? 'Nothing matches these filters' : s.empty, createKinds.length && !q ? 'Use the button above to add the first one.' : 'Items appear here when you are added to them.')}` }));
