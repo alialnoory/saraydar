@@ -36,13 +36,14 @@ function mountClients(r, ctx, F) {
     for (const [k] of FIELDS) v[k] = txt(b[k], LONG.has(k) ? 2000 : 200);
     v.kind = v.kind === 'company' ? 'company' : 'person';
     if (!v.name) throw bad('Enter the client name.');
+    if (!v.billing_name) v.billing_name = v.name;          // the billing name is the client's name unless a different one is entered
     if (v.email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v.email)) throw bad('Check the email address.');
     if (v.billing_email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v.billing_email)) throw bad('Check the billing email address.');
     return v;
   }
   const form = (req, c = {}, action, label) => html`<form method="post" action="${action}" class="panel form-grid">${csrfField(req)}
     ${FIELDS.map(([k, l]) => k === 'kind' ? field({ name: k, label: l, value: c.kind || 'person', options: [['person', 'Individual'], ['company', 'Company']] })
-      : field({ name: k, label: l, value: c[k] || '', required: k === 'name', type: LONG.has(k) ? 'textarea' : k.includes('email') ? 'email' : 'text', full: LONG.has(k),
+      : field({ name: k, label: l, value: k === 'billing_name' ? (c.billing_name || c.name || '') : c[k] || '', required: k === 'name', type: LONG.has(k) ? 'textarea' : k.includes('email') ? 'email' : 'text', full: LONG.has(k),
         hint: k === 'approval_authorities' ? 'Who on the client side can approve budgets, appointments, materials, variations and payments.' : k === 'preferred_contact' ? 'For example email, phone, WhatsApp, letter.' : '' }))}
     <div class="actions full"><button class="btn primary" type="submit">${label}</button></div></form>`;
 
@@ -125,6 +126,7 @@ function mountClients(r, ctx, F) {
     const g = await gate(req); if (!g.canEdit) throw new Forbidden('Your role cannot edit clients.');
     const c = await load(req);
     const v = readClient(req.body);
+    if (!c.billing_name || v.billing_name === c.name) v.billing_name = v.name;   // keep following the client's name when renamed
     await core.inTx(async db => U.track(db, req.user, { label: `Edited client ${c.name}`, returnTo: `/clients/${c.id}`, targets: [['parties', c.id]] }, async () => {
       const cols = Object.keys(v);
       await db.query(`update parties set ${cols.map((k, i) => `${k} = $${i + 2}`).join(', ')}, updated_at = now() where id = $1`, [c.id, ...cols.map(k => v[k])]);
