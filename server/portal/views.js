@@ -2,7 +2,7 @@
 const { html, raw } = require('../lib/html');
 const { STATUS_LABEL } = require('./core');
 // Version stamp for the stylesheet and script, so browsers fetch the new files after every update instead of a cached copy.
-const ASSET_V = (() => { try { const c = require('crypto'), fs = require('fs'), p = require('path'); const h = c.createHash('sha256'); for (const f of ['app.css', 'app.js', 'apple-touch-icon.png', 'icon.svg', 'favicon.ico']) h.update(fs.readFileSync(p.join(__dirname, '..', 'public', f))); return h.digest('hex').slice(0, 10); } catch { return String(Date.now()); } })();
+const ASSET_V = (() => { try { const c = require('crypto'), fs = require('fs'), p = require('path'); const h = c.createHash('sha256'); for (const f of ['app.css', 'app.js', 'pdfview.mjs', 'apple-touch-icon.png', 'icon.svg', 'favicon.ico']) h.update(fs.readFileSync(p.join(__dirname, '..', 'public', f))); return h.digest('hex').slice(0, 10); } catch { return String(Date.now()); } })();
 
 const ROLE_LABELS = {
   super_admin: 'Super Admin', project_manager: 'Project Manager', finance: 'Finance', engineer: 'Engineer', viewer: 'Viewer',
@@ -149,4 +149,4 @@ function pager(req, total, page, per) {
   return html`<nav class="pager" aria-label="Pages">${page > 1 ? html`<a class="btn" href="${link(page - 1)}">Previous</a>` : ''}<span>Page ${page} of ${pages} · ${total} total</span>${page < pages ? html`<a class="btn" href="${link(page + 1)}">Next</a>` : ''}</nav>`;
 }
 
-module.exports = { avatar, layout, html, raw, pill, statusPill, csrfField, emptyState, field, progressField, pager, icons, fmtDate, fmtDateTime, fmtSize, ROLE_LABELS, MESSAGES };
+module.exports = { ASSET_V, avatar, layout, html, raw, pill, statusPill, csrfField, emptyState, field, progressField, pager, icons, fmtDate, fmtDateTime, fmtSize, ROLE_LABELS, MESSAGES };
