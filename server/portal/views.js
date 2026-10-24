@@ -70,7 +70,7 @@ function layout(req, { title, crumbs = [], heading = null, sub = null, tabs = nu
   const pagenav = !u || bare ? '' : html`<div class="pagenav" role="navigation" aria-label="Page navigation">
     <div class="navgroup"><a class="navbtn" href="${parent}" data-back>${I.back}Back</a><a class="navbtn" href="${home}">${I.home}Home</a></div>
     ${undoNav}
-    ${exportable ? html`<div class="navgroup" aria-label="Export"><a class="navbtn" href="${previewHref()}" target="_blank" rel="nofollow noopener">${I.eye}Preview</a><a class="navbtn" href="${exportHref('pdf')}" rel="nofollow">${I.file}PDF</a><a class="navbtn" href="${exportHref('xlsx')}" rel="nofollow">${I.file}Excel</a></div>` : ''}
+    ${exportable ? html`<div class="navgroup" aria-label="Export"><a class="navbtn" href="${previewHref()}" target="_blank" rel="nofollow noopener" title="Opens the PDF to read, share, print or download">${I.file}PDF</a><a class="navbtn" href="${exportHref('xlsx')}" rel="nofollow">${I.file}Excel</a></div>` : ''}
   </div>`;
   const msg = MESSAGES[req.query && req.query.msg];
   const header = bare ? html`
