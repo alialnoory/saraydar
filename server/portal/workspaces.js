@@ -75,9 +75,9 @@ function mountWorkspaces(r, ctx) {
       <div class="page-head"><div><div class="muted small">Home</div><h1 class="display">${greet}, ${(u.name || '').split(' ')[0] || 'there'}</h1>
         <p class="muted">${new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Bahrain' })}</p></div></div>
       <section class="grid-cards home-sections" aria-label="Sections">${SECTION_KEYS.map(card)}</section>
-      ${attention.length ? html`<section class="panel"><h2 class="h">Needs your attention</h2>
+      ${core.isSuper(u) ? html`<section class="panel"><h2 class="h">Needs your attention</h2>
           ${attention.length ? html`<ul class="rows">${attention.map(([tag, tone, t, d, href]) => html`<li>${pill(tag, tone)}<div class="grow"><a href="${href}"><b>${t}</b></a><div class="muted small">${d}</div></div></li>`)}</ul>`
-            : ''}</section>` : ''}` }));
+            : html`<p class="muted">Nothing needs your attention right now.</p>`}</section>` : ''}` }));
   });
 
   // External viewers' My Workspaces page and portal live in external.js.
