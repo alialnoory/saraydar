@@ -1012,7 +1012,7 @@ function mountProjects(r, ctx) {
     const ph = u.phase_id ? (await pool.query('select name from phases where id = $1', [u.phase_id])).rows[0] : null;
     const tk = u.task_id ? (await pool.query('select title from tasks where id = $1', [u.task_id])).rows[0] : null;
     const comments = (await pool.query(`select c.*, coalesce(nullif(us.name,''), us.email) as who from comments c left join users us on us.id = c.author_id where c.entity = 'progress_update' and c.entity_id = $1 and c.workspace_id = $2 order by c.created_at`, [u.id, a.ws.id])).rows;
-    res.send(page(req, a, 'Progress Updates', html`<p><a href="/w/${a.ws.id}/updates">‹ All updates</a></p>
+    res.send(page(req, a, 'Progress Updates', html`<div class="row-between"><a href="/w/${a.ws.id}/updates">‹ All updates</a>${core.canContribute(a) ? html`<span class="actions">${u.task_id ? html`<a class="btn" href="/w/${a.ws.id}/updates/new?task=${u.task_id}">+ Next update for this task</a>` : ''}<a class="btn primary" href="/w/${a.ws.id}/updates/new">+ New progress update</a></span>` : ''}</div>
       <article class="panel"><div class="row-between"><h2 class="h">${u.title}</h2><span>${u.status === 'draft' ? pill('Draft', 'warn') : pill('Published', 'ok')} ${u.external_visible ? pill('Shown to external viewers', 'info') : pill('Staff only', 'muted')}</span></div>
         <p class="muted small">Observed ${fmtDate(u.observed_on)} · by ${u.author_label || ''}${u.published_at ? ` · published ${fmtDateTime(u.published_at)}` : ''}${ph ? ` · ${ph.name}` : ''}${tk ? ` · ${tk.title}` : ''}</p>
         <dl class="details">
