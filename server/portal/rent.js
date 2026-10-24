@@ -207,7 +207,7 @@ function mountRent(r, ctx) {
     const id = a.ws.id;
     res.send(page(req, a, 'Rent & Collections', html`<p><a href="/w/${id}/rent">‹ Rent &amp; Collections</a> · <a href="/w/${id}/leases/${lease.id}">Lease ${lease.ref}</a></p>
       <section class="panel"><div class="row-between"><h2 class="h">Rent invoice ${inv.number} ${inv.status === 'void' ? pill('Void', 'muted') : out === 0 ? pill('Paid', 'ok') : String(inv.due_date) < todayBH() ? pill('Overdue', 'bad') : pill('Unpaid', 'warn')}</h2>
-        <a class="btn small" href="/w/${id}/rent/invoices/${inv.id}/invoice.pdf">Download PDF</a></div>
+        <a class="btn small" href="/w/${id}/rent/invoices/${inv.id}/invoice.pdf">PDF</a></div>
         <dl class="details"><div><dt>Tenant</dt><dd>${tenant.name}<div class="muted small">${tenant.email || 'no email'}</div></dd></div><div><dt>Unit</dt><dd>${unit.ref}</dd></div>
           <div><dt>Period</dt><dd>${fmtDate(inv.period_start)} – ${fmtDate(inv.period_end)}</dd></div><div><dt>Issued / due</dt><dd>${fmtDate(inv.issue_date)} / ${fmtDate(inv.due_date)}</dd></div>
           <div><dt>Created</dt><dd>${inv.origin === 'scheduler' ? 'Automatically by the billing job' : 'By staff'} · ${fmtDateTime(inv.created_at)}</dd></div>${inv.void_reason ? html`<div><dt>Voided</dt><dd>${inv.void_reason}</dd></div>` : ''}</dl>
@@ -231,7 +231,7 @@ function mountRent(r, ctx) {
     await invoiceOf(a, req.params.iid);
     const { buf, data } = await billing.invoicePdf(pool, req.params.iid);
     await core.audit(null, { actor: req.user, workspaceId: a.ws.id, action: 'rent.invoice_pdf', entity: 'rent_invoice', entityId: data.inv.id, summary: `Rent invoice PDF downloaded: ${data.inv.number}`, ip: req.ip });
-    res.set({ 'Content-Type': 'application/pdf', 'Content-Disposition': DL.disposition(DL.fileName([data.inv.number, a.ws.name], 'pdf')), 'Cache-Control': 'private, no-store' }); res.end(buf);
+    res.set({ 'Content-Type': 'application/pdf', 'Content-Disposition': DL.disposition(DL.fileName([data.inv.number, a.ws.name], 'pdf'), req.query.view === '1'), 'Cache-Control': 'private, no-store' }); res.end(buf);
   });
 
   r.post('/w/:id/rent/invoices/:iid/send', async (req, res) => {
@@ -400,7 +400,7 @@ function mountRent(r, ctx) {
       tables: [{ caption: 'Applied to', head: ['Charge', 'Due', 'Amount'], widths: [0.55, 0.2, 0.25], align: ['left', 'left', 'right'], empty: 'Not yet applied', rows: allocs.map(x => [x.description, fmtDate(x.due_date), docs.money(Number(x.amount_minor))]) }],
       totals: [['Amount received', docs.money(Number(p.amount_minor)), true], ['Unapplied credit', docs.money(p.unapplied)]],
       notes: [prof.billing_entity === 'owner' && owner ? `Received on behalf of the owner, ${owner.name}, by SarayDar as managing agent.` : 'Received by SarayDar.', 'This receipt acknowledges a confirmed payment.'] });
-    res.set({ 'Content-Type': 'application/pdf', 'Content-Disposition': DL.disposition(DL.fileName([p.receipt_no, a.ws.name], 'pdf')), 'Cache-Control': 'private, no-store' }); res.end(buf);
+    res.set({ 'Content-Type': 'application/pdf', 'Content-Disposition': DL.disposition(DL.fileName([p.receipt_no, a.ws.name], 'pdf'), req.query.view === '1'), 'Cache-Control': 'private, no-store' }); res.end(buf);
   });
 
   // ---------- tenant statement ----------
@@ -455,7 +455,7 @@ function mountRent(r, ctx) {
       tables: [{ head: ['Date', 'Document', 'Details', 'Charges', 'Payments', 'Balance'], widths: [0.12, 0.15, 0.34, 0.13, 0.13, 0.13], align: ['left', 'left', 'left', 'right', 'right', 'right'],
         rows: [Object.assign(['', '', 'Opening balance', '', '', nb(st.opening)], { bold: true }), ...st.rows.map(e => [fmtDate(e.date), e.doc, e.text, e.debit ? nb(e.debit) : '', e.credit ? nb(e.credit) : '', nb(e.balance)])] }],
       totals: [['Closing balance', docs.money(st.closing), true]], notes: [st.pending ? `Payments reported but not yet confirmed (${docs.money(st.pending)}) are not included.` : null, 'Deposits are held separately and are not shown here.'] });
-    res.set({ 'Content-Type': 'application/pdf', 'Content-Disposition': DL.disposition(DL.fileName([l.ref, a.ws.name, 'Statement', DL.today()], 'pdf')), 'Cache-Control': 'private, no-store' }); res.end(buf);
+    res.set({ 'Content-Type': 'application/pdf', 'Content-Disposition': DL.disposition(DL.fileName([l.ref, a.ws.name, 'Statement', DL.today()], 'pdf'), req.query.view === '1'), 'Cache-Control': 'private, no-store' }); res.end(buf);
   });
 
   // ---------- deposits ----------

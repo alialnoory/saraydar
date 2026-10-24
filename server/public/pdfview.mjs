@@ -3,7 +3,7 @@ import * as pdfjs from '/static/pdfjs/pdf.min.mjs';
 pdfjs.GlobalWorkerOptions.workerSrc = '/static/pdfjs/pdf.worker.min.mjs';
 
 const box = document.getElementById('pv-pages');
-const src = box.dataset.src, name = box.dataset.name || 'SarayDar.pdf';
+const src = box.dataset.src; let name = box.dataset.name || 'SarayDar.pdf';
 let blob = null;
 
 document.getElementById('pv-back').addEventListener('click', () => {
@@ -14,6 +14,10 @@ async function load() {
   const r = await fetch(src, { credentials: 'same-origin' });
   if (!r.ok) throw new Error(r.status === 403 ? 'You do not have access to this file.' : `The file could not be opened (${r.status}).`);
   blob = await r.blob();
+  // the file's own name (from the portal) when the link did not carry one
+  const cd = r.headers.get('content-disposition') || '';
+  const m = /filename\*=UTF-8''([^;]+)/i.exec(cd);
+  if (m && name === 'SarayDar.pdf') { try { name = decodeURIComponent(m[1]); const el = document.querySelector('.pv-name'); if (el && el.firstChild) el.firstChild.textContent = name.replace(/\.pdf$/i, ''); document.title = name; } catch (e) { /* keep the default */ } }
   const data = new Uint8Array(await blob.arrayBuffer());
   const pdf = await pdfjs.getDocument({ data, isEvalSupported: false, standardFontDataUrl: '/static/pdfjs-fonts/' }).promise;
   box.innerHTML = '';

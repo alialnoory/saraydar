@@ -112,7 +112,7 @@ function mountProjectExports(r, ctx, P) {
     doc.registerFont('body', path.join(FONT_DIR, 'ibm-plex-sans-latin-400-normal.ttf'));
     doc.registerFont('bold', path.join(FONT_DIR, 'ibm-plex-sans-latin-600-normal.ttf'));
     doc.registerFont('display', path.join(FONT_DIR, 'ibm-plex-sans-latin-600-normal.ttf'));
-    res.set({ 'Content-Type': 'application/pdf', 'Content-Disposition': DL.disposition(DL.fileName([a.ws.ref, a.ws.name, 'Report', DL.today()], 'pdf')), 'Cache-Control': 'private, no-store' });
+    res.set({ 'Content-Type': 'application/pdf', 'Content-Disposition': DL.disposition(DL.fileName([a.ws.ref, a.ws.name, 'Report', DL.today()], 'pdf'), req.query.view === '1'), 'Cache-Control': 'private, no-store' });
     doc.pipe(res);
     const W = doc.page.width - 96, INK = '#2A1C15', MUTED = '#6E5B50', ACC = '#8E4F2B', LINE = '#E0D2C6';
     const h2 = t => { if (doc.y > doc.page.height - 140) doc.addPage(); doc.moveDown(0.8).font('display').fontSize(15).fillColor(ACC).text(t).moveDown(0.3).fillColor(INK); };

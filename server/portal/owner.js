@@ -227,7 +227,7 @@ function mountOwner(r, ctx) {
         ['Tenant arrears (outstanding, not received)', docs.money(acc.arrears)], ['Tenant deposits held (not your funds)', docs.money(acc.deposits)]],
       notes: ['Transfers listed are transfers recorded after they were made through the bank.', 'Arrears and deposits are shown separately and are not part of the balance held.'] });
     await core.audit(null, { actor: req.user, workspaceId: a.ws.id, action: 'owner.statement_pdf', entity: 'workspace', entityId: a.ws.id, summary: `Owner statement PDF: ${per.label}`, ip: req.ip });
-    res.set({ 'Content-Type': 'application/pdf', 'Content-Disposition': DL.disposition(DL.fileName([a.ws.ref, a.ws.name, 'Owner statement', DL.today()], 'pdf')), 'Cache-Control': 'private, no-store' }); res.end(buf);
+    res.set({ 'Content-Type': 'application/pdf', 'Content-Disposition': DL.disposition(DL.fileName([a.ws.ref, a.ws.name, 'Owner statement', DL.today()], 'pdf'), req.query.view === '1'), 'Cache-Control': 'private, no-store' }); res.end(buf);
   });
 
   // ---------- Unit History & Report ----------
@@ -378,7 +378,7 @@ function mountOwner(r, ctx) {
       to: [a.ws.name, a.ws.location], meta: [['Period', per.label], ['Units', String(ids.length)], ['Prepared', fmtDate(todayBH())]], tables, images,
       notes: ['As-of policy: payments count from the day received once confirmed; later settlements do not change this period\'s closing figures.', 'Shared building costs show each unit\'s share only.'] });
     await core.audit(null, { actor: req.user, workspaceId: a.ws.id, action: 'report.unit_history_pdf', entity: 'workspace', entityId: a.ws.id, summary: `Unit history PDF: ${ids.length} unit(s), ${per.label}`, ip: req.ip });
-    res.set({ 'Content-Type': 'application/pdf', 'Content-Disposition': DL.disposition(DL.fileName([a.ws.ref, a.ws.name, 'Unit history', DL.today()], 'pdf')), 'Cache-Control': 'private, no-store' }); res.end(buf);
+    res.set({ 'Content-Type': 'application/pdf', 'Content-Disposition': DL.disposition(DL.fileName([a.ws.ref, a.ws.name, 'Unit history', DL.today()], 'pdf'), req.query.view === '1'), 'Cache-Control': 'private, no-store' }); res.end(buf);
   });
 
   r.get('/w/:id/history.xlsx', async (req, res) => {

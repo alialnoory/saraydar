@@ -493,7 +493,7 @@ function mountFees(r, ctx, P) {
     const defaultIssue = todayBH();
     res.send(page(req, a, 'Fee Billing', html`<p><a href="/w/${id}/fees">‹ Fee Billing</a></p>
       <section class="panel"><div class="row-between"><h2 class="h">${i.number ? `Invoice ${i.number}` : 'Invoice draft'} ${pill(i.status, INV_TONE[i.status])}</h2>
-        <a class="btn small" href="/w/${id}/fees/invoices/${i.id}/invoice.pdf">${draft ? 'Preview PDF' : 'Download PDF'}</a></div>
+        <a class="btn small" href="/w/${id}/fees/invoices/${i.id}/invoice.pdf">${draft ? 'Preview PDF' : 'PDF'}</a></div>
         <dl class="details">
           <div><dt>Type</dt><dd>${i.kind === 'monthly' ? 'Monthly management fee' : i.kind === 'commission' ? 'Brokerage fee (commission)' : 'Additional charges'}</dd></div>
           ${i.calc_note ? html`<div><dt>Calculation</dt><dd>${i.calc_note}</dd></div>` : ''}
@@ -840,7 +840,7 @@ function mountFees(r, ctx, P) {
     const to = client ? [client.billing_name || client.name, client.billing_address || client.address, client.billing_email || client.email, client.tax_number ? `Tax no. ${client.tax_number}` : null] : ['Client not linked'];
     return { company: co, letterhead: co.letterhead || null, marginTop: co.margin_top_mm, marginBottom: co.margin_bottom_mm, to, client };
   }
-  const sendPdf = (res, buf, parts) => { res.set({ 'Content-Type': 'application/pdf', 'Content-Disposition': DL.disposition(DL.fileName(parts, 'pdf')), 'Cache-Control': 'private, no-store' }); res.end(buf); };
+  const sendPdf = (res, buf, parts) => { res.set({ 'Content-Type': 'application/pdf', 'Content-Disposition': DL.disposition(DL.fileName(parts, 'pdf'), res.req.query.view === '1'), 'Cache-Control': 'private, no-store' }); res.end(buf); };
 
   r.get('/w/:id/fees/invoices/:iid/invoice.pdf', async (req, res) => {
     const a = await finAccess(req);

@@ -222,3 +222,19 @@ document.addEventListener('change', e => {
     window.open(a.href, '_blank', 'noopener');
   }, true);
 })();
+
+// PDF links open a preview in a new tab (the browser's viewer has download and print), never a straight download.
+// The home-screen app uses the portal's own viewer instead (above).
+(() => {
+  const standalone = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || window.navigator.standalone === true;
+  if (standalone) return;
+  document.addEventListener('click', e => {
+    const a = e.target.closest('a[href]');
+    if (!a || a.hasAttribute('download') || e.defaultPrevented || e.metaKey || e.ctrlKey) return;
+    const u = new URL(a.href, location.href);
+    if (u.origin !== location.origin || !/\.pdf$/i.test(u.pathname.replace(/\/~\/[^/]*$/, '')) || u.searchParams.get('view') === '1') return;
+    e.preventDefault();
+    u.searchParams.set('view', '1');
+    window.open(u.toString(), '_blank', 'noopener');
+  });
+})();
