@@ -424,3 +424,13 @@ fieldset.field.checks legend { padding: 0 6px; font-size: .86rem; color: var(--m
 .check-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 6px 16px; margin-bottom: 8px; }
 .check-grid .check { display: flex; gap: 8px; align-items: flex-start; font-size: .92rem; line-height: 1.35; }
 .check-grid .check input { margin: 1px 0 0; flex: none; width: 18px; height: 18px; min-height: 0; padding: 0; }
+
+/* tab tips and help */
+.tabtip { display: flex; gap: 16px; align-items: flex-start; background: var(--accent-tint); border: 1px solid #E6CDB8; border-left: 4px solid var(--copper); border-radius: 10px; padding: 10px 14px; margin: 0 0 16px; font-size: 14px; line-height: 1.5; }
+.tabtip-ex { display: block; color: var(--muted); margin-top: 2px; }
+.tabtip-act { display: flex; gap: 12px; white-space: nowrap; font-size: 13px; }
+.linkbtn { background: none; border: 0; padding: 0; color: var(--accent); text-decoration: underline; cursor: pointer; font: inherit; }
+html.tips-off .tabtip { display: none; }
+.help-list li { margin: 4px 0; }
+.help-table td { vertical-align: top; }
+@media (max-width: 640px) { .tabtip { flex-direction: column; gap: 6px; } }

@@ -58,7 +58,7 @@ function mountWorkspaces(r, ctx) {
     const by = Object.fromEntries(counts.map(c => [c.section, c]));
     const attention = [];
     for (const fn of ctx.attention || []) attention.push(...await fn(u));
-    if (core.isSuper(u) && !mailer.configured) attention.push(['Setup', 'warn', 'Email delivery is not configured', 'Invitations, password resets and invoices stay in the Outbox until Outlook SMTP is set up.', '/admin/system']);
+    if (core.isSuper(u) && !mailer.configured) attention.push(['Setup', 'warn', 'Email delivery is not configured', 'Invitations, password resets and invoices stay in the Outbox until Outlook email is set up (see the setup guide for the technical team).', '/admin/system']);
     if (core.isSuper(u) && ctx.mfaOn) {
       const n = (await pool.query("select count(*)::int as n from users where active and kind = 'internal' and not mfa_enabled")).rows[0].n;
       if (n) attention.push(['Security', 'info', `${n} staff ${n === 1 ? 'account has' : 'accounts have'} no two-step verification`, 'Recommended for everyone who sees financial records.', '/admin/users']);

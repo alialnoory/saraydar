@@ -82,6 +82,7 @@ function layout(req, { title, crumbs = [], heading = null, sub = null, tabs = nu
             <span class="who"><b>${u.name || u.email}</b><small>${ROLE_LABELS[u.system_role] || u.system_role}</small></span></summary>
           <div class="menu">
             <a href="/account">Account &amp; security</a>
+            ${u.kind !== 'external' ? html`<a href="/help">Help &amp; user guide</a>` : ''}
             ${u.system_role === 'super_admin' ? html`<a href="/admin">Administration</a>` : ''}
             <form method="post" action="/logout">${csrfField(req)}<button type="submit">Sign out</button></form>
           </div></details>` : ''}
@@ -95,7 +96,7 @@ function layout(req, { title, crumbs = [], heading = null, sub = null, tabs = nu
   return '<!doctype html>' + html`<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${title ? `${title} · ` : ''}SarayDar Management System</title>
 <link rel="stylesheet" href="/static/app.css?v=${ASSET_V}"><script src="/static/app.js?v=${ASSET_V}" defer></script></head>
-<body>${header}<main class="wrap main">${heading ? '' : pagenav}${msg ? html`<div class="flash" role="status">${msg}</div>` : ''}${body}</main></body></html>`;
+<body>${header}<main class="wrap main">${heading ? '' : pagenav}${msg ? html`<div class="flash" role="status">${msg}</div>` : ''}${tabs ? require('./help').tabTip(req, (tabs.find(t => t[2]) || [])[0]) : ''}${body}</main></body></html>`;
 }
 
 const emptyState = (title, text, action = '') => html`<div class="empty"><strong>${title}</strong><p>${text}</p>${action}</div>`;

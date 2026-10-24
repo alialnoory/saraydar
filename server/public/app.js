@@ -61,3 +61,12 @@ document.addEventListener('change', e => {
   const i = order.indexOf(s.value); if (i < 0) return;
   order.forEach((k, j) => { const f = s.form.elements[`ph_${k}`]; if (f) f.value = j < i ? 'done' : j === i ? 'in_progress' : 'not_started'; });
 });
+// Tab tips: "Hide tips" remembers the choice in this browser; the Help page has a link to show them again
+try { if (localStorage.getItem('tips-off') === '1') document.documentElement.classList.add('tips-off'); } catch (e) { /* storage blocked */ }
+document.addEventListener('click', e => {
+  const h = e.target.closest('[data-hide-tips]'), s = e.target.closest('[data-show-tips]');
+  if (!h && !s) return;
+  try { localStorage.setItem('tips-off', h ? '1' : '0'); } catch (err) { /* storage blocked */ }
+  document.documentElement.classList.toggle('tips-off', !!h);
+  if (s) s.textContent = 'Tips are on';
+});

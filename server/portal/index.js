@@ -95,6 +95,13 @@ function createPortal({ pool, secret, mailer, env = process.env }) {
 
   const ctx = { pool, core, mailer, secret, env, mfaOn, Forbidden, NotFound };
 
+  // the kind of record a /w/:id page belongs to, for the tab tips
+  r.use(async (req, res, next) => {
+    const w = req.user && req.method === 'GET' && /^\/w\/([0-9a-f-]{36})(\/|$)/i.exec(req.path);
+    if (w) { try { req.wsKind = ((await pool.query('select kind from workspaces where id = $1', [w[1]])).rows[0] || {}).kind; } catch (e) { /* tips are optional */ } }
+    next();
+  });
+
   // PDF / Excel export of any page: ?export=pdf|xlsx renders the page as usual for this user, then converts it.
   r.use((req, res, next) => {
     const fmt = req.query.export;
@@ -121,6 +128,7 @@ function createPortal({ pool, secret, mailer, env = process.env }) {
   mountAuth(r, ctx);
   mountUndo(r, ctx);
   mountCompleteness(r, ctx);
+  require('./help').mountHelp(r);
   mountInvitations(r, ctx);
   mountExternal(r, ctx);
   mountAccount(r, ctx);
