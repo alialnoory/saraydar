@@ -50,8 +50,8 @@ function mountProjectExports(r, ctx, P) {
       <form method="get" class="form-grid" action="/w/${a.ws.id}/export.pdf">
         ${field({ name: 'from', label: 'Period from', type: 'date' })}${field({ name: 'to', label: 'Period to', type: 'date' })}
         <label class="field check full"><input type="checkbox" name="photos" value="1" checked> <span>Include photos from published progress updates (PDF)</span></label>
-        <div class="actions full"><button class="btn primary" type="submit">Download PDF</button>
-          <button class="btn" type="submit" formaction="/w/${a.ws.id}/export.xlsx">Download Excel</button></div>
+        <div class="actions full"><button class="btn primary" type="submit">PDF</button>
+          <button class="btn" type="submit" formaction="/w/${a.ws.id}/export.xlsx">Excel</button></div>
         <p class="muted small full">The period filters progress updates and payments. Tasks, budget and registers show their current state. ${a.finance ? 'Financial sheets are included because your role can see financial figures.' : 'Financial figures are left out for your role.'} Excel files list photo references; photos open only in the portal after sign-in.</p>
       </form></section>`));
   });

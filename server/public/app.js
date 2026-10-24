@@ -238,3 +238,18 @@ document.addEventListener('change', e => {
     window.open(u.toString(), '_blank', 'noopener');
   });
 })();
+
+// Forms that produce a PDF (e.g. the project report) preview it the same way instead of downloading.
+document.addEventListener('submit', e => {
+  const f = e.target;
+  if ((f.method || 'get').toLowerCase() !== 'get' || e.defaultPrevented) return;
+  const action = (e.submitter && e.submitter.getAttribute('formaction')) || f.getAttribute('action') || location.pathname;
+  const u = new URL(action, location.href);
+  if (u.origin !== location.origin || !/\.pdf$/i.test(u.pathname)) return;
+  e.preventDefault();
+  for (const [k, v] of new FormData(f)) if (typeof v === 'string') u.searchParams.append(k, v);
+  u.searchParams.set('view', '1');
+  const standalone = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || window.navigator.standalone === true;
+  if (standalone) location.href = `/view?src=${encodeURIComponent(u.pathname + u.search)}`;
+  else window.open(u.toString(), '_blank', 'noopener');
+});
