@@ -43,20 +43,23 @@ function band(doc, { title, sub = '', right = [], x = 40, width }) {
   doc.x = x; doc.y = H + 16;
 }
 
-// One line of company details at the foot of every page, plus "ref · page n of N" on the right.
-function footer(doc, { company = {}, ref = '', x = 40, width, fromBottom = 32 }) {
-  const W = width || doc.page.width - 2 * x;
+// Dark footer band on every page, inset 1 cm from the left and right edges and running to the bottom edge:
+// company details on the left, "ref · page n of N" on the right.
+const CM = 72 / 2.54;
+function footer(doc, { company = {}, ref = '', lines = null }) {
   const line1 = [company.legal_name || company.trade_name || 'SarayDar Real Estate', company.cr_number ? `C.R. ${company.cr_number}` : null, company.address].filter(Boolean).join('  ·  ');
   const line2 = [company.phone, company.email || 'info@saraydar.com', 'saraydar.com'].filter(Boolean).join('  ·  ');
+  const [l1, l2] = lines || [line1, line2];
   const range = doc.bufferedPageRange();
   for (let i = range.start; i < range.start + range.count; i++) {
     doc.switchToPage(i);
     const keep = doc.page.margins.bottom; doc.page.margins.bottom = 0;   // the footer sits below the margin; otherwise pdfkit starts an empty page
-    const y = doc.page.height - fromBottom;
-    doc.moveTo(x, y - 8).lineTo(x + W, y - 8).strokeColor('#E0D2C6').lineWidth(0.6).stroke();
-    doc.font('body').fontSize(7).fillColor('#6E5B50').text(line1, x, y, { width: W * 0.72, height: 9, ellipsis: true });
-    doc.font('body').fontSize(7).fillColor('#6E5B50').text(line2, x, y + 9.5, { width: W * 0.72, height: 9, ellipsis: true });
-    doc.font('body').fontSize(7.5).fillColor('#6E5B50').text(`${ref ? `${ref} · ` : ''}page ${i + 1} of ${range.count}`, x + W * 0.72, y, { width: W * 0.28, align: 'right', lineBreak: false });
+    const H = 38, x0 = CM, w0 = doc.page.width - 2 * CM, y0 = doc.page.height - H;
+    doc.save(); doc.rect(x0, y0, w0, H).fill(BAND); doc.rect(x0, y0, 64, 2).fill(COPPER); doc.restore();
+    const pad = 14, tx = x0 + pad, tw = w0 - 2 * pad;
+    doc.font('body').fontSize(7).fillColor(BAND_INK).text(l1 || '', tx, y0 + 10, { width: tw * 0.74, height: 9, ellipsis: true });
+    doc.font('body').fontSize(7).fillColor(BAND_MUTED).text(l2 || '', tx, y0 + 20, { width: tw * 0.74, height: 9, ellipsis: true });
+    doc.font('body').fontSize(7.5).fillColor(BAND_INK).text(`${ref ? `${ref} · ` : ''}page ${i + 1} of ${range.count}`, tx + tw * 0.74, y0 + 15, { width: tw * 0.26, align: 'right', lineBreak: false });
     doc.page.margins.bottom = keep;
   }
 }

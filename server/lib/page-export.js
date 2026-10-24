@@ -178,13 +178,7 @@ function toPdf(page, { user, when }) {
         doc.x = X; doc.moveDown(0.6);
       }
     }
-    const range = doc.bufferedPageRange();
-    for (let i = range.start; i < range.start + range.count; i++) {
-      doc.switchToPage(i);
-      const keepBottom = doc.page.margins.bottom; doc.page.margins.bottom = 0;   // the footer sits below the margin; without this pdfkit starts a new, empty page
-      doc.font('body').fontSize(7).fillColor(MUTED).text(plain(`SarayDar Management System · ${page.title} · page ${i + 1} of ${range.count}`), X, doc.page.height - 30, { width: W, align: 'right', lineBreak: false });
-      doc.page.margins.bottom = keepBottom;
-    }
+    brand.footer(doc, { lines: [plain(`SarayDar Management System · ${page.title}`), plain(`Exported ${when.toLocaleString('en-GB', { timeZone: 'Asia/Bahrain' })} (Bahrain time) by ${user} · saraydar.com`)] });
     doc.end();
   });
 }

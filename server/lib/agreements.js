@@ -118,7 +118,7 @@ function renderPdf({ text, ref, letterhead, company = {}, marginTop = 45, margin
       else if (b.k === 'li') doc.font('body').fontSize(10).fillColor('#2A1C15').text(`•  ${b.t}`, { width: W, indent: 10 }).moveDown(0.15);
       else doc.font('body').fontSize(10).fillColor('#2A1C15').text(b.t, { width: W, align: 'justify', lineGap: 1.5 }).moveDown(0.55);
     }
-    brand.footer(doc, { company, ref, x: mm(22), width: W });
+    brand.footer(doc, { company, ref });
     doc.end();
   });
 }

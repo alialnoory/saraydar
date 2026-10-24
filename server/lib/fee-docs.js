@@ -91,7 +91,7 @@ function render({ title, number, company = {}, letterhead = null, marginTop = 45
       });
     }
 
-    brand.footer(doc, { company, ref: number || 'Draft', x: L, width: W });
+    brand.footer(doc, { company, ref: number || 'Draft' });
     doc.end();
   });
 }
