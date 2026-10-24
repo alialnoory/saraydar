@@ -215,11 +215,25 @@ function mountAdmin(r, ctx) {
         <div><dt>AI assistant</dt><dd>${env.ANTHROPIC_API_KEY ? html`${pill('Configured', 'ok')} model ${env.AI_MODEL || 'claude-sonnet-5-5'} · staff only, see docs/AI.md` : html`${pill('Not configured', 'muted')} The Assistant tab says so; nothing is simulated.`}</dd></div>
         <div><dt>Backups</dt><dd>One database backup includes all attachments. Nightly encrypted backup runs from GitHub once its two secrets are set — see docs/BACKUP.md.</dd></div>
       </dl></section>
-      <section class="panel"><h2 class="h">Set up Outlook email</h2>
-        <p>In Render › saraydar-api › Environment add:</p>
-        <ul class="mono small"><li>SMTP_HOST = smtp.office365.com</li><li>SMTP_PORT = 587</li><li>SMTP_USER = info@saraydar.com</li><li>SMTP_PASS = the mailbox password or app password</li><li>MAIL_FROM = SarayDar &lt;info@saraydar.com&gt;</li><li>APP_URL = https://portal.saraydar.com</li></ul>
-        <p class="muted small">Microsoft 365 must have “Authenticated SMTP” enabled for the info@ mailbox (Microsoft 365 admin centre › Users › info@ › Mail › Manage email apps). If the account uses two-step sign-in, create an app password.</p>
+      <section class="panel"><h2 class="h">Send a test email</h2>
+        ${req.query.test ? html`<div class="notice ${req.query.test === 'sent' ? 'ok' : 'warn'}">${req.query.test === 'sent' ? 'Accepted by the mail service. Check the inbox (and junk folder) of the address you entered.' : req.query.test === 'unconfigured' ? 'Not sent: email delivery is not configured yet.' : `Not sent: ${String(req.query.err || 'the mail service refused the message').slice(0, 300)}`}</div>` : ''}
+        <form method="post" action="/admin/system/test-email" class="actions">${csrfField(req)}
+          <input type="email" name="to" value="${req.user.email || ''}" required aria-label="Send to" style="min-width:260px">
+          <button class="btn primary" type="submit">Send test email</button></form>
+        <p class="muted small">The result is also recorded in the Outbox.</p></section>
+      <section class="panel"><h2 class="h">Set up Outlook email (Microsoft 365)</h2>
+        <p>Recommended: Microsoft Graph with an app registration (no mailbox password; keeps working after Microsoft switches off password-based SMTP at the end of 2026). In Render › saraydar-api › Environment add:</p>
+        <ul class="mono small"><li>MS_TENANT_ID = Directory (tenant) ID</li><li>MS_CLIENT_ID = Application (client) ID</li><li>MS_CLIENT_SECRET = client secret value</li><li>MAIL_FROM = SarayDar &lt;info@saraydar.com&gt;</li><li>APP_URL = https://saraydar-api.onrender.com (later https://portal.saraydar.com)</li></ul>
+        <p class="muted small">Alternative (until Microsoft disables it): SMTP_HOST = smtp.office365.com, SMTP_PORT = 587, SMTP_USER, SMTP_PASS, MAIL_FROM. If both are set, Microsoft Graph is used.</p>
       </section>`));
+  });
+
+  r.post('/admin/system/test-email', async (req, res) => {
+    const to = String(req.body.to || '').trim().slice(0, 200);
+    if (!/^[^\s@]+@[^\s@]+\.[a-z]{2,}$/i.test(to)) return res.redirect('/admin/system?test=failed&err=' + encodeURIComponent('Enter a valid email address.'));
+    const out = await mailer.send({ to, kind: 'test', subject: 'SarayDar portal — test email', text: `This is a test email from the SarayDar Management System, sent by ${req.user.name || req.user.email} at ${new Date().toISOString()}.\n\nIf you received it, email delivery is working.` });
+    await core.audit(null, { actor: req.user, action: 'email.test', entity: 'outbox', entityId: String(out.id), summary: `Test email to ${to}: ${out.status}`, ip: req.ip });
+    res.redirect(`/admin/system?test=${out.status === 'sent' ? 'sent' : out.status === 'unconfigured' ? 'unconfigured' : 'failed'}${out.error ? `&err=${encodeURIComponent(out.error)}` : ''}`);
   });
 }
 

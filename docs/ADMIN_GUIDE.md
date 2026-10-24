@@ -93,7 +93,7 @@ How staff publish each item:
 - **Commission.** The invoice is drafted from the mandate, with the calculation shown. There is one invoice per deal and side. Gross sale value is never counted as SarayDar revenue.
 
 ## 7. Email, jobs, AI, backups
-- **Email.** Set `SMTP_HOST=smtp.office365.com`, `SMTP_PORT=587`, `SMTP_USER`, `SMTP_PASS` and `MAIL_FROM=info@saraydar.com` on Render. Authenticated SMTP must be enabled for the mailbox in Microsoft 365. Until then, every message stays in **Administration › Outbox** with status "Not configured".
+- **Email (Microsoft 365).** Recommended: an Entra app registration with the Microsoft Graph **Mail.Send** application permission (admin consent), then set `MS_TENANT_ID`, `MS_CLIENT_ID`, `MS_CLIENT_SECRET` and `MAIL_FROM=SarayDar <info@saraydar.com>` on Render. No mailbox password is used, and it keeps working after Microsoft switches off password-based SMTP for apps (end of December 2026). The older SMTP settings (`SMTP_HOST` etc.) still work until then. Use **Administration › System › Send test email** to check. Until configured, every message stays in **Administration › Outbox** with status "Not configured". The client secret expires (you choose 6–24 months): renew it in Entra and update `MS_CLIENT_SECRET` before then.
 - **Background jobs** (rent invoicing, reminders and service tasks) run hourly while the service is awake. The paid Render plan is needed for them to run reliably.
 - **AI assistant:** see `docs/AI.md`.
 - **Backups:** see `docs/BACKUP.md`. Turn on the nightly encrypted backup by adding the two GitHub secrets.
