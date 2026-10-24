@@ -84,8 +84,8 @@ function mountCompleteness(r, ctx) {
     const s = await summary(a.ws);
     if (!s.total) return '';
     const pct = Math.round(100 * s.done / s.total);
-    if (!s.missing.length) return html`<section class="panel guide guide-done"><div class="row-between"><h2 class="h">Record complete</h2>${pill(`${s.done} of ${s.total}`, 'ok')}</div><p class="muted small">Everything this ${a.ws.kind === 'property' ? 'property' : a.ws.kind === 'listing' ? 'listing' : a.ws.kind === 'request' ? 'request' : 'project'} should have is recorded.</p></section>`;
-    return html`<section class="panel guide"><div class="row-between"><h2 class="h">What's missing</h2><span class="guide-count">${s.done} of ${s.total} done</span></div>
+    if (!s.missing.length) return html`<section class="panel guide guide-done no-export"><div class="row-between"><h2 class="h">Record complete</h2>${pill(`${s.done} of ${s.total}`, 'ok')}</div><p class="muted small">Everything this ${a.ws.kind === 'property' ? 'property' : a.ws.kind === 'listing' ? 'listing' : a.ws.kind === 'request' ? 'request' : 'project'} should have is recorded.</p></section>`;
+    return html`<section class="panel guide no-export"><div class="row-between"><h2 class="h">What's missing</h2><span class="guide-count">${s.done} of ${s.total} done</span></div>
       <div class="guide-bar" role="progressbar" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100" aria-label="Record completeness"><span style="width:${pct}%"></span></div>
       <ul class="guide-list">${s.missing.map(m => html`<li><a href="${m.href}"><span class="guide-dot" aria-hidden="true"></span><span class="grow">${m.label}${m.hint ? html`<span class="muted small"> · ${m.hint}</span>` : ''}</span><span class="guide-go">Do it ›</span></a></li>`)}</ul>
       <details class="small"><summary>Show completed (${s.done})</summary><ul class="guide-list done">${s.items.filter(x => x.done).map(m => html`<li><span class="guide-tick" aria-hidden="true">✓</span> ${m.label}</li>`)}</ul></details>

@@ -463,3 +463,14 @@ form.inline { display: inline; }
 .cam-list { flex: 1 1 200px; }
 /* every tab button the same height, even when one label wraps onto two lines */
 .tabs { grid-auto-rows: 1fr; }
+
+/* in-portal PDF viewer */
+body.pdfview { background: #3A2B23; margin: 0; }
+.pv-bar { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 8px; padding: 10px 12px; padding-top: max(10px, env(safe-area-inset-top)); background: var(--band); color: var(--band-ink); }
+.pv-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; color: var(--band-soft); }
+.pv-btn { flex: none; border: 1px solid rgba(241,230,218,.3); background: transparent; color: var(--band-ink); border-radius: 8px; padding: 8px 12px; font: 600 14px var(--f-body); text-decoration: none; cursor: pointer; }
+.pv-btn.pv-main { background: var(--copper); border-color: var(--copper); color: #1A110C; }
+#pv-pages { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 10px 8px 40px; }
+.pv-page { background: #fff; box-shadow: 0 2px 10px rgba(0,0,0,.35); max-width: 100%; }
+.pv-msg { color: #F1E6DA; padding: 40px 16px; text-align: center; }
+@media (max-width: 480px) { .pv-btn { padding: 7px 9px; font-size: 13px; } #pv-dl { display: none; } }

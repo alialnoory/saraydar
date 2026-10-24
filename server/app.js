@@ -16,7 +16,7 @@ function createApp({ pool, jwtSecret, corsOrigins = [], mailer, env = process.en
       useDefaults: false,
       directives: {
         'default-src': ["'self'"], 'script-src': ["'self'"], 'style-src': ["'self'"],
-        'style-src-attr': ["'unsafe-inline'"], 'font-src': ["'self'"], 'img-src': ["'self'", 'data:'],
+        'style-src-attr': ["'unsafe-inline'"], 'font-src': ["'self'", 'data:'], 'img-src': ["'self'", 'data:'],
         'connect-src': ["'self'"], 'form-action': ["'self'"], 'frame-ancestors': ["'none'"], 'object-src': ["'none'"], 'base-uri': ["'self'"]
       }
     },
@@ -29,6 +29,9 @@ function createApp({ pool, jwtSecret, corsOrigins = [], mailer, env = process.en
   for (const n of ['/apple-touch-icon.png', '/apple-touch-icon-precomposed.png', '/apple-touch-icon-180x180.png', '/apple-touch-icon-120x120.png'])
     app.get(n, (req, res) => res.set('Cache-Control', 'public, max-age=300').sendFile(path.join(__dirname, 'public', 'apple-touch-icon.png')));
   app.get('/favicon.ico', (req, res) => res.set('Cache-Control', 'public, max-age=3600').sendFile(path.join(__dirname, 'public', 'favicon.ico')));
+  // PDF viewer library (pdf.js) for the in-portal PDF viewer used on phones
+  app.use('/static/pdfjs', express.static(path.join(__dirname, 'node_modules', 'pdfjs-dist', 'legacy', 'build'), { maxAge: '7d', index: false }));
+  app.use('/static/pdfjs-fonts', express.static(path.join(__dirname, 'node_modules', 'pdfjs-dist', 'standard_fonts'), { maxAge: '7d', index: false }));
   app.use('/static', express.static(path.join(__dirname, 'public'), { maxAge: '1h', index: false }));
   app.get('/favicon.ico', (req, res) => res.status(204).end());
   app.get('/healthz', (req, res) => res.json({ ok: true }));

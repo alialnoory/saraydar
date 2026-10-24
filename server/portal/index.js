@@ -130,6 +130,7 @@ function createPortal({ pool, secret, mailer, env = process.env }) {
   mountUndo(r, ctx);
   mountCompleteness(r, ctx);
   require('./help').mountHelp(r);
+  require('./pdfview').mountPdfView(r);
   mountInvitations(r, ctx);
   mountExternal(r, ctx);
   mountAccount(r, ctx);

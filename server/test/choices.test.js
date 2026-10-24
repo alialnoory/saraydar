@@ -30,3 +30,12 @@ test('tick-box groups', async t => {
     assert.match(out, /<option value="Seef"><\/option>/);
   });
 });
+
+test('a file name at the end of an address is ignored by the portal, but never inside the query', () => {
+  const { stripPretty } = require('../lib/download');
+  const run = url => { const req = { url }; stripPretty(req, null, () => {}); return req.url; };
+  assert.equal(run('/w/1/agreements/2/v/1.pdf/~/AGR%20-%20X.pdf?view=1'), '/w/1/agreements/2/v/1.pdf?view=1');
+  assert.equal(run('/~/SarayDar%20Home.pdf?export=pdf'), '/?export=pdf');
+  assert.equal(run('/view?src=%2Fw%2F1%2F~%2FX.pdf%3Fexport%3Dpdf'), '/view?src=%2Fw%2F1%2F~%2FX.pdf%3Fexport%3Dpdf');
+  assert.equal(run('/view?src=/w/1/~/X.pdf'), '/view?src=/w/1/~/X.pdf');
+});

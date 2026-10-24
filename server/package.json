@@ -24,6 +24,7 @@
     "multer": "^2.5.0",
     "node-html-parser": "^7.1.0",
     "nodemailer": "^7.0.13",
+    "pdfjs-dist": "^4.10.38",
     "pdfkit": "^0.17.2",
     "pg": "^8.23.1",
     "pizzip": "^3.3.0",

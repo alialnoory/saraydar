@@ -8,6 +8,10 @@ const disposition = (name, inline = false) => `${inline ? 'inline' : 'attachment
 // Links that open a file in the browser carry its name as the last part of the address ("/~/<name>"), because some
 // browsers (Safari on iPhone) save a viewed file under the address's last part; the router never sees that part.
 const pretty = name => `/~/${encodeURIComponent(name)}`;
-function stripPretty(req, res, next) { if (req.url.includes('/~/')) { req.url = req.url.replace(/\/~\/[^/?]*(?=\?|$)/, ''); if (!req.url.startsWith('/')) req.url = `/${req.url}`; } next(); }
+function stripPretty(req, res, next) {
+  const q = req.url.indexOf('?'), path = q < 0 ? req.url : req.url.slice(0, q), rest = q < 0 ? '' : req.url.slice(q);
+  if (path.includes('/~/')) req.url = `${path.replace(/\/~\/[^/]*$/, '') || '/'}${rest}`;     // only the address, never the query
+  next();
+}
 const today = () => new Date(Date.now() + 3 * 3600e3).toISOString().slice(0, 10);
 module.exports = { fileName, disposition, pretty, stripPretty, today, clean };

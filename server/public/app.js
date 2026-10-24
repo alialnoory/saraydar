@@ -212,10 +212,13 @@ document.addEventListener('change', e => {
   const standalone = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || window.navigator.standalone === true;
   if (!standalone) return;
   const isFile = a => /[?&]export=(pdf|xlsx)/.test(a.href) || /\.(pdf|xlsx|docx|csv|zip)(\/~\/[^?]*)?(\?|$)/i.test(a.href) || /\/files\/[0-9a-f-]{36}(\?|$)/i.test(a.href);
+  const isPdf = a => /[?&]export=pdf/.test(a.href) || /\.pdf(\/~\/[^?]*)?(\?|$)/i.test(a.href);
   document.addEventListener('click', e => {
     const a = e.target.closest('a[href]');
-    if (!a || !isFile(a) || e.defaultPrevented) return;
+    if (!a || !isFile(a) || e.defaultPrevented || a.closest('.pv-bar')) return;
     e.preventDefault();
+    const u = new URL(a.href, location.href);
+    if (isPdf(a) && u.origin === location.origin) { location.href = `/view?src=${encodeURIComponent(u.pathname + u.search)}`; return; }   // the portal's own viewer
     window.open(a.href, '_blank', 'noopener');
-  });
+  }, true);
 })();
