@@ -120,16 +120,20 @@ function mountClients(r, ctx, F) {
     const fees = {};
     if (g.seeFees) for (const w of projects) fees[w.id] = (await F.ledger(w.id)).t;
     res.send(shell(req, c.name, [['Clients', '/clients'], [c.name]], html`
-      <div class="split">
-        <section class="panel grow1"><h2 class="h">Profile</h2><dl class="details">${FIELDS.filter(([k]) => k !== 'name' && !(c.signs_personally && REP_F.some(f => f[0] === k))).map(([k, l]) => html`<div><dt>${l}</dt><dd class="pre-line">${k === 'kind' ? (c.kind === 'company' ? 'Company' : 'Individual') : c[k] || html`<span class="muted">—</span>`}</dd></div>`)}</dl></section>
-        <section class="panel grow2"><h2 class="h">Projects</h2>
+      <section class="panel"><div class="row-between"><h2 class="h">Profile</h2>${g.canEdit ? html`<a class="btn small primary" href="?edit=1#edit">Edit profile</a>` : ''}</div>
+        <div class="profile-groups">
+          <div><h3 class="h3">Client details</h3><dl class="details">${CLIENT_F.filter(([k]) => k !== 'name').map(([k, l]) => html`<div><dt>${l}</dt><dd class="pre-line">${k === 'kind' ? (c.kind === 'company' ? 'Company' : 'Individual') : c[k] || html`<span class="muted">—</span>`}</dd></div>`)}</dl></div>
+          <div><h3 class="h3">Client's representative</h3>${c.signs_personally ? html`<p class="muted">The client signs personally (no representative).</p>`
+            : html`<dl class="details">${REP_F.map(([k, l]) => html`<div><dt>${l}</dt><dd>${c[k] || html`<span class="muted">—</span>`}</dd></div>`)}</dl>`}</div>
+          ${MORE_F.some(([k]) => c[k]) ? html`<div><h3 class="h3">Billing and other details</h3><dl class="details">${MORE_F.filter(([k]) => c[k]).map(([k, l]) => html`<div><dt>${l}</dt><dd class="pre-line">${c[k]}</dd></div>`)}</dl></div>` : ''}
+        </div></section>
+        <section class="panel"><h2 class="h">Projects</h2>
           ${projects.length ? html`<div class="table-wrap"><table><thead><tr><th>Project</th><th>Reference</th><th>Status</th>${g.seeFees ? html`<th class="n">Invoiced</th><th class="n">Outstanding</th>` : ''}</tr></thead><tbody>
             ${projects.map(w => html`<tr><td><a href="/w/${w.id}"><b>${w.name}</b></a>${w.location ? html`<div class="muted small">${w.location}</div>` : ''}</td><td class="mono">${w.ref}</td><td>${statusPill(w.status)}</td>
               ${g.seeFees ? html`<td class="n">${fm(fees[w.id].invoiced)}</td><td class="n ${fees[w.id].overdue.length ? 'err' : ''}">${fm(fees[w.id].outstanding)}</td>` : ''}</tr>`)}</tbody></table></div>`
             : html`<p class="muted">No client projects you can open.</p>`}
           <div class="actions">${g.canEdit ? html`<a class="btn" href="/s/cpm/new?client=${c.id}">+ New project for this client</a>` : ''}${g.seeFees && projects.length ? html`<a class="btn" href="/clients/${c.id}/statement">Statement across projects</a>` : ''}</div>
         </section>
-      </div>
       <section class="panel"><h2 class="h">Agreements</h2>
         ${agreements.length ? html`<ul class="rows">${agreements.map(x => html`<li><div class="grow"><a href="/w/${x.workspace_id}/agreements/${x.id}"><b>${x.title}</b></a><div class="muted small">${x.ref} · ${x.ws_name}</div></div>${pill(x.status, x.status === 'signed' ? 'ok' : x.status === 'cancelled' ? 'muted' : 'info')}</li>`)}</ul>` : html`<p class="muted">No agreements yet.</p>`}</section>
       <section class="panel"><h2 class="h">Correspondence</h2>
