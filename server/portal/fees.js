@@ -160,11 +160,23 @@ function mountFees(r, ctx, P) {
     const tf = (k, label, extra = {}) => field({ name: k, label, value: base[k] instanceof Date ? iso(base[k]) : base[k] ?? '', ...extra });
     const clientHtml = html`
         <section class="panel grow1"><div class="row-between"><h2 class="h">${party(a)}</h2>${client ? html`<div class="actions">${edit ? html`<a class="btn small primary" href="/clients/${client.id}?edit=1&back=${encodeURIComponent(`/w/${a.ws.id}/client`)}#edit">Edit ${party(a).toLowerCase()} details</a>` : ''}<a class="btn small" href="/clients/${client.id}">Full profile</a></div>` : ''}</div>
-          ${client ? html`<p class="client-name">${client.name}</p><dl class="details">
-            <div><dt>Main contact</dt><dd>${client.contact_person || client.representative || html`<span class="muted">Not recorded</span>`}</dd></div>
-            <div><dt>Represented by</dt><dd>${client.signs_personally ? html`<span class="muted">Signs personally</span>` : client.representative ? `${client.representative}${client.representative_cpr ? ` (CPR No. ${client.representative_cpr})` : ''}${client.representative_title ? `, ${client.representative_title}` : ''}${[client.representative_phone, client.representative_email].filter(Boolean).length ? ` · ${[client.representative_phone, client.representative_email].filter(Boolean).join(' · ')}` : ''}` : client.contact_person && client.contact_person !== client.name ? html`${client.contact_person} <span class="muted small">(main contact)</span>` : html`<span class="muted">Signs personally</span>`}</dd></div>
-            <div><dt>Telephone</dt><dd>${client.phone || '—'}</dd></div><div><dt>Email</dt><dd>${client.email || '—'}</dd></div>
-            <div><dt>Preferred contact</dt><dd>${client.preferred_contact || '—'}</dd></div></dl>`
+          ${client ? html`<p class="client-name">${client.name}</p>
+            <div class="profile-groups">
+              <div><h3 class="h3">${party(a)} details</h3><dl class="details">
+                <div><dt>Individual or company</dt><dd>${client.kind === 'company' ? 'Company' : 'Individual'}</dd></div>
+                <div><dt>${client.kind === 'company' ? 'CR number' : 'CPR number'}</dt><dd>${client.id_number || html`<span class="muted">Not recorded</span>`}</dd></div>
+                <div><dt>Telephone</dt><dd>${client.phone || '—'}</dd></div><div><dt>Email</dt><dd>${client.email || '—'}</dd></div>
+                <div><dt>Preferred contact</dt><dd>${client.preferred_contact || '—'}</dd></div>
+                ${client.contact_person && client.contact_person !== client.name ? html`<div><dt>Day-to-day contact</dt><dd>${client.contact_person}</dd></div>` : ''}
+                ${client.address ? html`<div><dt>Address</dt><dd class="pre-line">${client.address}</dd></div>` : ''}</dl></div>
+              <div><h3 class="h3">${party(a)}'s representative</h3>${client.signs_personally ? html`<p class="muted">The ${party(a).toLowerCase()} signs personally (no representative).</p>`
+                : client.representative ? html`<dl class="details">
+                <div><dt>Name</dt><dd>${client.representative}</dd></div>
+                <div><dt>Title / capacity</dt><dd>${client.representative_title || `${party(a)}'s Representative`}</dd></div>
+                <div><dt>CPR number</dt><dd>${client.representative_cpr || html`<span class="muted">Not recorded</span>`}</dd></div>
+                <div><dt>Telephone</dt><dd>${client.representative_phone || '—'}</dd></div><div><dt>Email</dt><dd>${client.representative_email || '—'}</dd></div></dl>`
+                : html`<p class="muted">Not recorded. ${client.contact_person && client.contact_person !== client.name ? `${client.contact_person} (day-to-day contact) signs for now.` : ''}</p>`}</div>
+            </div>`
             : html`<p class="muted">Not linked to ${a.ws.section === 'props' ? 'an owner' : 'a client'} yet.</p>`}
           ${edit ? html`<details class="inline-form"><summary>${client ? `Change ${party(a).toLowerCase()}` : `Link ${a.ws.section === 'props' ? 'an owner' : 'a client'}`}</summary><form method="post" action="/w/${a.ws.id}/client/link" class="form-grid">${csrfField(req)}
             ${field({ name: 'party_id', label: party(a), options: [['', 'Choose…'], ...clients.map(c => [c.id, c.name])], required: true })}
