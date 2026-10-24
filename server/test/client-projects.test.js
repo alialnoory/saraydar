@@ -230,7 +230,7 @@ test('client projects', { skip: !URL_ && 'set TEST_DATABASE_URL to run' }, async
   await t.test('VAT later: a new terms version with a rate; VAT invoices need SarayDar\'s VAT number', async () => {
     const next = fees.monthOf(fees.addDays(`${month}-28`, 7).slice(0, 7));
     const form = await admin.get(`/w/${p3}/client`);
-    assert.match(form.text, /<option value="none" selected>No VAT charged on the fee/);              // the form's default today
+    assert.match(form.text, /<option value="none" selected>No VAT</);              // the form's default today
     await admin.post(`/w/${p3}/terms`, { start_date: `${month}-01`, monthly_fee: '1000', tax_mode: 'none' }, `/w/${p3}/client`);
     const tA = (await q1(`select id, tax_mode from mgmt_terms where workspace_id = '${p3}'`));
     assert.equal(tA.tax_mode, 'none');

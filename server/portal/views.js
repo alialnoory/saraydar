@@ -100,14 +100,27 @@ function layout(req, { title, crumbs = [], heading = null, sub = null, tabs = nu
 
 const emptyState = (title, text, action = '') => html`<div class="empty"><strong>${title}</strong><p>${text}</p>${action}</div>`;
 
-function field({ name, label, type = 'text', value = '', required = false, hint = '', attrs = '', options = null, full = false }) {
+// list: typing suggestions (free text still allowed). type 'checks': tick-boxes for `options` (strings) plus an
+// "Other" box; posted as one newline-separated answer (see choices.combineChecks).
+function field({ name, label, type = 'text', value = '', required = false, hint = '', attrs = '', options = null, full = false, list = null, otherLabel = 'Other (one per line)' }) {
   const id = `f-${name}`;
+  if (type === 'checks') {
+    const have = String(value || '').split(/\r?\n/).map(x => x.trim()).filter(Boolean);
+    const other = have.filter(v => !options.includes(v));
+    return html`<fieldset class="field checks full"><legend>${label}</legend><input type="hidden" name="${name}__checks" value="1">
+      <div class="check-grid">${options.map(o => html`<label class="check"><input type="checkbox" name="${name}__pick" value="${o}" ${have.includes(o) ? raw('checked') : ''} ${raw(attrs)}> ${o}</label>`)}</div>
+      <label class="field" for="${id}"><span class="small muted">${otherLabel}</span><textarea id="${id}" name="${name}__other" rows="2" ${raw(attrs)}>${other.join('\n')}</textarea></label>
+      ${hint ? html`<small>${hint}</small>` : ''}</fieldset>`;
+  }
+  const listId = list && list.length ? `dl-${name}-${Math.random().toString(36).slice(2, 7)}` : '';
+  if (listId) attrs = `${attrs} list="${listId}" autocomplete="off"`;
+  const dl = listId ? html`<datalist id="${listId}">${list.map(o => html`<option value="${o}"></option>`)}</datalist>` : '';
   const ctl = options
     ? html`<select id="${id}" name="${name}" ${required ? raw('required') : ''} ${raw(attrs)}>${options.map(([v, l]) => html`<option value="${v}" ${String(v) === String(value) ? raw('selected') : ''}>${l}</option>`)}</select>`
     : type === 'textarea'
       ? html`<textarea id="${id}" name="${name}" ${required ? raw('required') : ''} ${raw(attrs)}>${value}</textarea>`
       : html`<input id="${id}" name="${name}" type="${type}" value="${value}" ${required ? raw('required') : ''} ${raw(attrs)}>`;
-  return html`<label class="field${full ? ' full' : ''}" for="${id}"><span>${label}${required ? html` <i class="req" aria-hidden="true">*</i>` : ''}</span>${ctl}${hint ? html`<small>${hint}</small>` : ''}</label>`;
+  return html`<label class="field${full ? ' full' : ''}" for="${id}"><span>${label}${required ? html` <i class="req" aria-hidden="true">*</i>` : ''}</span>${ctl}${dl}${hint ? html`<small>${hint}</small>` : ''}</label>`;
 }
 
 function pager(req, total, page, per) {

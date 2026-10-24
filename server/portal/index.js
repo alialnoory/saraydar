@@ -45,6 +45,7 @@ function createPortal({ pool, secret, mailer, env = process.env }) {
   const r = express.Router();
   r.use(cookieParser());
   r.use(express.urlencoded({ extended: false, limit: '200kb' }));
+  r.use(require('./choices').combineChecks);
 
   // who is signed in
   r.use(async (req, res, next) => {

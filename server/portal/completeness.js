@@ -14,8 +14,8 @@ function mountCompleteness(r, ctx) {
     const items = [];
     const add = (label, done, href, hint = '') => items.push({ label, done: !!done, href, hint });
     const party = ws.party_id ? await one('select * from parties where id = $1', [ws.party_id]) : null;
-    add('Responsible manager assigned', ws.manager_id, W(''), 'Overview › Edit details');
-    add('Location recorded', ws.location, W(''), 'Overview › Edit details');
+    add('Responsible manager assigned', ws.manager_id, W('?edit=1#edit'));
+    add('Location recorded', ws.location, W('?edit=1#edit'));
 
     if (ws.kind === 'project' || ws.kind === 'client_project') {
       const cpm = ws.kind === 'client_project';

@@ -5,6 +5,7 @@
 // under "Client & Agreement", not as free answers here.
 const dev = require('./setup-dev');
 const { parseMoney } = require('./money');
+const CH = require('../portal/choices');
 
 const PHASE_STATUS = dev.PHASE_STATUS;
 const TEMPLATE = [
@@ -29,8 +30,8 @@ const STEPS = [
     { k: 'plots_count', label: 'Number of plots', type: 'number', hint: 'Record each plot under Land & Plots.' },
     { k: 'site_condition', label: 'Current site condition', type: 'textarea' },
     { k: 'design_status', label: 'Existing designs', type: 'select', options: [['none', 'No design yet'], ['concept', 'Concept design'], ['detailed', 'Detailed design'], ['ifc', 'Issued for construction']] },
-    { k: 'approvals_obtained', label: 'Approvals already obtained (one per line)', type: 'textarea' },
-    { k: 'approvals_pending', label: 'Approvals still needed (one per line)', type: 'textarea' }
+    { k: 'approvals_obtained', label: 'Approvals already obtained — tick each', type: 'checks', options: CH.BH_APPROVALS },
+    { k: 'approvals_pending', label: 'Approvals still needed — tick each', type: 'checks', options: CH.BH_APPROVALS }
   ] },
   { key: 'stage', title: 'Current stage', intro: 'Client projects often join part-way through. Record what has already happened; it stays marked as reported until someone checks it.', fields: [
     { k: 'stage', label: 'Current stage', type: 'select', required: true, options: [['onboarding', 'Onboarding'], ['design', 'Design'], ['approvals', 'Approvals'], ['procurement', 'Procurement'], ['construction', 'Construction'], ['handover', 'Handover'], ['defects', 'Defects liability']] },
@@ -51,14 +52,14 @@ const STEPS = [
     { k: 'constraints', label: 'Known constraints, dependencies or delays', type: 'textarea' }
   ] },
   { key: 'team', title: 'Contractors, consultants & team', fields: [
-    { k: 'client_rep', label: 'Client representative', type: 'text' },
-    { k: 'consultant', label: 'Design consultant', type: 'text' },
-    { k: 'contractor', label: 'Main contractor', type: 'text' },
-    { k: 'pm', label: 'SarayDar project manager', type: 'text' },
+    { k: 'client_rep', label: 'Client representative', type: 'text', list: 'client', hint: 'Suggested from the client\'s profile.' },
+    { k: 'consultant', label: 'Design consultant', type: 'text', list: 'names' },
+    { k: 'contractor', label: 'Main contractor', type: 'text', list: 'names' },
+    { k: 'pm', label: 'SarayDar project manager', type: 'text', pick: 'staff', hint: 'Defaults to the responsible manager.' },
     { k: 'others', label: 'Others: suppliers, subcontractors, team (one per line: role – name)', type: 'textarea' }
   ] },
   { key: 'risks', title: 'Risks', fields: [
-    { k: 'risks', label: 'Known risks (one per line)', type: 'textarea' }
+    { k: 'risks', label: 'Known risks — tick those that apply', type: 'checks', options: CH.COMMON_RISKS.client_project }
   ] }
 ];
 const IMPORTANT = ['start', 'target', 'total_budget', 'payment_route'];

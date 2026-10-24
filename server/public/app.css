@@ -417,3 +417,10 @@ button.navbtn { font: inherit; cursor: pointer; }
 .guide-tick { color: var(--ok); font-weight: 700; margin-right: 6px; }
 .guide-done { border-color: var(--line); }
 @media (max-width: 640px) { .guide-list { grid-template-columns: 1fr; } }
+
+/* tick-box groups */
+fieldset.field.checks { border: 1px solid var(--line, #e2d6cb); border-radius: 10px; padding: 12px 14px; margin: 0; min-width: 0; }
+fieldset.field.checks legend { padding: 0 6px; font-size: .86rem; color: var(--muted, #6e5b50); }
+.check-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 6px 16px; margin-bottom: 8px; }
+.check-grid .check { display: flex; gap: 8px; align-items: flex-start; font-size: .92rem; line-height: 1.35; }
+.check-grid .check input { margin: 1px 0 0; flex: none; width: 18px; height: 18px; min-height: 0; padding: 0; }

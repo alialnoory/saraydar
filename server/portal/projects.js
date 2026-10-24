@@ -1,4 +1,5 @@
 'use strict';
+const CH = require('./choices');
 const U = require('../lib/undo');
 // SarayDar Real Estate Development workspaces: guided setup, plan & baseline, tasks, budget & cost,
 // progress updates with photos, registers and units. Every nested record is looked up together with
@@ -259,18 +260,41 @@ function mountProjects(r, ctx) {
     const d = await loadDraft(a.ws.id);
     const ro = !core.canEdit(a);
     const idx = setup.STEPS.indexOf(step);
+    // suggestions and defaults so nothing already recorded elsewhere is typed again
+    const staff = step.fields.some(f => f.pick === 'staff') ? (await pool.query("select coalesce(nullif(name,''), email) as n, id from users where active and kind = 'internal' order by 1")).rows : [];
+    const names = step.fields.some(f => f.list === 'names') ? await CH.knownNames(pool, a.ws.id) : [];
+    const client = step.fields.some(f => f.list === 'client') && a.ws.party_id ? (await pool.query('select name, contact_person, representative, representatives from parties where id = $1', [a.ws.party_id])).rows[0] : null;
+    const clientNames = client ? [client.contact_person, client.representative, ...CH.lines(client.representatives)].filter(Boolean) : [];
+    const plotInfo = step.fields.some(f => ['plots_count', 'land_area'].includes(f.k)) ? (await pool.query('select count(*)::int as n, sum(area_m2) as area from plots where workspace_id = $1 and archived_at is null', [a.ws.id])).rows[0] : null;
+    const defaults = {
+      pm: (staff.find(u => u.id === a.ws.manager_id) || {}).n,
+      client_rep: clientNames[0],
+      plots_count: plotInfo && plotInfo.n ? plotInfo.n : undefined,
+      land_area: plotInfo && plotInfo.area ? Number(plotInfo.area) : undefined
+    };
+    const phaseOrder = setup.TEMPLATE.map(p => p.key).filter(k => k !== 'sales').concat(a.ws.section === 'dev' ? ['operation'] : []);
     const input = f => {
       const x = d.answers[f.k];
-      const value = !x || x.unknown ? '' : f.type === 'money' ? toInput(x.v) : x.v;
-      const opts = f.type === 'select' ? [['', 'Choose…'], ...f.options] : null;
-      return html`<div class="q">${field({ name: f.k, label: f.label, type: f.type === 'money' ? 'text' : f.type, value, required: f.required, hint: f.hint || '', options: opts,
-        attrs: `${f.type === 'money' ? 'inputmode="decimal" placeholder="0.000"' : ''} ${f.type === 'number' ? 'step="any" min="0" inputmode="decimal"' : ''} ${ro ? 'disabled' : ''}`, full: f.type === 'textarea' })}
+      let value = !x || x.unknown ? '' : f.type === 'money' ? toInput(x.v) : x.v;
+      if (!x && defaults[f.k] !== undefined) value = defaults[f.k];
+      let opts = f.type === 'select' ? [['', 'Choose…'], ...f.options] : null;
+      if (f.pick === 'staff') opts = [['', 'Choose…'], ...(value && !staff.some(u => u.n === value) ? [[value, value]] : []), ...staff.map(u => [u.n, u.n])];
+      const list = f.list === 'names' ? names : f.list === 'client' ? clientNames : null;
+      const extraAttrs = f.k === 'stage' ? `data-stage-phases='${JSON.stringify(phaseOrder)}'` : '';
+      return html`<div class="q${f.type === 'checks' ? ' full' : ''}">${field({ name: f.k, label: f.label, type: f.type === 'money' ? 'text' : f.type, value, required: f.required, hint: f.hint || '', options: f.type === 'checks' ? f.options : opts, list,
+        attrs: `${f.type === 'money' ? 'inputmode="decimal" placeholder="0.000"' : ''} ${f.type === 'number' ? 'step="any" min="0" inputmode="decimal"' : ''} ${f.placeholder ? `placeholder="${f.placeholder}"` : ''} ${extraAttrs} ${ro ? 'disabled' : ''}`, full: f.type === 'textarea' })}
         ${f.noUnknown || f.required ? '' : html`<label class="check small"><input type="checkbox" name="${f.k}__unknown" value="1" ${x && x.unknown ? raw('checked') : ''} ${ro ? raw('disabled') : ''}> Not yet determined</label>`}</div>`;
     };
+    const phaseFields = step.fields.filter(f => f.k.startsWith('ph_'));
+    const body = step.key === 'stage' && phaseFields.length
+      ? html`${step.fields.filter(f => !f.k.startsWith('ph_') && f.k === 'stage').map(input)}
+        <details class="full inline-form"><summary>Status of each phase — set automatically from the current stage; open to adjust</summary><div class="form-grid">${phaseFields.map(input)}</div></details>
+        ${step.fields.filter(f => !f.k.startsWith('ph_') && f.k !== 'stage').map(input)}`
+      : html`${step.fields.map(input)}`;
     res.send(page(req, a, 'Setup', html`${stepNav(a, d, step.key)}
       <form method="post" action="/w/${a.ws.id}/setup/${step.key}" class="panel">${csrfField(req)}
         <h2 class="h">${idx + 1}. ${step.title}</h2>${step.intro ? html`<p class="muted">${step.intro}</p>` : ''}
-        <div class="form-grid">${step.fields.map(input)}</div>
+        <div class="form-grid">${body}</div>
         ${ro ? html`<p class="muted">View only.</p>` : html`<div class="actions sticky-actions">
           ${idx > 0 ? html`<button class="btn" type="submit" name="go" value="${setup.STEPS[idx - 1].key}">Back</button>` : ''}
           <button class="btn" type="submit" name="go" value="stay">Save</button>
@@ -285,6 +309,11 @@ function mountProjects(r, ctx) {
     const step = setup.STEPS.find(s => s.key === req.params.step);
     if (!step) throw new NotFound();
     const vals = setup.readStep(step, req.body);
+    if (step.key === 'stage' && vals.stage && vals.stage.v) {
+      const order = setup.TEMPLATE.map(p => p.key).filter(k => k !== 'sales').concat(a.ws.section === 'dev' ? ['operation'] : []);
+      const i = order.indexOf(vals.stage.v);
+      if (i >= 0) order.forEach((k, j) => { if (`ph_${k}` in vals && vals[`ph_${k}`] === null) vals[`ph_${k}`] = { v: j < i ? 'done' : j === i ? 'in_progress' : 'not_started' }; });
+    }
     await core.inTx(async db => {
       const cur = (await db.query('select answers from setup_drafts where workspace_id = $1 for update', [a.ws.id])).rows[0];
       const answers = { ...(cur ? cur.answers : {}) };
@@ -459,6 +488,8 @@ function mountProjects(r, ctx) {
     const m = await metrics(a.ws.id);
     const filter = ['open', 'overdue', 'milestones', 'all'].includes(req.query.f) ? req.query.f : 'all';
     const today = m.today;
+    const names = await CH.knownNames(pool, a.ws.id);
+    const phaseNames = SETUPS[a.ws.section] ? SETUPS[a.ws.section].TEMPLATE.map(p => p.name) : [];
     const show = t => filter === 'all' || (filter === 'open' && !['done', 'cancelled'].includes(t.status)) || (filter === 'overdue' && m.overdue.includes(t)) || (filter === 'milestones' && t.is_milestone);
     const deps = (await pool.query('select d.task_id, count(*)::int as n from task_deps d join tasks t on t.id = d.task_id where t.workspace_id = $1 group by 1', [a.ws.id])).rows;
     const depN = Object.fromEntries(deps.map(d => [d.task_id, d.n]));
@@ -484,13 +515,13 @@ function mountProjects(r, ctx) {
             ${field({ name: 'sort', label: 'Order', value: p.sort, type: 'number', attrs: 'step="1"' })}
             <div class="actions full"><button class="btn" type="submit">Save phase</button><button class="btn" type="submit" name="archive" value="1">Archive phase</button></div></form>
           <form method="post" action="/w/${a.ws.id}/tasks" class="form-grid">${csrfField(req)}<input type="hidden" name="phase_id" value="${p.id}">
-            ${field({ name: 'title', label: 'New task', required: true })}${field({ name: 'owner_text', label: 'Owner' })}
+            ${field({ name: 'title', label: 'New task', required: true })}${field({ name: 'owner_text', label: 'Owner', list: names })}
             ${field({ name: 'start_date', label: 'Start', type: 'date' })}${field({ name: 'due_date', label: 'Due', type: 'date' })}
             <label class="field check"><input type="checkbox" name="is_milestone" value="1"> <span>Milestone</span></label>
             <div class="actions full"><button class="btn primary" type="submit">Add task</button></div></form></details>` : ''}
       </section>`) : emptyState('No tasks yet', 'Generate a draft plan from Setup, or add a phase below.')}
       ${edit ? html`<section class="panel"><h2 class="h">Add a phase</h2><form method="post" action="/w/${a.ws.id}/phases" class="form-grid">${csrfField(req)}
-        ${field({ name: 'name', label: 'Phase name', required: true })}${field({ name: 'weight', label: 'Weight (optional)', type: 'number', attrs: 'min="0" step="any"' })}
+        ${field({ name: 'name', label: 'Phase name', required: true, list: phaseNames })}${field({ name: 'weight', label: 'Weight (optional)', type: 'number', attrs: 'min="0" step="any"' })}
         <div class="actions full"><button class="btn" type="submit">Add phase</button></div></form></section>` : ''}`));
   });
 
@@ -568,6 +599,7 @@ function mountProjects(r, ctx) {
     const t = await own('tasks', req.params.tid, a.ws.id);
     const [phases, tasks] = await Promise.all([loadPhases(a.ws.id), loadTasks(a.ws.id)]);
     const deps = (await pool.query('select depends_on from task_deps where task_id = $1', [t.id])).rows.map(x => x.depends_on);
+    const names = await CH.knownNames(pool, a.ws.id);
     const comments = (await pool.query(`select c.*, coalesce(nullif(u.name,''), u.email) as who from comments c left join users u on u.id = c.author_id where c.entity = 'task' and c.entity_id = $1 and c.workspace_id = $2 order by c.created_at`, [t.id, a.ws.id])).rows;
     const edit = core.canEdit(a), contrib = core.canContribute(a);
     const dis = edit ? '' : 'disabled';
@@ -578,7 +610,7 @@ function mountProjects(r, ctx) {
         ${field({ name: 'title', label: 'Title', value: t.title, required: true, attrs: dis, full: true })}
         ${field({ name: 'phase_id', label: 'Phase', value: t.phase_id || '', options: [['', 'Not in a phase'], ...phases.map(p => [p.id, p.name])], attrs: dis })}
         ${field({ name: 'parent_id', label: 'Part of task', value: t.parent_id || '', options: [['', '—'], ...others.map(x => [x.id, x.title])], attrs: dis })}
-        ${field({ name: 'owner_text', label: 'Owner', value: t.owner_text || '', attrs: dis })}
+        ${field({ name: 'owner_text', label: 'Owner', value: t.owner_text || '', attrs: dis, list: names })}
         ${field({ name: 'weight', label: 'Weight within phase', value: t.weight === null ? '' : Number(t.weight), type: 'number', attrs: `min="0" step="any" ${dis}`, hint: 'Empty counts as 1.' })}
         ${field({ name: 'start_date', label: 'Planned start', value: iso(t.start_date) || '', type: 'date', attrs: dis })}
         ${field({ name: 'due_date', label: 'Planned due', value: iso(t.due_date) || '', type: 'date', attrs: dis })}
@@ -663,6 +695,12 @@ function mountProjects(r, ctx) {
     const canConfirm = core.isSuper(req.user) || await core.can(req.user, 'finance:post');
     const lineOpts = [['', 'Not assigned to a line'], ...b.rows.map(l => [l.id, `${l.category} · ${l.description}`])];
     const id = a.ws.id;
+    const names = edit ? await CH.knownNames(pool, id) : [];
+    const catOpts = cur => [...(cur && !CH.BUDGET_CATEGORIES.includes(cur) ? [[cur, cur]] : []), ...CH.BUDGET_CATEGORIES.map(c => [c, c])];
+    // picking a commitment or an invoice fills the matching details
+    const commitFill = Object.fromEntries(commits.map(c => [c.id, { supplier: c.counterparty, budget_line_id: c.budget_line_id || '' }]));
+    const invFill = Object.fromEntries(invoices.map(i => [i.id, { payee: i.supplier, amount: toInput(num(i.amount_minor)), budget_line_id: i.budget_line_id || '' }]));
+    const json = (idn, o) => raw(`<script type="application/json" id="${idn}">${JSON.stringify(o).replace(/</g, '\\u003c')}</script>`);
     const cpm = a.ws.section === 'cpm';
     res.send(page(req, a, budgetTab(a), html`
       ${cpm ? html`<div class="notice info">These are the <b>client's</b> construction budget and payments. They are never SarayDar revenue or expense. SarayDar's own management fees are kept separately under <a href="/w/${id}/fees">Fee Billing</a>.</div>` : ''}
@@ -680,21 +718,21 @@ function mountProjects(r, ctx) {
       </section>
       ${edit ? html`<section class="panel"><h2 class="h">Edit budget lines</h2>
         ${b.rows.map(l => html`<details class="inline-form"><summary>${l.description}</summary><form method="post" action="/w/${id}/budget/lines/${l.id}" class="form-grid">${csrfField(req)}
-          ${field({ name: 'category', label: 'Category', value: l.category, required: true })}${field({ name: 'description', label: 'Description', value: l.description, required: true })}
+          ${field({ name: 'category', label: 'Category', value: l.category, required: true, options: catOpts(l.category) })}${field({ name: 'description', label: 'Description', value: l.description, required: true })}
           ${field({ name: 'revised', label: 'Current budget (BHD)', value: toInput(l.revised), attrs: 'inputmode="decimal"', hint: 'Empty = not yet determined.' })}
           ${field({ name: 'forecast', label: 'Forecast uncommitted cost (BHD)', value: toInput(l.forecast), attrs: 'inputmode="decimal"', hint: 'Cost still expected beyond current commitments.' })}
           ${field({ name: 'notes', label: 'Notes', value: l.notes || '' })}
           ${!l.verified ? html`<label class="field check"><input type="checkbox" name="verify" value="1"> <span>Figures checked</span></label>` : ''}
           <div class="actions full"><button class="btn" type="submit">Save line</button></div></form></details>`)}
         <form method="post" action="/w/${id}/budget/lines" class="form-grid">${csrfField(req)}<h3 class="h3 full">Add a line</h3>
-          ${field({ name: 'category', label: 'Category', required: true })}${field({ name: 'description', label: 'Description', required: true })}
+          ${field({ name: 'category', label: 'Category', required: true, options: [['', 'Choose…'], ...catOpts()] })}${field({ name: 'description', label: 'Description', required: true })}
           ${field({ name: 'revised', label: 'Budget (BHD)', attrs: 'inputmode="decimal"' })}<div class="actions full"><button class="btn" type="submit">Add line</button></div></form>
       </section>` : ''}
       <section class="panel"><h2 class="h">Commitments (contracts, orders, appointments and variations)</h2>
         ${commits.length ? html`<div class="table-wrap"><table><thead><tr><th>Counterparty</th><th>Line</th><th>Reference</th><th>Date</th><th class="n">Value</th><th>Status</th></tr></thead><tbody>
           ${commits.map(c => html`<tr><td>${c.counterparty} ${c.kind !== 'contract' ? pill(COMMIT_KIND[c.kind] || c.kind, 'info') : ''}${c.description ? html`<div class="muted small">${c.description}</div>` : ''}</td><td class="small">${c.line || '—'}</td><td class="small">${c.reference || '—'}</td><td class="small">${fmtDate(c.committed_on) || '—'}</td><td class="n">${fm(num(c.value_minor), c.currency)}</td><td>${humanize(c.status)}</td></tr>`)}</tbody></table></div>` : html`<p class="muted">None yet.</p>`}
         ${edit ? html`<details class="inline-form"><summary>Add commitment</summary><form method="post" action="/w/${id}/budget/commitments" class="form-grid">${csrfField(req)}
-          ${field({ name: 'counterparty', label: 'Contractor / supplier / consultant', required: true })}${field({ name: 'kind', label: 'Type', options: Object.entries(COMMIT_KIND) })}${field({ name: 'budget_line_id', label: 'Budget line', options: lineOpts })}
+          ${field({ name: 'counterparty', label: 'Contractor / supplier / consultant', required: true, list: names })}${field({ name: 'kind', label: 'Type', options: Object.entries(COMMIT_KIND) })}${field({ name: 'budget_line_id', label: 'Budget line', options: lineOpts })}
           ${field({ name: 'value', label: 'Value (BHD)', required: true, attrs: 'inputmode="decimal"' })}${field({ name: 'committed_on', label: 'Date', type: 'date' })}
           ${field({ name: 'reference', label: 'Contract / order reference' })}${field({ name: 'description', label: 'Scope' })}
           <div class="actions full"><button class="btn primary" type="submit">Add commitment</button></div></form></details>` : ''}
@@ -705,9 +743,10 @@ function mountProjects(r, ctx) {
             <td>${pill(humanize(i.status), i.status === 'approved' ? 'ok' : i.status === 'rejected' ? 'bad' : i.status === 'reviewed' ? 'info' : 'warn')}</td>
             <td>${edit && ['submitted', 'reviewed'].includes(i.status) ? html`<form method="post" action="/w/${id}/budget/invoices/${i.id}" class="actions">${csrfField(req)}${i.status === 'submitted' ? html`<button class="btn small" name="decision" value="reviewed">Mark reviewed</button>` : ''}${!cpm || i.status === 'reviewed' ? html`<button class="btn small" name="decision" value="approved">Approve</button>` : ''}<button class="btn small" name="decision" value="rejected">Reject</button></form>` : ''}</td></tr>`)}</tbody></table></div>` : html`<p class="muted">None yet.</p>`}
         ${edit ? html`<details class="inline-form"><summary>Record an invoice</summary><form method="post" action="/w/${id}/budget/invoices" class="form-grid">${csrfField(req)}
-          ${field({ name: 'supplier', label: cpm ? 'Contractor / consultant / supplier' : 'Supplier', required: true })}${field({ name: 'doc_type', label: 'Document', options: Object.entries(DOC_TYPE) })}${field({ name: 'invoice_no', label: 'Invoice / application number' })}
-          ${field({ name: 'amount', label: 'Amount (BHD)', required: true, attrs: 'inputmode="decimal"' })}${field({ name: 'invoice_date', label: 'Invoice date', type: 'date' })}
-          ${field({ name: 'budget_line_id', label: 'Budget line', options: lineOpts })}${field({ name: 'commitment_id', label: 'Against commitment', options: [['', 'None'], ...commits.map(c => [c.id, `${c.counterparty} · ${fm(num(c.value_minor))}`])] })}
+          ${commits.length ? html`${field({ name: 'commitment_id', label: 'Against commitment', options: [['', 'None'], ...commits.map(c => [c.id, `${c.counterparty} · ${fm(num(c.value_minor))}`])], attrs: 'data-fill="fill-commit"', hint: 'Choosing one fills the supplier and budget line.' })}${json('fill-commit', commitFill)}` : ''}
+          ${field({ name: 'supplier', label: cpm ? 'Contractor / consultant / supplier' : 'Supplier', required: true, list: names })}${field({ name: 'doc_type', label: 'Document', options: Object.entries(DOC_TYPE) })}${field({ name: 'invoice_no', label: 'Invoice / application number' })}
+          ${field({ name: 'amount', label: 'Amount (BHD)', required: true, attrs: 'inputmode="decimal"' })}${field({ name: 'invoice_date', label: 'Invoice date', type: 'date', value: CH.today() })}
+          ${field({ name: 'budget_line_id', label: 'Budget line', options: lineOpts })}
           <div class="actions full"><button class="btn primary" type="submit">Record invoice</button></div><p class="muted small full">Submitted → reviewed → approved → paid are separate steps.${cpm ? ' Client projects need a review before approval.' : ''} Recording is not approval; approval is not payment.</p></form></details>` : ''}
       </section>
       <section class="panel"><h2 class="h">Payments</h2>
@@ -717,11 +756,11 @@ function mountProjects(r, ctx) {
             <td>${canConfirm && p.status === 'pending' ? html`<form method="post" action="/w/${id}/budget/payments/${p.id}/confirm" class="actions">${csrfField(req)}<input type="date" name="paid_on" aria-label="Paid on" value="${iso(p.paid_on) || ''}" required><button class="btn small" type="submit">Confirm</button></form>` : ''}
               ${canConfirm && p.status === 'confirmed' ? html`<form method="post" action="/w/${id}/budget/payments/${p.id}/reverse" class="actions">${csrfField(req)}<input name="reason" aria-label="Reason" placeholder="Reason" required><button class="btn small" type="submit">Reverse</button></form>` : ''}</td></tr>`)}</tbody></table></div>` : html`<p class="muted">None yet.</p>`}
         ${edit ? html`<details class="inline-form"><summary>Record a payment</summary><form method="post" action="/w/${id}/budget/payments" class="form-grid">${csrfField(req)}
-          ${field({ name: 'payee', label: 'Payee', required: true })}${field({ name: 'amount', label: 'Amount (BHD)', required: true, attrs: 'inputmode="decimal"' })}
+          ${invoices.some(i => i.status === 'approved') ? html`${field({ name: 'invoice_id', label: 'For invoice', options: [['', 'No invoice'], ...invoices.filter(i => i.status === 'approved').map(i => [i.id, `${i.supplier} ${i.invoice_no || ''} · ${fm(num(i.amount_minor))}`])], attrs: 'data-fill="fill-inv"', hint: 'Choosing one fills the payee, amount and budget line.' })}${json('fill-inv', invFill)}` : ''}
+          ${field({ name: 'payee', label: 'Payee', required: true, list: names })}${field({ name: 'amount', label: 'Amount (BHD)', required: true, attrs: 'inputmode="decimal"' })}
           ${cpm ? html`${field({ name: 'payer', label: 'Paid by', options: Object.entries(PAYER) })}${field({ name: 'approval_ref', label: 'Client approval for a payment on the client\'s behalf', hint: 'Required only when SarayDar pays on the client\'s behalf: reference of the recorded client approval.' })}` : ''}
-          ${field({ name: 'invoice_id', label: 'For invoice', options: [['', 'No invoice'], ...invoices.filter(i => i.status === 'approved').map(i => [i.id, `${i.supplier} ${i.invoice_no || ''} · ${fm(num(i.amount_minor))}`])] })}
-          ${field({ name: 'budget_line_id', label: 'Budget line (if no invoice)', options: lineOpts })}
-          ${field({ name: 'paid_on', label: 'Paid on', type: 'date' })}${field({ name: 'method', label: 'Method' })}${field({ name: 'reference', label: 'Bank / cheque reference' })}${field({ name: 'notes', label: 'Notes' })}
+          ${field({ name: 'budget_line_id', label: 'Budget line', options: lineOpts })}
+          ${field({ name: 'paid_on', label: 'Paid on', type: 'date', value: CH.today() })}${field({ name: 'method', label: 'Method', options: [['', 'Choose…'], ...CH.PAY_METHODS.map(m => [m, m])] })}${field({ name: 'reference', label: 'Bank / cheque reference' })}${field({ name: 'notes', label: 'Notes' })}
           <div class="actions full"><button class="btn primary" type="submit">Record payment</button></div><p class="muted small full">A recorded payment stays “awaiting confirmation” until Finance confirms it against the bank record. This system does not make bank payments.</p></form></details>` : ''}
       </section>`));
   });
@@ -1020,6 +1059,7 @@ function mountProjects(r, ctx) {
     const rows = (await pool.query('select * from register_items where workspace_id = $1 and kind = $2 and archived_at is null order by (status in (\'closed\',\'resolved\',\'obtained\',\'not_required\',\'inactive\',\'cancelled\',\'withdrawn\',\'verified\')), created_at', [a.ws.id, kind])).rows;
     const contrib = core.canContribute(a);
     const isRisk = kind === 'risk' || kind === 'issue';
+    const names = contrib ? await CH.knownNames(pool, a.ws.id) : [];
     res.send(page(req, a, 'Registers', html`
       <nav class="subtabs" aria-label="Registers">${Object.entries(REG).map(([k, x]) => html`<a href="?kind=${k}" ${k === kind ? raw('aria-current="page"') : ''}>${x.label} <span class="muted">${counts[k] || 0}</span></a>`)}</nav>
       <section class="panel"><h2 class="h">${R.label}</h2>
@@ -1028,13 +1068,13 @@ function mountProjects(r, ctx) {
             <td>${x.owner_text || '—'}</td>${isRisk ? html`<td>${x.likelihood || '—'}</td><td>${x.impact ? pill(x.impact, x.impact === 'High' ? 'bad' : x.impact === 'Medium' ? 'warn' : 'muted') : '—'}</td>` : ''}
             <td class="small">${fmtDate(x.due_date) || '—'}</td><td>${humanize(x.status)}</td>
             <td>${contrib ? html`<details class="inline-form"><summary class="small">Edit</summary><form method="post" action="/w/${a.ws.id}/registers/${x.id}" class="form-grid">${csrfField(req)}
-              ${field({ name: 'title', label: 'Title', value: x.title, required: true })}${field({ name: 'owner_text', label: 'Owner', value: x.owner_text || '' })}
+              ${field({ name: 'title', label: 'Title', value: x.title, required: true })}${field({ name: 'owner_text', label: 'Owner', value: x.owner_text || '', list: names })}
               ${field({ name: 'status', label: 'Status', value: x.status, options: R.statuses.map(s => [s, humanize(s)]) })}${field({ name: 'due_date', label: 'Due', type: 'date', value: iso(x.due_date) || '' })}
               ${isRisk ? html`${field({ name: 'likelihood', label: 'Likelihood', value: x.likelihood || '', options: [['', '—'], ['Low', 'Low'], ['Medium', 'Medium'], ['High', 'High']] })}${field({ name: 'impact', label: 'Impact', value: x.impact || '', options: [['', '—'], ['Low', 'Low'], ['Medium', 'Medium'], ['High', 'High']] })}` : ''}
               ${field({ name: 'description', label: kind === 'risk' ? 'Description and mitigation' : 'Details', value: x.description || '', type: 'textarea', full: true })}
               <div class="actions full"><button class="btn small" type="submit">Save</button><button class="btn small" type="submit" name="archive" value="1">Archive</button></div></form></details>` : ''}</td></tr>`)}</tbody></table></div>` : html`<p class="muted">Nothing recorded.</p>`}
         ${contrib ? html`<details class="inline-form"><summary>Add ${R.one}</summary><form method="post" action="/w/${a.ws.id}/registers" class="form-grid">${csrfField(req)}<input type="hidden" name="kind" value="${kind}">
-          ${field({ name: 'title', label: 'Title', required: true })}${field({ name: 'owner_text', label: 'Owner' })}${field({ name: 'due_date', label: 'Due', type: 'date' })}
+          ${field({ name: 'title', label: kind === 'risk' ? 'Risk' : 'Title', required: true, list: kind === 'risk' ? CH.COMMON_RISKS[a.ws.kind] || [] : kind === 'permit' ? CH.BH_APPROVALS : kind === 'stakeholder' ? names : null })}${field({ name: 'owner_text', label: 'Owner', list: names })}${field({ name: 'due_date', label: 'Due', type: 'date' })}
           ${isRisk ? html`${field({ name: 'likelihood', label: 'Likelihood', options: [['', '—'], ['Low', 'Low'], ['Medium', 'Medium'], ['High', 'High']] })}${field({ name: 'impact', label: 'Impact', options: [['', '—'], ['Low', 'Low'], ['Medium', 'Medium'], ['High', 'High']] })}` : ''}
           ${field({ name: 'description', label: 'Details', type: 'textarea', full: true })}<div class="actions full"><button class="btn primary" type="submit">Add</button></div></form></details>` : ''}
       </section>`));
@@ -1089,14 +1129,14 @@ function mountProjects(r, ctx) {
         ${rows.map(u => html`<tr><td><b>${u.name}</b>${u.notes ? html`<div class="muted small">${u.notes}</div>` : ''}</td><td>${u.plot_ref || '—'}</td><td>${u.unit_type || '—'}</td><td class="n">${u.area_m2 === null ? '—' : Number(u.area_m2)}</td>
           ${a.finance ? html`<td class="n">${u.list_price_minor === null ? html`<span class="muted">Not set</span>` : fm(num(u.list_price_minor), u.currency)}</td>` : ''}<td>${UNIT_STATUS[u.status]}</td>
           <td>${edit ? html`<details class="inline-form"><summary class="small">Edit</summary><form method="post" action="/w/${a.ws.id}/units/${u.id}" class="form-grid">${csrfField(req)}
-            ${field({ name: 'name', label: 'Unit', value: u.name, required: true })}${field({ name: 'plot_id', label: 'Plot', value: u.plot_id || '', options: plotOpts })}${field({ name: 'unit_type', label: 'Type', value: u.unit_type || '' })}
+            ${field({ name: 'name', label: 'Unit', value: u.name, required: true })}${field({ name: 'plot_id', label: 'Plot', value: u.plot_id || '', options: plotOpts })}${field({ name: 'unit_type', label: 'Type', value: u.unit_type || '', list: CH.UNIT_TYPES })}
             ${field({ name: 'area_m2', label: 'Area m²', value: u.area_m2 === null ? '' : Number(u.area_m2), type: 'number', attrs: 'min="0" step="any"' })}
             ${a.finance ? field({ name: 'price', label: 'List price (BHD)', value: toInput(num(u.list_price_minor)) }) : ''}
             ${field({ name: 'status', label: 'Status', value: u.status, options: Object.entries(UNIT_STATUS) })}${field({ name: 'notes', label: 'Notes', value: u.notes || '' })}
             <div class="actions full"><button class="btn small" type="submit">Save</button></div></form></details>` : ''}</td></tr>`)}
       </tbody></table></div>` : html`<p class="muted">No units recorded.</p>`}
       ${edit ? html`<details class="inline-form"><summary>Add unit</summary><form method="post" action="/w/${a.ws.id}/units" class="form-grid">${csrfField(req)}
-        ${field({ name: 'name', label: 'Unit', required: true })}${field({ name: 'plot_id', label: 'Plot', options: plotOpts })}${field({ name: 'unit_type', label: 'Type' })}${field({ name: 'area_m2', label: 'Area m²', type: 'number', attrs: 'min="0" step="any"' })}
+        ${field({ name: 'name', label: 'Unit', required: true })}${field({ name: 'plot_id', label: 'Plot', options: plotOpts })}${field({ name: 'unit_type', label: 'Type', list: CH.UNIT_TYPES })}${field({ name: 'area_m2', label: 'Area m²', type: 'number', attrs: 'min="0" step="any"' })}
         ${a.finance ? field({ name: 'price', label: 'List price (BHD)' }) : ''}<div class="actions full"><button class="btn primary" type="submit">Add unit</button></div></form></details>` : ''}
       <p class="muted small">Reservations, buyers, offers and collections are handled in Property Sales &amp; Acquisition (Phase 6). Marking a unit sold here requires the sale to be completed there first once that section is live.</p></section>`));
   });

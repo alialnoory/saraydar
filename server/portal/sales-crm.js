@@ -1,4 +1,5 @@
 'use strict';
+const CH = require('./choices');
 const U = require('../lib/undo');
 // Property Sales & Acquisition — people and pipeline: prospective buyers and their per-property opportunities,
 // follow-ups and duplicates; viewings; offers with immutable versions and externally recorded decisions;
@@ -77,11 +78,13 @@ function mountSalesCrm(r, ctx) {
   });
 
   const PROFILE = [['purpose', 'Buying purpose'], ['types', 'Property types'], ['locations', 'Preferred locations'], ['budget_min', 'Budget from (BHD)'], ['budget_max', 'Budget up to (BHD)'], ['size_min_m2', 'Size from (m²)'], ['size_max_m2', 'Size to (m²)'], ['bedrooms_min', 'Bedrooms (at least)'], ['timing', 'Target timing'], ['funding', 'Funding readiness (as volunteered)']];
+  const PROFILE_LISTS = { purpose: ['Own home', 'Investment', 'Holiday home', 'Business use'], types: [...CH.UNIT_TYPES, 'Land'], locations: CH.BH_AREAS,
+    timing: ['Immediately', 'Within 3 months', 'Within 6 months', 'Within a year', 'No fixed date'], funding: ['Cash', 'Mortgage approved', 'Mortgage in progress', 'Mix of cash and mortgage'] };
   const profileForm = (req, p = {}, b = {}, action, label, agents) => html`<form method="post" action="${action}" class="panel form-grid">${csrfField(req)}
     ${field({ name: 'name', label: 'Name', required: true, value: p.name || '' })}${field({ name: 'phone', label: 'Telephone', value: p.phone || '' })}${field({ name: 'email', label: 'Email', type: 'email', value: p.email || '' })}
-    ${field({ name: 'preferred_contact', label: 'Preferred channel', value: p.preferred_contact || '' })}${field({ name: 'preferred_language', label: 'Preferred language', value: p.preferred_language || '' })}
-    ${field({ name: 'lead_source', label: 'Source / referral / campaign', value: p.lead_source || '' })}${field({ name: 'agent_id', label: 'Assigned agent', value: p.agent_id || req.user.id, options: [['', 'Unassigned'], ...agents.map(u => [u.id, u.label])] })}
-    ${PROFILE.map(([k, l]) => { const col = k.startsWith('budget') ? `${k}_minor` : k; const v = b[col] == null ? '' : k.startsWith('budget') ? toInput(Number(b[col])) : String(b[col]); return html`<div class="q">${field({ name: k, label: l, value: v })}<label class="check small"><input type="checkbox" name="${k}__unknown" value="1" ${(b.unknown || []).includes(k) ? raw('checked') : ''}> Not stated</label></div>`; })}
+    ${field({ name: 'preferred_contact', label: 'Preferred channel', value: p.preferred_contact || '', options: [['', 'Not stated'], ...(p.preferred_contact && !CH.CONTACT_CHANNELS.includes(p.preferred_contact) ? [[p.preferred_contact, p.preferred_contact]] : []), ...CH.CONTACT_CHANNELS.map(x => [x, x])] })}${field({ name: 'preferred_language', label: 'Preferred language', value: p.preferred_language || '', options: [['', 'Not stated'], ...(p.preferred_language && !CH.LANGUAGES.includes(p.preferred_language) ? [[p.preferred_language, p.preferred_language]] : []), ...CH.LANGUAGES.map(x => [x, x])] })}
+    ${field({ name: 'lead_source', label: 'Source / referral / campaign', value: p.lead_source || '', list: CH.LEAD_SOURCES })}${field({ name: 'agent_id', label: 'Assigned agent', value: p.agent_id || req.user.id, options: [['', 'Unassigned'], ...agents.map(u => [u.id, u.label])] })}
+    ${PROFILE.map(([k, l]) => { const col = k.startsWith('budget') ? `${k}_minor` : k; const v = b[col] == null ? '' : k.startsWith('budget') ? toInput(Number(b[col])) : String(b[col]); return html`<div class="q">${field({ name: k, label: l, value: v, list: PROFILE_LISTS[k] || null })}<label class="check small"><input type="checkbox" name="${k}__unknown" value="1" ${(b.unknown || []).includes(k) ? raw('checked') : ''}> Not stated</label></div>`; })}
     ${field({ name: 'notes', label: 'Notes', type: 'textarea', full: true, value: b.notes || '' })}
     <div class="actions full"><button class="btn primary" type="submit">${label}</button></div><p class="muted small full">Record only what the buyer told you; leave the rest empty or tick “Not stated”.</p></form>`;
   function readProfile(body) {
@@ -754,7 +757,7 @@ function mountSalesCrm(r, ctx) {
             <td>${core.canEdit(a) && e.status === 'submitted' ? html`<form method="post" action="/w/${a.ws.id}/sales-expenses/${e.id}" class="actions">${csrfField(req)}<button class="btn small" name="do" value="approved">Approve</button><button class="btn small" name="do" value="rejected">Reject</button></form>` : ''}
               ${a.canPost && e.status === 'approved' && e.pay_status !== 'paid' && e.payer !== 'client_direct' ? html`<form method="post" action="/w/${a.ws.id}/sales-expenses/${e.id}" class="actions">${csrfField(req)}<input type="date" name="paid_on" value="${todayBH()}" aria-label="Paid on" required><button class="btn small" name="do" value="paid">Paid</button></form>` : ''}</td></tr>`)}</tbody></table></div>` : html`<p class="muted">None recorded.</p>`}
         ${core.canEdit(a) ? html`<details class="inline-form"><summary>Record an expense</summary><form method="post" action="/w/${a.ws.id}/sales-expenses" class="form-grid">${csrfField(req)}
-          ${field({ name: 'category', label: 'Category', required: true, hint: 'For example portal listing, photography, printing, valuation.' })}${field({ name: 'description', label: 'Description', required: true })}${field({ name: 'supplier', label: 'Supplier', required: true })}
+          ${field({ name: 'category', label: 'Category', required: true, list: CH.SALES_EXPENSE_CATEGORIES })}${field({ name: 'description', label: 'Description', required: true })}${field({ name: 'supplier', label: 'Supplier', required: true })}
           ${field({ name: 'invoice_no', label: 'Invoice number' })}${field({ name: 'cost_date', label: 'Date', type: 'date', required: true, value: todayBH() })}${field({ name: 'amount', label: 'Amount (BHD)', required: true })}
           ${field({ name: 'payer', label: 'Payer', options: Object.entries(PAYER) })}<div class="actions full"><button class="btn" type="submit">Record</button></div></form></details>` : ''}
       </section>`));

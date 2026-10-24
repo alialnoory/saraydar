@@ -1,4 +1,5 @@
 'use strict';
+const CH = require('./choices');
 const U = require('../lib/undo');
 // Land & Plots: a project can sit on several plots (e.g. four villas on four plots as one project).
 const crypto = require('crypto');
@@ -61,8 +62,8 @@ function mountPlots(r, ctx) {
     ${field({ name: 'zoning', label: 'Zoning / classification', value: p.zoning || '', attrs: 'maxlength="80"' })}
     ${field({ name: 'tenure', label: 'Tenure', value: p.tenure || '', options: [['', 'Not yet determined'], ...Object.entries(TENURE)] })}
     ${field({ name: 'status', label: 'Status', value: p.status || 'owned', options: Object.entries(STATUS) })}
-    ${field({ name: 'owner_text', label: 'Registered owner', value: p.owner_text || '', attrs: 'maxlength="160"' })}
-    ${field({ name: 'location', label: 'Location / block / road', value: p.location || '', attrs: 'maxlength="200"' })}
+    ${field({ name: 'owner_text', label: 'Registered owner', value: p.owner_text || '', attrs: 'maxlength="160"', list: ['SarayDar Real Estate'] })}
+    ${field({ name: 'location', label: 'Location / block / road', value: p.location || '', attrs: 'maxlength="200"', list: CH.BH_AREAS })}
     ${a.finance ? html`${field({ name: 'purchase_price', label: 'Purchase price (BHD)', value: toInput(n2(p.purchase_price_minor)), attrs: 'inputmode="decimal"' })}
       ${field({ name: 'purchase_date', label: 'Purchase date', type: 'date', value: p.purchase_date ? new Date(p.purchase_date).toISOString().slice(0, 10) : '' })}` : ''}
     ${field({ name: 'notes', label: 'Notes', value: p.notes || '', type: 'textarea', full: true })}`;

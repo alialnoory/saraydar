@@ -4,6 +4,10 @@ const crypto = require('crypto');
 const multer = require('multer');
 const sharp = require('sharp');
 const { SECTIONS, SECTION_KEYS, KIND_LABEL, STATUS_LABEL, INTERNAL_MEMBER_ROLES, EXTERNAL_MEMBER_ROLES } = require('./core');
+const CH = require('./choices');
+const stageField = (kind, value, hint = '') => CH.STAGES[kind]
+  ? field({ name: 'stage', label: 'Current stage', value: value || '', hint, options: [['', 'Not yet determined'], ...(value && !CH.STAGES[kind].includes(value) ? [[value, value]] : []), ...CH.STAGES[kind].map(x => [x, x])] })
+  : field({ name: 'stage', label: 'Current stage', value: value || '', attrs: 'maxlength="80"', hint });
 const { layout, html, raw, statusPill, pill, csrfField, emptyState, field, pager, icons, fmtDate, fmtDateTime, fmtSize, ROLE_LABELS, avatar } = require('./views');
 
 const PER_PAGE = 20;
@@ -162,9 +166,9 @@ function mountWorkspaces(r, ctx) {
         ${field({ name: 'name', label: 'Name', value: vals.name || '', required: true, attrs: 'maxlength="160" autofocus' })}
         ${c.party ? html`${field({ name: 'party', label: `${c.party.label} name`, value: vals.party || '', attrs: 'list="party-list" maxlength="160"', hint: 'Pick an existing name from the list to link the same record, or type a new one. Leave empty if not yet determined.' })}
           <datalist id="party-list">${parties.map(p => html`<option value="${p.name}"></option>`)}</datalist>` : ''}
-        ${field({ name: 'location', label: 'Location', value: vals.location || '', attrs: 'maxlength="200"', hint: 'Leave empty if not yet determined.' })}
+        ${field({ name: 'location', label: 'Location', value: vals.location || '', attrs: 'maxlength="200"', hint: 'Pick an area from the list or type one. Leave empty if not yet determined.', list: CH.BH_AREAS })}
         ${field({ name: 'manager', label: 'Responsible manager', value: vals.manager || req.user.id, options: [['', 'Not yet assigned'], ...users.map(x => [x.id, x.label])] })}
-        ${field({ name: 'stage', label: 'Current stage', value: vals.stage || '', attrs: 'maxlength="80"', hint: 'Free text for now, e.g. Feasibility, Design, Construction.' })}
+        ${['dev', 'cpm'].includes(s.key) ? '' : stageField(kind, vals.stage)}
         <p class="muted small full">${['dev', 'cpm'].includes(s.key) ? 'After creating it, the guided setup asks the remaining questions. Everything entered here can be edited later.' : 'The guided setup questionnaire for this section is added in a later phase. Everything entered here can be edited later.'}${s.key === 'cpm' ? html` New clients get a basic record; complete their profile under <a href="/clients">Clients</a>.` : ''}</p>
         ${err ? html`<p class="err full" role="alert">${err}</p>` : ''}
         <div class="full actions"><button class="btn primary" type="submit">Create</button><a class="btn" href="/s/${s.key}">Cancel</a></div>
@@ -256,11 +260,11 @@ function mountWorkspaces(r, ctx) {
             <div><dt>Status</dt><dd>${statusPill(w.status)}</dd></div>
             <div><dt>Created</dt><dd>${fmtDate(w.created_at)}</dd></div>
           </dl></section>
-        ${editable ? html`<details class="panel grow1 edit-panel"><summary><h2 class="h">Edit details</h2></summary>
+        ${editable ? html`<details class="panel grow1 edit-panel" id="edit" ${req.query.edit ? raw('open') : ''}><summary><h2 class="h">Edit details</h2></summary>
           <form method="post" action="/w/${w.id}/edit" class="form-grid">${csrfField(req)}
             ${field({ name: 'name', label: 'Name', value: w.name, required: true, attrs: 'maxlength="160"' })}
-            ${field({ name: 'location', label: 'Location', value: w.location || '', attrs: 'maxlength="200"' })}
-            ${field({ name: 'stage', label: 'Current stage', value: w.stage || '', attrs: 'maxlength="80"' })}
+            ${field({ name: 'location', label: 'Location', value: w.location || '', attrs: 'maxlength="200"', list: CH.BH_AREAS })}
+            ${stageField(w.kind, w.stage)}
             ${field({ name: 'manager', label: 'Responsible manager', value: w.manager_id || '', options: [['', 'Not yet assigned'], ...users.map(x => [x.id, x.label])] })}
             ${field({ name: 'status', label: 'Status', value: w.status, options: Object.entries(STATUS_LABEL) })}
             <div class="full actions"><button class="btn primary" type="submit">Save</button></div>

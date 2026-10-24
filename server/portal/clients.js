@@ -1,4 +1,5 @@
 'use strict';
+const CH = require('./choices');
 const U = require('../lib/undo');
 // Client register for Clients Projects Management: profiles, linked projects and agreements,
 // correspondence log and a client-level fee statement across that client's projects.
@@ -37,15 +38,26 @@ function mountClients(r, ctx, F) {
     v.kind = v.kind === 'company' ? 'company' : 'person';
     if (!v.name) throw bad('Enter the client name.');
     if (!v.billing_name) v.billing_name = v.name;          // the billing name is the client's name unless a different one is entered
+    if (!v.billing_address) v.billing_address = v.address;
+    if (!v.billing_email) v.billing_email = v.email;
     if (v.email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v.email)) throw bad('Check the email address.');
     if (v.billing_email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v.billing_email)) throw bad('Check the billing email address.');
     return v;
   }
-  const form = (req, c = {}, action, label) => html`<form method="post" action="${action}" class="panel form-grid">${csrfField(req)}
-    ${FIELDS.map(([k, l]) => k === 'kind' ? field({ name: k, label: l, value: c.kind || 'person', options: [['person', 'Individual'], ['company', 'Company']] })
-      : field({ name: k, label: l, value: k === 'billing_name' ? (c.billing_name || c.name || '') : c[k] || '', required: k === 'name', type: LONG.has(k) ? 'textarea' : k.includes('email') ? 'email' : 'text', full: LONG.has(k),
-        hint: k === 'approval_authorities' ? 'Who on the client side can approve budgets, appointments, materials, variations and payments.' : k === 'preferred_contact' ? 'For example email, phone, WhatsApp, letter.' : '' }))}
+  // the essentials first; billing and other details folded away (billing name and address follow the client unless different)
+  const MAIN = ['kind', 'name', 'contact_person', 'phone', 'email', 'preferred_contact', 'approval_authorities'];
+  const one = (c, k, l) => k === 'kind' ? field({ name: k, label: l, value: c.kind || 'person', options: [['person', 'Individual'], ['company', 'Company']] })
+    : k === 'preferred_contact' ? field({ name: k, label: l, value: c[k] || '', options: [['', 'Not stated'], ...(c[k] && !CH.CONTACT_CHANNELS.includes(c[k]) ? [[c[k], c[k]]] : []), ...CH.CONTACT_CHANNELS.map(x => [x, x])] })
+    : field({ name: k, label: l, value: k === 'billing_name' ? (c.billing_name || c.name || '') : c[k] || '', required: k === 'name', type: LONG.has(k) ? 'textarea' : k.includes('email') ? 'email' : k === 'phone' ? 'tel' : 'text', full: LONG.has(k),
+        hint: k === 'approval_authorities' ? 'Who on the client side can approve budgets, appointments, materials, variations and payments — one per line. Used in the agreement and approvals.' : k === 'billing_name' ? 'Same as the client name unless different.' : k === 'billing_address' ? 'Leave empty to use the address above.' : k === 'billing_email' ? 'Leave empty to use the email.' : '' });
+  const form = (req, c = {}, action, label) => {
+    const extra = FIELDS.filter(([k]) => !MAIN.includes(k));
+    const anyExtra = extra.some(([k]) => k !== 'billing_name' && c[k] && !(k === 'billing_address' && c[k] === c.address) && !(k === 'billing_email' && c[k] === c.email));
+    return html`<form method="post" action="${action}" class="panel form-grid">${csrfField(req)}
+    ${FIELDS.filter(([k]) => MAIN.includes(k)).map(([k, l]) => one(c, k, l))}
+    <details class="full inline-form" ${anyExtra ? raw('open') : ''}><summary>Address, billing and other details</summary><div class="form-grid">${extra.map(([k, l]) => one(c, k, l))}</div></details>
     <div class="actions full"><button class="btn primary" type="submit">${label}</button></div></form>`;
+  };
 
   r.get('/clients', async (req, res) => {
     const g = await gate(req);

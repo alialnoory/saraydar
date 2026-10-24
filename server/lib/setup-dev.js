@@ -2,6 +2,7 @@
 // Guided setup for SarayDar Real Estate Development projects, and the deterministic draft-plan template.
 // Nothing here invents amounts, dates or legal requirements: generated items are labelled "suggested" and carry no dates or costs.
 const { parseMoney } = require('./money');
+const CH = require('../portal/choices');
 
 const PHASE_STATUS = [['', 'Choose…'], ['not_started', 'Not started'], ['in_progress', 'In progress'], ['done', 'Done'], ['na', 'Not applicable'], ['unknown', 'Not yet determined']];
 
@@ -25,14 +26,13 @@ const STEPS = [
     { k: 'type', label: 'Project type', type: 'select', required: true, options: [['residential', 'Residential villas / townhouses'], ['apartments', 'Apartment building'], ['commercial', 'Commercial'], ['mixed_use', 'Mixed use'], ['subdivision', 'Land subdivision'], ['other', 'Other']] },
     { k: 'objective', label: 'Objective', type: 'textarea', hint: 'What the project should achieve.' },
     { k: 'outcome', label: 'Intended outcome', type: 'select', options: [['sell', 'Sell the units'], ['lease', 'Lease and hold'], ['mixed', 'Sell some, keep some'], ['hold', 'Own use / hold']] },
-    { k: 'developer', label: 'Developer', type: 'text' },
-    { k: 'owner', label: 'Land owner', type: 'text' }
+    { k: 'developer', label: 'Developer', type: 'text', list: 'names', placeholder: 'SarayDar Real Estate' },
+    { k: 'owner', label: 'Land owner', type: 'text', list: 'names' }
   ] },
   { key: 'land', title: 'Land', fields: [
-    { k: 'plots_count', label: 'Number of plots', type: 'number', hint: 'Record each plot (number, title deed, area, dimensions, documents) under Land & Plots.' },
-    { k: 'plots', label: 'Plot references (summary)', type: 'textarea' },
+    { k: 'plots_count', label: 'Number of plots', type: 'number', hint: 'Filled from Land & Plots when plots are recorded there.' },
     { k: 'tenure', label: 'Ownership / tenure', type: 'select', options: [['freehold', 'Freehold'], ['leasehold', 'Leasehold'], ['other', 'Other']] },
-    { k: 'land_area', label: 'Total land area (m²)', type: 'number', hint: 'All plots together.' },
+    { k: 'land_area', label: 'Total land area (m²)', type: 'number', hint: 'All plots together — filled from Land & Plots when areas are recorded.' },
     { k: 'dimensions', label: 'Typical plot dimensions', type: 'text', hint: 'For example 10.3 × 17 m per plot.' },
     { k: 'access', label: 'Access and site information', type: 'textarea' }
   ] },
@@ -65,15 +65,15 @@ const STEPS = [
     { k: 'constraints', label: 'Known constraints, dependencies or delays', type: 'textarea' }
   ] },
   { key: 'team', title: 'Team', fields: [
-    { k: 'consultant', label: 'Design consultant', type: 'text' },
-    { k: 'contractor', label: 'Main contractor', type: 'text' },
-    { k: 'pm', label: 'Project manager', type: 'text' },
+    { k: 'consultant', label: 'Design consultant', type: 'text', list: 'names' },
+    { k: 'contractor', label: 'Main contractor', type: 'text', list: 'names' },
+    { k: 'pm', label: 'Project manager', type: 'text', pick: 'staff', hint: 'Defaults to the responsible manager.' },
     { k: 'others', label: 'Others (one per line: role – name)', type: 'textarea' }
   ] },
   { key: 'risks', title: 'Risks & approvals', fields: [
-    { k: 'risks', label: 'Known risks (one per line)', type: 'textarea' },
-    { k: 'approvals_obtained', label: 'Approvals already obtained (one per line)', type: 'textarea' },
-    { k: 'approvals_pending', label: 'Approvals still needed (one per line)', type: 'textarea' }
+    { k: 'risks', label: 'Known risks — tick those that apply', type: 'checks', options: CH.COMMON_RISKS.project },
+    { k: 'approvals_obtained', label: 'Approvals already obtained — tick each', type: 'checks', options: CH.BH_APPROVALS },
+    { k: 'approvals_pending', label: 'Approvals still needed — tick each', type: 'checks', options: CH.BH_APPROVALS }
   ] }
 ];
 const IMPORTANT = ['outcome', 'start', 'target', 'total_budget', 'funding'];
@@ -83,7 +83,7 @@ function readStep(step, body) {
   for (const f of step.fields) {
     const unknown = !f.noUnknown && body[`${f.k}__unknown`] === '1';
     let v = body[f.k];
-    v = typeof v === 'string' ? v.trim().slice(0, f.type === 'textarea' ? 4000 : 300) : '';
+    v = typeof v === 'string' ? v.trim().slice(0, ['textarea', 'checks'].includes(f.type) ? 4000 : 300) : '';
     if (unknown) { out[f.k] = { unknown: true }; continue; }
     if (v === '') { out[f.k] = null; continue; }
     if (f.type === 'number') { const n = Number(v.replace(/,/g, '')); if (!isFinite(n) || n < 0) throw Object.assign(new Error(`${f.label} must be a positive number.`), { status: 400 }); out[f.k] = { v: n }; continue; }
