@@ -13,12 +13,12 @@ const PARTIES = cp => `This Agreement is made on {{agreement_date}} (reference {
 
 1. **{{company.legal_name}}**, commercial registration {{company.cr_number}}, of {{company.address}}, represented by {{company.signatory_name}}, {{company.signatory_title}} ("SarayDar"); and
 
-2. **{{party.name}}**, ID / CR {{party.id_number}}, of {{party.address}}, telephone {{party.phone}}, email {{party.email}}{{party.represented_by}} (the "${cp}").`;
+2. **{{party.name}}**, {{party.id_label}} {{party.id_number}}, of {{party.address}}, telephone {{party.phone}}, email {{party.email}}{{party.represented_by}} (the "${cp}").`;
 
 const SIGN = cp => `## Signatures
 
 [[sign: For and on behalf of SarayDar | Name: {{company.signatory_name}} | Title: {{company.signatory_title}} | Company stamp]]
-[[sign: For and on behalf of the ${cp} | Name: {{party.signatory}} | Title: ]]`;
+[[sign: For and on behalf of the ${cp} | Name: {{party.signatory}} | Title: {{party.signatory_title}}]]`;
 
 const GENERAL = `## Governing law and disputes
 

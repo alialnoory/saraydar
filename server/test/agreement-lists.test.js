@@ -15,3 +15,14 @@ test('agreement lists', async () => {
   assert.equal(pdf.subarray(0, 5).toString(), '%PDF-');
   assert.ok((await A.renderDocx({ text: A.fill('# T\n\n{{services}}', typed), ref: 'AGR-1' })).length > 1000);
 });
+
+test('the other party: CPR for individuals, CR for companies, and who represents them', () => {
+  const person = A.builtins({ party: { name: 'Sara Alsamaheeji', kind: 'person', representative: 'Mahdi Al Maskati', representative_title: 'Attorney' } });
+  assert.equal(person['party.id_label'], 'CPR No.');
+  assert.equal(person['party.represented_by'], ', represented by Mahdi Al Maskati, Attorney');
+  assert.equal(person['party.signatory'], 'Mahdi Al Maskati');
+  const co = A.builtins({ party: { name: 'ACME WLL', kind: 'company', contact_person: 'Ahmed Ali' } });
+  assert.equal(co['party.id_label'], 'CR No.');
+  assert.equal(co['party.represented_by'], ', represented by Ahmed Ali');
+  assert.equal(A.builtins({ party: { name: 'Sara', kind: 'person' } })['party.represented_by'], '');
+});

@@ -62,15 +62,19 @@ function readValues(fields, body) {
 }
 
 function builtins({ company = {}, ws = {}, party = {}, agreement = {} }) {
-  const rep = party.representative ? `, represented by ${party.representative}${party.representative_title ? `, ${party.representative_title}` : ''}` : '';
+  // the other party is "represented by" whoever signs for them: the representative recorded on their profile,
+  // otherwise their main contact (an individual with neither signs for themselves)
+  const repName = party.representative || (party.contact_person && party.contact_person !== party.name ? party.contact_person : '');
+  const repTitle = party.representative ? party.representative_title : '';
+  const rep = repName ? `, represented by ${repName}${repTitle ? `, ${repTitle}` : ''}` : '';
   return {
     'company.legal_name': company.legal_name || company.trade_name, 'company.trade_name': company.trade_name, 'company.cr_number': company.cr_number,
     'company.address': company.address, 'company.phone': company.phone, 'company.email': company.email,
     'company.signatory_name': company.signatory_name, 'company.signatory_title': company.signatory_title,
     'workspace.name': ws.name, 'workspace.ref': ws.ref, 'workspace.location': ws.location,
-    'party.name': party.name, 'party.id_number': party.id_number, 'party.address': party.address, 'party.phone': party.phone, 'party.email': party.email,
+    'party.name': party.name, 'party.id_number': party.id_number, 'party.id_label': party.kind === 'company' ? 'CR No.' : 'CPR No.', 'party.address': party.address, 'party.phone': party.phone, 'party.email': party.email,
     'party.representative': party.representative, 'party.representative_title': party.representative_title,
-    'party.represented_by': party.name ? rep : '', 'party.signatory': party.representative || party.name,
+    'party.represented_by': party.name ? rep : '', 'party.signatory': repName || party.name, 'party.signatory_title': repName ? repTitle || '' : '',
     'agreement.ref': agreement.ref, 'agreement.title': agreement.title, 'agreement.date': fmtDate(new Date().toISOString().slice(0, 10))
   };
 }

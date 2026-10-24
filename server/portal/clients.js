@@ -13,7 +13,7 @@ const txt = (v, n = 300) => { const s = String(v ?? '').trim().slice(0, n); retu
 const fm = m => formatMoney(m || 0);
 const KINDS = { call: 'Call', email: 'Email', meeting: 'Meeting', letter: 'Letter', message: 'Message', other: 'Other' };
 const FIELDS = [
-  ['kind', 'Individual or company'], ['name', 'Name'], ['contact_person', 'Main contact'], ['representatives', 'Authorised representatives'],
+  ['kind', 'Individual or company'], ['name', 'Name'], ['contact_person', 'Main contact'], ['representative', 'Represented by (signs agreements)'], ['representative_title', 'Their title / capacity'], ['representatives', 'Other authorised representatives'],
   ['phone', 'Telephone'], ['email', 'Email'], ['address', 'Address'], ['preferred_contact', 'Preferred communication'], ['id_number', 'CPR / CR / passport'],
   ['billing_name', 'Billing name'], ['billing_address', 'Billing address'], ['billing_email', 'Billing email'], ['tax_number', 'Tax registration number'],
   ['client_reference', 'Client reference'], ['approval_authorities', 'Approval authorities'], ['communication_notes', 'Communication responsibilities'], ['notes', 'Notes']
@@ -45,11 +45,11 @@ function mountClients(r, ctx, F) {
     return v;
   }
   // the essentials first; billing and other details folded away (billing name and address follow the client unless different)
-  const MAIN = ['kind', 'name', 'contact_person', 'phone', 'email', 'preferred_contact', 'approval_authorities'];
+  const MAIN = ['kind', 'name', 'contact_person', 'representative', 'representative_title', 'phone', 'email', 'preferred_contact', 'approval_authorities'];
   const one = (c, k, l) => k === 'kind' ? field({ name: k, label: l, value: c.kind || 'person', options: [['person', 'Individual'], ['company', 'Company']] })
     : k === 'preferred_contact' ? field({ name: k, label: l, value: c[k] || '', options: [['', 'Not stated'], ...(c[k] && !CH.CONTACT_CHANNELS.includes(c[k]) ? [[c[k], c[k]]] : []), ...CH.CONTACT_CHANNELS.map(x => [x, x])] })
     : field({ name: k, label: l, value: k === 'billing_name' ? (c.billing_name || c.name || '') : c[k] || '', required: k === 'name', type: LONG.has(k) ? 'textarea' : k.includes('email') ? 'email' : k === 'phone' ? 'tel' : 'text', full: LONG.has(k),
-        hint: k === 'approval_authorities' ? 'Who on the client side can approve budgets, appointments, materials, variations and payments — one per line. Used in the agreement and approvals.' : k === 'billing_name' ? 'Same as the client name unless different.' : k === 'billing_address' ? 'Leave empty to use the address above.' : k === 'billing_email' ? 'Leave empty to use the email.' : '' });
+        hint: k === 'representative' ? 'Printed in agreements as "represented by …" and in the signature box. Leave empty to use the main contact.' : k === 'representative_title' ? 'For example Owner, Managing Director, Attorney under power of attorney.' : k === 'approval_authorities' ? 'Who on the client side can approve budgets, appointments, materials, variations and payments — one per line. Used in the agreement and approvals.' : k === 'billing_name' ? 'Same as the client name unless different.' : k === 'billing_address' ? 'Leave empty to use the address above.' : k === 'billing_email' ? 'Leave empty to use the email.' : '' });
   const form = (req, c = {}, action, label) => {
     const extra = FIELDS.filter(([k]) => !MAIN.includes(k));
     const anyExtra = extra.some(([k]) => k !== 'billing_name' && c[k] && !(k === 'billing_address' && c[k] === c.address) && !(k === 'billing_email' && c[k] === c.email));

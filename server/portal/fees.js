@@ -161,6 +161,7 @@ function mountFees(r, ctx, P) {
         <section class="panel grow1"><div class="row-between"><h2 class="h">${party(a)}</h2>${client ? html`<div class="actions">${edit ? html`<a class="btn small primary" href="/clients/${client.id}?edit=1&back=${encodeURIComponent(`/w/${a.ws.id}/client`)}#edit">Edit ${party(a).toLowerCase()} details</a>` : ''}<a class="btn small" href="/clients/${client.id}">Full profile</a></div>` : ''}</div>
           ${client ? html`<p class="client-name">${client.name}</p><dl class="details">
             <div><dt>Main contact</dt><dd>${client.contact_person || client.representative || html`<span class="muted">Not recorded</span>`}</dd></div>
+            <div><dt>Represented by</dt><dd>${client.representative ? `${client.representative}${client.representative_title ? `, ${client.representative_title}` : ''}` : client.contact_person && client.contact_person !== client.name ? html`${client.contact_person} <span class="muted small">(main contact)</span>` : html`<span class="muted">Signs personally</span>`}</dd></div>
             <div><dt>Telephone</dt><dd>${client.phone || '—'}</dd></div><div><dt>Email</dt><dd>${client.email || '—'}</dd></div>
             <div><dt>Preferred contact</dt><dd>${client.preferred_contact || '—'}</dd></div>
             <div><dt>Approval authorities</dt><dd class="pre-line">${client.approval_authorities || html`<span class="muted">Not recorded</span>`}</dd></div></dl>`
