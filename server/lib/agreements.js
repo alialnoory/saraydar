@@ -210,7 +210,7 @@ async function renderDocx({ text, ref, letterhead, letterheadType, company = {},
   const header = new Header({ children: [
     new Paragraph({ shading: band, spacing: { before: 0, after: 0 }, indent: { left: 120, right: 120 }, children: [new TextRun({ text: ' ', size: 10 })] }),
     // left: logo, company line under it; right: the type of document, the reference under it
-    new Paragraph({ shading: band, indent: { left: 120, right: 120 }, tabStops: [{ type: TabStopType.RIGHT, position: 9300 }], children: [new TextRun({ text: 'SΛRΛYDΛR', font: 'Jost', size: 30, color: 'F1E6DA', characterSpacing: 120 }), new TextRun({ text: '\tAgreement', font: 'IBM Plex Sans', bold: true, size: 32, color: 'F1E6DA' })] }),
+    new Paragraph({ shading: band, indent: { left: 120, right: 120 }, tabStops: [{ type: TabStopType.RIGHT, position: 9300 }], children: [new TextRun({ text: 'SΛRΛYDΛR', font: 'Jost', size: 30, color: 'F1E6DA', characterSpacing: 120 }), new TextRun({ text: '\tAGREEMENT', font: 'IBM Plex Sans', bold: true, size: 32, color: 'F1E6DA' })] }),
     new Paragraph({ shading: band, spacing: { after: 0 }, indent: { left: 120, right: 120 }, tabStops: [{ type: TabStopType.RIGHT, position: 9300 }], border: { bottom: { style: 'single', size: 18, color: 'D29466', space: 0 } }, children: [new TextRun({ text: [company.legal_name || company.trade_name, company.cr_number ? `C.R. ${company.cr_number}` : null].filter(Boolean).join(' · ') || ' ', font: 'IBM Plex Sans', size: 16, color: 'B9A595' }), new TextRun({ text: `\t${ref}`, font: 'IBM Plex Sans', bold: true, size: 20, color: 'F1E6DA' })] })
   ] });
   const d = new Document({

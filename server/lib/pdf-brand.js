@@ -39,7 +39,7 @@ function band(doc, { title, sub = '', right = [], x = 40, width }) {
   let ry = first ? 24 : 34;
   const line = (t, o = {}) => { doc.font(o.display ? 'display' : o.bold ? 'bold' : 'body').fontSize(o.size || 10).fillColor(o.color || BAND_INK).text(t, x + W - rightW, ry, { width: rightW, align: 'right', lineBreak: false }); ry += (o.size || 10) + (o.display ? 5 : 6); };
   ry = 22;
-  line(title, { display: true, size: 17 });
+  line(String(title).toUpperCase(), { display: true, size: 17 });            // the type of document is always in capitals
   if (first) line(first[0], first[1]);
   for (const [t, o] of rest) line(t, o);
   doc.x = x; doc.y = H + 16;
