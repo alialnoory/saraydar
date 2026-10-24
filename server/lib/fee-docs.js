@@ -1,9 +1,10 @@
 'use strict';
 // PDF documents for SarayDar's fee ledger: tax invoice / invoice, payment receipt and client statement.
-// Printed on the uploaded letterhead when there is one; otherwise with a simple SarayDar heading.
+// Every document carries the SarayDar dark heading (lib/pdf-brand.js); company details run along the foot of each page.
 const path = require('path');
 const PDFDocument = require('pdfkit');
 const { formatMoney } = require('./money');
+const brand = require('./pdf-brand');
 
 const FONT_DIR = path.join(__dirname, '..', 'fonts');
 const INK = '#2A1C15', MUTED = '#6E5B50', LINE = '#D9CCC1', COPPER = '#A8673D';
@@ -12,7 +13,8 @@ const d = v => v ? new Date(v).toLocaleDateString('en-GB', { day: 'numeric', mon
 
 function render({ title, number, company = {}, letterhead = null, marginTop = 45, marginBottom = 30, stamp = null, meta = [], to = [], tables = [], totals = [], notes = [], images = [], toLabel = 'TO' }) {
   return new Promise((resolve, reject) => {
-    const top = letterhead ? mm(marginTop) : mm(18), bottom = letterhead ? mm(marginBottom) : mm(18);
+    letterhead = null;                                   // the dark heading replaces any letterhead image
+    const top = mm(14), bottom = mm(20);
     const doc = new PDFDocument({ size: 'A4', bufferPages: true, margins: { top, bottom, left: mm(18), right: mm(18) }, info: { Title: `${title} ${number || ''}`.trim(), Author: company.trade_name || 'SarayDar' } });
     const chunks = []; doc.on('data', c => chunks.push(c)); doc.on('end', () => resolve(Buffer.concat(chunks))); doc.on('error', reject);
     doc.registerFont('body', path.join(FONT_DIR, 'ibm-plex-sans-latin-400-normal.ttf'));
@@ -24,19 +26,9 @@ function render({ title, number, company = {}, letterhead = null, marginTop = 45
     const L = mm(18), W = doc.page.width - mm(36);
     const room = h => { if (doc.y + h > doc.page.height - bottom) doc.addPage(); };
 
-    // heading
-    const y0 = doc.y;
-    if (!letterhead) {
-      doc.font('logo').fontSize(20).fillColor(INK).text('S A R A Y D A R', L, y0, { characterSpacing: 2 });
-      const lines = [company.legal_name || company.trade_name, company.address, [company.phone, company.email].filter(Boolean).join(' · '), company.cr_number ? `CR ${company.cr_number}` : null].filter(Boolean);
-      doc.font('body').fontSize(8).fillColor(MUTED).text(lines.join('\n'), L, doc.y + 2, { width: W / 2 });
-    }
-    doc.font('display').fontSize(18).fillColor(COPPER).text(title.toUpperCase(), L, y0, { width: W, align: 'right', characterSpacing: 1 });
-    doc.font('bold').fontSize(10).fillColor(INK).text(number || 'DRAFT — not issued', L, doc.y, { width: W, align: 'right' });
-    if (stamp) doc.font('bold').fontSize(10).fillColor('#9B2C2C').text(stamp, L, doc.y + 2, { width: W, align: 'right' });
-    doc.y = Math.max(doc.y, y0 + 70);
-    doc.moveTo(L, doc.y).lineTo(L + W, doc.y).strokeColor(LINE).lineWidth(0.8).stroke();
-    doc.y += 10;
+    // heading: the dark band, with the document title on the left and its number on the right
+    brand.band(doc, { title: title.toUpperCase(), sub: [company.legal_name || company.trade_name, company.cr_number ? `C.R. ${company.cr_number}` : null].filter(Boolean).join(' · '),
+      right: [[number || 'DRAFT — not issued', { bold: true, size: 11 }], ...(stamp ? [[stamp, { bold: true, size: 10, color: '#F2B8A8' }]] : [])], x: L, width: W });
 
     // to / meta
     const yTop = doc.y;
@@ -99,13 +91,7 @@ function render({ title, number, company = {}, letterhead = null, marginTop = 45
       });
     }
 
-    const range = doc.bufferedPageRange();
-    for (let i = range.start; i < range.start + range.count; i++) {
-      doc.switchToPage(i);
-      const keepBottom = doc.page.margins.bottom; doc.page.margins.bottom = 0;   // the footer sits below the margin; without this pdfkit starts a new, empty page
-      doc.font('body').fontSize(7.5).fillColor(MUTED).text(`${number || 'Draft'} · page ${i + 1} of ${range.count}`, L, doc.page.height - mm(10), { width: W, align: 'right', lineBreak: false });
-      doc.page.margins.bottom = keepBottom;
-    }
+    brand.footer(doc, { company, ref: number || 'Draft', x: L, width: W });
     doc.end();
   });
 }

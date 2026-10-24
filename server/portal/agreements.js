@@ -238,8 +238,8 @@ function mountAgreements(r, ctx) {
     else {
       const text = A.fill(tpl.body, map);
       const lh = co.letterhead ? { data: co.letterhead, mime: co.letterhead_mime } : null;
-      pdf = await A.renderPdf({ text, ref: g.ref, letterhead: lh && lh.data, marginTop: co.margin_top_mm, marginBottom: co.margin_bottom_mm, notice: tpl.starter });
-      docxBuf = await A.renderDocx({ text, ref: g.ref, letterhead: lh && lh.data, letterheadType: lh && lh.mime, marginTop: co.margin_top_mm, marginBottom: co.margin_bottom_mm, notice: tpl.starter });
+      pdf = await A.renderPdf({ text, ref: g.ref, company: co, letterhead: lh && lh.data, marginTop: co.margin_top_mm, marginBottom: co.margin_bottom_mm, notice: tpl.starter });
+      docxBuf = await A.renderDocx({ text, ref: g.ref, company: co, letterhead: lh && lh.data, letterheadType: lh && lh.mime, marginTop: co.margin_top_mm, marginBottom: co.margin_bottom_mm, notice: tpl.starter });
     }
     const v = await core.inTx(async db => {
       await db.query('select id from agreements where id = $1 for update', [g.id]);
@@ -317,6 +317,7 @@ function mountAgreements(r, ctx) {
               .map(([k, l]) => field({ name: k, label: l, value: co[k] || '' }))}
             <div class="actions full"><button class="btn primary" type="submit">Save</button></div></form></section>
         <section class="panel grow1"><h2 class="h">Letterhead</h2>
+          <div class="notice info">Generated PDFs and Word files use the SarayDar dark heading, with the company details above in the footer of every page (owner decision, 24 Oct 2026). An uploaded letterhead image is kept here but not printed.</div>
           ${co.letterhead ? html`<img class="letterhead-preview" src="/admin/agreements/letterhead" alt="Current letterhead"><p class="muted small">${co.letterhead_name || ''}</p>` : html`<p class="muted">No letterhead yet. Documents are generated on plain paper.</p>`}
           <form method="post" action="/admin/agreements/letterhead" enctype="multipart/form-data" class="form-grid"><input type="hidden" name="_csrf" value="${req.csrfToken}">
             <label class="field full" for="f-lh"><span>Letterhead page (A4, PNG or JPG)</span><input id="f-lh" type="file" name="file" accept="image/png,image/jpeg"><small>Export the letterhead page from Word or your designer as an A4 image (about 2480 × 3508 px). It is placed behind every page.</small></label>

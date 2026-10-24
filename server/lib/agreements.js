@@ -3,6 +3,7 @@
 // (PDF on the SarayDar letterhead, editable Word file, or a filled-in uploaded Word template).
 const path = require('path');
 const PDFDocument = require('pdfkit');
+const brand = require('./pdf-brand');
 const PizZip = require('pizzip');
 const Docxtemplater = require('docxtemplater');
 const docx = require('docx');
@@ -98,7 +99,8 @@ function blocks(text) {
 
 const NOTICE = 'STARTER DRAFT — prepared from a generic template. Have it reviewed by your legal adviser before signing.';
 
-function renderPdf({ text, ref, letterhead, marginTop = 45, marginBottom = 30, notice = false }) {
+function renderPdf({ text, ref, letterhead, company = {}, marginTop = 45, marginBottom = 30, notice = false }) {
+  letterhead = null; marginTop = 14; marginBottom = 20;     // the SarayDar dark heading replaces any letterhead image (owner decision 2026-10-24)
   return new Promise((resolve, reject) => {
     const mm = v => v * 72 / 25.4;
     const doc = new PDFDocument({ size: 'A4', bufferPages: true, margins: { top: mm(marginTop), bottom: mm(marginBottom), left: mm(22), right: mm(22) }, info: { Title: ref, Author: 'SarayDar' } });
@@ -106,9 +108,8 @@ function renderPdf({ text, ref, letterhead, marginTop = 45, marginBottom = 30, n
     doc.registerFont('body', path.join(FONT_DIR, 'ibm-plex-sans-latin-400-normal.ttf'));
     doc.registerFont('bold', path.join(FONT_DIR, 'ibm-plex-sans-latin-600-normal.ttf'));
     doc.registerFont('display', path.join(FONT_DIR, 'ibm-plex-sans-latin-600-normal.ttf'));
-    const bg = () => { if (letterhead) { const { x, y } = doc; doc.image(letterhead, 0, 0, { width: doc.page.width, height: doc.page.height }); doc.x = x; doc.y = y; } };
-    bg(); doc.on('pageAdded', bg);
     const W = doc.page.width - mm(44);
+    brand.band(doc, { title: 'Agreement', sub: [company.legal_name || company.trade_name, company.cr_number ? `C.R. ${company.cr_number}` : null].filter(Boolean).join(' · '), right: [[ref, { bold: true, size: 11 }]], x: mm(22), width: W });
     for (const b of blocks(text)) {
       if (b.k === 'title') {
         doc.font('display').fontSize(18).fillColor('#2A1C15').text(b.t, { align: 'center', width: W }).moveDown(0.6);
@@ -117,19 +118,14 @@ function renderPdf({ text, ref, letterhead, marginTop = 45, marginBottom = 30, n
       else if (b.k === 'li') doc.font('body').fontSize(10).fillColor('#2A1C15').text(`•  ${b.t}`, { width: W, indent: 10 }).moveDown(0.15);
       else doc.font('body').fontSize(10).fillColor('#2A1C15').text(b.t, { width: W, align: 'justify', lineGap: 1.5 }).moveDown(0.55);
     }
-    const range = doc.bufferedPageRange();
-    for (let i = range.start; i < range.start + range.count; i++) {
-      doc.switchToPage(i);
-      const keepBottom = doc.page.margins.bottom; doc.page.margins.bottom = 0;   // the footer sits below the margin; without this pdfkit starts a new, empty page
-      doc.font('body').fontSize(7.5).fillColor('#6E5B50').text(`${ref} · page ${i + 1} of ${range.count}`, mm(22), doc.page.height - mm(12), { width: W, align: 'right', lineBreak: false });
-      doc.page.margins.bottom = keepBottom;
-    }
+    brand.footer(doc, { company, ref, x: mm(22), width: W });
     doc.end();
   });
 }
 
-async function renderDocx({ text, ref, letterhead, letterheadType, marginTop = 45, marginBottom = 30, notice = false }) {
-  const { Document, Packer, Paragraph, TextRun, ImageRun, Header, Footer, AlignmentType, PageNumber, convertMillimetersToTwip } = docx;
+async function renderDocx({ text, ref, letterhead, letterheadType, company = {}, marginTop = 45, marginBottom = 30, notice = false }) {
+  letterhead = null; marginTop = 40; marginBottom = 20;     // dark SarayDar heading instead of a letterhead image
+  const { Document, Packer, Paragraph, TextRun, ImageRun, Header, Footer, AlignmentType, PageNumber, ShadingType, TabStopType, convertMillimetersToTwip } = docx;
   const runs = (t, opts = {}) => t.split('\n').map((line, i) => new TextRun({ text: line, break: i ? 1 : 0, font: 'IBM Plex Sans', size: 20, ...opts }));
   const children = [];
   for (const b of blocks(text)) {
@@ -140,13 +136,17 @@ async function renderDocx({ text, ref, letterhead, letterheadType, marginTop = 4
     else if (b.k === 'li') children.push(new Paragraph({ bullet: { level: 0 }, children: runs(b.t) }));
     else children.push(new Paragraph({ alignment: AlignmentType.JUSTIFIED, spacing: { after: 120 }, children: runs(b.t) }));
   }
-  const header = letterhead ? new Header({ children: [new Paragraph({ children: [new ImageRun({
-    type: letterheadType === 'image/png' ? 'png' : 'jpg', data: letterhead, transformation: { width: 794, height: 1123 },
-    floating: { horizontalPosition: { relative: 'page', offset: 0 }, verticalPosition: { relative: 'page', offset: 0 }, behindDocument: true, allowOverlap: true } })] })] }) : undefined;
+  const band = { type: ShadingType.CLEAR, color: 'auto', fill: '140D0A' };
+  const header = new Header({ children: [
+    new Paragraph({ shading: band, spacing: { before: 0, after: 0 }, indent: { left: 120, right: 120 }, children: [new TextRun({ text: ' ', size: 10 })] }),
+    new Paragraph({ shading: band, indent: { left: 120, right: 120 }, children: [new TextRun({ text: 'SARAYDAR', font: 'IBM Plex Sans', bold: true, size: 20, color: 'F1E6DA', characterSpacing: 60 })] }),
+    new Paragraph({ shading: band, indent: { left: 120, right: 120 }, tabStops: [{ type: TabStopType.RIGHT, position: 9300 }], children: [new TextRun({ text: 'Agreement', font: 'IBM Plex Sans', bold: true, size: 32, color: 'F1E6DA' }), new TextRun({ text: `\t${ref}`, font: 'IBM Plex Sans', bold: true, size: 20, color: 'F1E6DA' })] }),
+    new Paragraph({ shading: band, spacing: { after: 0 }, indent: { left: 120, right: 120 }, border: { bottom: { style: 'single', size: 18, color: 'D29466', space: 0 } }, children: [new TextRun({ text: [company.legal_name || company.trade_name, company.cr_number ? `C.R. ${company.cr_number}` : null].filter(Boolean).join(' · ') || ' ', font: 'IBM Plex Sans', size: 16, color: 'B9A595' })] })
+  ] });
   const d = new Document({
     creator: 'SarayDar Management System', title: ref,
-    sections: [{ properties: { page: { size: { width: 11906, height: 16838 }, margin: { top: convertMillimetersToTwip(marginTop), bottom: convertMillimetersToTwip(marginBottom), left: convertMillimetersToTwip(22), right: convertMillimetersToTwip(22) } } },
-      headers: header ? { default: header } : undefined,
+    sections: [{ properties: { page: { size: { width: 11906, height: 16838 }, margin: { top: convertMillimetersToTwip(marginTop), bottom: convertMillimetersToTwip(marginBottom), left: convertMillimetersToTwip(22), right: convertMillimetersToTwip(22), header: convertMillimetersToTwip(8) } } },
+      headers: { default: header },
       footers: { default: new Footer({ children: [new Paragraph({ alignment: AlignmentType.RIGHT, children: [new TextRun({ text: `${ref} · page `, size: 14, color: '6E5B50' }), new TextRun({ children: [PageNumber.CURRENT], size: 14, color: '6E5B50' })] })] }) },
       children }]
   });
