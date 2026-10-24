@@ -12,6 +12,15 @@ const { SECTIONS, KIND_LABEL } = require('./core');
 const { parseMoney, formatMoney, toInput, num } = require('../lib/money');
 const progress = require('../lib/progress');
 const SETUPS = { dev: require('../lib/setup-dev'), cpm: require('../lib/setup-cpm') };
+// a client project whose budget and payments the client controls: SarayDar keeps no budget, payments or cost control
+const clientBudget = ws => ws.section === 'cpm' && ws.budget_control === 'client';
+function setupFor(a) {
+  const base = SETUPS[a.ws.section];
+  if (!clientBudget(a.ws)) return base;
+  return { ...base, STEPS: base.STEPS.filter(s => s.key !== 'budget'),
+    review: (ans, extra = {}) => base.review(ans, { ...extra, noBudget: true }),
+    generate: ans => { const g = base.generate(ans); g.budget = []; g.risks = g.risks.filter(r => !/budget|payments to contractors/i.test(r.title) || !r.suggested); return g; } };
+}
 const { sniff } = require('./workspaces');
 
 const UUID = /^[0-9a-f-]{36}$/i;
@@ -68,7 +77,7 @@ function mountProjects(r, ctx) {
   function tabs(a, cur) {
     const id = a.ws.id;
     if (a.ws.section === 'cpm') return [['Overview', `/w/${id}`], ['Client', `/w/${id}/client`], ['Agreements', `/w/${id}/agreements`], ['Setup', `/w/${id}/setup`], ['Land & Plots', `/w/${id}/plots`], ['Plan', `/w/${id}/plan`], ['Tasks & Schedule', `/w/${id}/tasks`],
-      ...(a.finance !== false ? [['Client Budget & Payments', `/w/${id}/budget`], ['Fee Billing', `/w/${id}/fees`]] : []), ['Client Approvals', `/w/${id}/approvals`], ['Progress Updates', `/w/${id}/updates`], ['Registers', `/w/${id}/registers`],
+      ...(a.finance !== false ? [...(clientBudget(a.ws) ? [] : [['Client Budget & Payments', `/w/${id}/budget`]]), ['Fee Billing', `/w/${id}/fees`]] : []), ['Client Approvals', `/w/${id}/approvals`], ['Progress Updates', `/w/${id}/updates`], ['Registers', `/w/${id}/registers`],
       ['Documents', `/w/${id}/documents`], ['Reports', `/w/${id}/reports`], ['Access & Invitations', `/w/${id}/access`], ['Activity', `/w/${id}/activity`]]
       .map(([l, h]) => [l, h, l === cur]);
     return [['Overview', `/w/${id}`], ['Setup', `/w/${id}/setup`], ['Land & Plots', `/w/${id}/plots`], ['Plan', `/w/${id}/plan`], ['Tasks & Schedule', `/w/${id}/tasks`],
@@ -165,7 +174,8 @@ function mountProjects(r, ctx) {
         <div class="card"><div class="muted small">Open risks</div><div class="big">${m.risks.open}</div><div class="muted small">${m.risks.high} with high impact</div></div>
       </section>
       <div class="split">
-        ${finance ? html`<section class="panel grow1"><h2 class="h">${a.ws.section === 'cpm' ? 'Client budget & payments' : raw('Budget &amp; cost')}</h2>
+        ${finance && clientBudget(a.ws) ? html`<section class="panel grow1"><h2 class="h">Budget &amp; payments</h2><p>Controlled by the client. The client manages the project budget and pays contractors, suppliers and other third parties directly; SarayDar does not manage, approve or record them.</p><p class="muted small">Change this under Overview › Edit details.</p></section>` : ''}
+        ${finance && !clientBudget(a.ws) ? html`<section class="panel grow1"><h2 class="h">${a.ws.section === 'cpm' ? 'Client budget & payments' : raw('Budget &amp; cost')}</h2>
           <table class="kv"><tbody>
             <tr><th>Approved budget (baseline)</th><td>${bs.total.original === null ? html`<span class="muted">No baseline yet</span>` : fm(bs.total.original)}</td></tr>
             <tr><th>Current budget</th><td>${bs.total.revised === null ? html`<span class="muted">Incomplete: ${bs.rows.filter(x => x.revised === null).length} lines not set</span>` : fm(bs.total.revised)}</td></tr>
@@ -201,13 +211,13 @@ function mountProjects(r, ctx) {
   r.get('/w/:id/setup', async (req, res) => {
     const a = await access(req);
     const d = await loadDraft(a.ws.id);
-    const setup = SETUPS[a.ws.section];
+    const setup = setupFor(a);
     const next = setup.STEPS.find(s => !s.fields.some(f => f.k in d.answers));
     res.redirect(`/w/${a.ws.id}/setup/${d.status === 'reviewed' || !next ? 'review' : next.key}`);
   });
 
   function stepNav(a, d, cur) {
-    const setup = SETUPS[a.ws.section];
+    const setup = setupFor(a);
     return html`<nav class="steps-nav" aria-label="Setup steps"><ol>${[...setup.STEPS, { key: 'review', title: 'Review' }].map((s, i) => {
       const done = s.key !== 'review' && s.fields.some(f => f.k in d.answers);
       return html`<li class="${s.key === cur ? 'on' : done ? 'done' : ''}"><a href="/w/${a.ws.id}/setup/${s.key}" ${s.key === cur ? raw('aria-current="step"') : ''}><span>${i + 1}</span>${s.title}</a></li>`;
@@ -217,7 +227,7 @@ function mountProjects(r, ctx) {
   r.get('/w/:id/setup/review', async (req, res) => {
     const a = await access(req);
     const d = await loadDraft(a.ws.id);
-    const setup = SETUPS[a.ws.section];
+    const setup = setupFor(a);
     const noTerms = a.ws.section === 'cpm' && !(await pool.query("select 1 from mgmt_terms where workspace_id = $1 and status = 'active'", [a.ws.id])).rowCount;
     const rv = setup.review(d.answers, { noTerms });
     const pl = await plans(a.ws.id);
@@ -254,7 +264,7 @@ function mountProjects(r, ctx) {
 
   r.get('/w/:id/setup/:step', async (req, res) => {
     const a = await access(req);
-    const setup = SETUPS[a.ws.section];
+    const setup = setupFor(a);
     const step = setup.STEPS.find(s => s.key === req.params.step);
     if (!step) throw new NotFound();
     const d = await loadDraft(a.ws.id);
@@ -305,7 +315,7 @@ function mountProjects(r, ctx) {
 
   r.post('/w/:id/setup/:step', async (req, res) => {
     const a = await access(req, 'edit');
-    const setup = SETUPS[a.ws.section];
+    const setup = setupFor(a);
     const step = setup.STEPS.find(s => s.key === req.params.step);
     if (!step) throw new NotFound();
     const vals = setup.readStep(step, req.body);
@@ -335,7 +345,7 @@ function mountProjects(r, ctx) {
   r.post('/w/:id/plan/generate', async (req, res) => {
     const a = await access(req, 'edit');
     const d = await loadDraft(a.ws.id);
-    const setup = SETUPS[a.ws.section];
+    const setup = setupFor(a);
     if (!setup.review(d.answers).ready) throw bad('Answer the required setup questions first.');
     const g = setup.generate(d.answers);
     await core.inTx(async db => {
@@ -683,6 +693,7 @@ function mountProjects(r, ctx) {
   async function financeAccess(req, need) {
     const a = await access(req, need);
     if (!a.finance) throw new NotFound();
+    if (clientBudget(a.ws) && /^\/w\/[^/]+\/budget/.test(req.path)) throw Object.assign(new Error('The client controls this project\'s budget and payments, so SarayDar does not record them. Change this under Overview › Edit details.'), { status: 409 });
     return a;
   }
   r.get('/w/:id/budget', async (req, res) => {
@@ -1219,7 +1230,7 @@ function mountProjects(r, ctx) {
     res.redirect(`/w/${a.ws.id}/units?msg=saved`);
   });
 
-  return { metrics, budgetSummary, access, page, plans, own, touch, budgetTab };
+  return { metrics, budgetSummary, access, page, plans, own, touch, budgetTab, clientBudget };
 }
 
 module.exports = { mountProjects, PROJECT_SECTIONS, TASK_STATUS, REG };

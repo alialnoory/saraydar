@@ -288,4 +288,17 @@ test('client projects', { skip: !URL_ && 'set TEST_DATABASE_URL to run' }, async
     assert.equal((await pm.get(`/w/${p1}/fees`)).status, 200);               // manager with financial visibility
     assert.equal((await pm.post(`/w/${p1}/fees/payments`, { received_on: today, amount: '1', method: 'Cash' }, `/w/${p1}/fees`)).status, 403);  // only Finance records payments
   });
+  await t.test('a project whose budget the client controls has no budget tab, pages or exports', async () => {
+    const r = await admin.post('/s/cpm/new', { kind: 'client_project', name: 'Client-run Villa', party: 'Budget Client', location: 'Saar', budget_control: 'client' }, '/s/cpm/new');
+    const w = r.location.slice(3, 39);
+    assert.equal((await q1(`select budget_control from workspaces where id = '${w}'`)).budget_control, 'client');
+    const ov = await admin.get(`/w/${w}`);
+    assert.doesNotMatch(ov.text, new RegExp(`href="/w/${w}/budget"`));
+    assert.match(ov.text, /Controlled by the client/);
+    assert.equal((await admin.get(`/w/${w}/budget`)).status, 409);
+    assert.equal((await admin.post(`/w/${w}/budget/lines`, { category: 'Construction', description: 'x', revised: '10' }, `/w/${w}`)).status, 409);
+    // switching back to SarayDar brings the tab back
+    await admin.post(`/w/${w}/edit`, { name: 'Client-run Villa', location: 'Saar', stage: '', manager: '', status: 'active', budget_control: 'saraydar' }, `/w/${w}`);
+    assert.match((await admin.get(`/w/${w}`)).text, new RegExp(`href="/w/${w}/budget"`));
+  });
 });

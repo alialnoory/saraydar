@@ -5,6 +5,8 @@ const multer = require('multer');
 const sharp = require('sharp');
 const { SECTIONS, SECTION_KEYS, KIND_LABEL, STATUS_LABEL, INTERNAL_MEMBER_ROLES, EXTERNAL_MEMBER_ROLES } = require('./core');
 const CH = require('./choices');
+const budgetControlField = value => field({ name: 'budget_control', label: 'Project budget and payments controlled by', value, options: [['saraydar', 'SarayDar (we manage the budget and third-party payments)'], ['client', 'The client (SarayDar has no part in the budget or payments)']],
+  hint: 'If the client controls them, the Client Budget & Payments tab is removed and SarayDar records no budget, contracts or payments for this project.' });
 const stageField = (kind, value, hint = '') => CH.STAGES[kind]
   ? field({ name: 'stage', label: 'Current stage', value: value || '', hint, options: [['', 'Not yet determined'], ...(value && !CH.STAGES[kind].includes(value) ? [[value, value]] : []), ...CH.STAGES[kind].map(x => [x, x])] })
   : field({ name: 'stage', label: 'Current stage', value: value || '', attrs: 'maxlength="80"', hint });
@@ -169,6 +171,7 @@ function mountWorkspaces(r, ctx) {
         ${field({ name: 'location', label: 'Location', value: vals.location || '', attrs: 'maxlength="200"', hint: 'Pick an area from the list or type one. Leave empty if not yet determined.', list: CH.BH_AREAS })}
         ${field({ name: 'manager', label: 'Responsible manager', value: vals.manager || req.user.id, options: [['', 'Not yet assigned'], ...users.map(x => [x.id, x.label])] })}
         ${['dev', 'cpm'].includes(s.key) ? '' : stageField(kind, vals.stage)}
+        ${s.key === 'cpm' ? budgetControlField(vals.budget_control || 'saraydar') : ''}
         <p class="muted small full">${['dev', 'cpm'].includes(s.key) ? 'After creating it, the guided setup asks the remaining questions. Everything entered here can be edited later.' : 'The guided setup questionnaire for this section is added in a later phase. Everything entered here can be edited later.'}${s.key === 'cpm' ? html` New clients get a basic record; complete their profile under <a href="/clients">Clients</a>.` : ''}</p>
         ${err ? html`<p class="err full" role="alert">${err}</p>` : ''}
         <div class="full actions"><button class="btn primary" type="submit">Create</button><a class="btn" href="/s/${s.key}">Cancel</a></div>
@@ -189,7 +192,7 @@ function mountWorkspaces(r, ctx) {
     if (!(await core.can(req.user, `create:${s.key}`))) throw new Forbidden('Your role cannot create items in this section.');
     const c = s.create[kind];
     const vals = { name: String(req.body.name || '').trim().slice(0, 160), party: String(req.body.party || '').trim().slice(0, 160),
-      location: String(req.body.location || '').trim().slice(0, 200), stage: String(req.body.stage || '').trim().slice(0, 80), manager: String(req.body.manager || '') };
+      location: String(req.body.location || '').trim().slice(0, 200), stage: String(req.body.stage || '').trim().slice(0, 80), manager: String(req.body.manager || ''), budget_control: req.body.budget_control === 'client' ? 'client' : 'saraydar' };
     if (!vals.name) return createForm(req, res, s, kind, 'Enter a name.', vals);
     if (vals.manager && !UUID.test(vals.manager)) vals.manager = '';
     const id = await core.inTx(async db => {
@@ -202,9 +205,9 @@ function mountWorkspaces(r, ctx) {
       const n = await core.nextNumber(db, `${c.prefix}-${year}`);
       const ref = `${c.prefix}-${year}-${String(n).padStart(3, '0')}`;
       const w = (await db.query(
-        `insert into workspaces (section, kind, ref, name, location, stage, party_id, manager_id, created_by)
-         values ($1,$2,$3,$4,nullif($5,''),nullif($6,''),$7,nullif($8,'')::uuid,$9) returning id`,
-        [s.key, kind, ref, vals.name, vals.location, vals.stage, partyId, vals.manager, req.user.id])).rows[0];
+        `insert into workspaces (section, kind, ref, name, location, stage, party_id, manager_id, created_by, budget_control)
+         values ($1,$2,$3,$4,nullif($5,''),nullif($6,''),$7,nullif($8,'')::uuid,$9,$10) returning id`,
+        [s.key, kind, ref, vals.name, vals.location, vals.stage, partyId, vals.manager, req.user.id, s.key === 'cpm' ? vals.budget_control : 'saraydar'])).rows[0];
       await db.query("insert into workspace_members (workspace_id, user_id, role, added_by) values ($1,$2,'manager',$2)", [w.id, req.user.id]);
       if (vals.manager && vals.manager !== req.user.id) {
         await db.query("insert into workspace_members (workspace_id, user_id, role, added_by) values ($1,$2,'manager',$3) on conflict do nothing", [w.id, vals.manager, req.user.id]);
@@ -256,6 +259,7 @@ function mountWorkspaces(r, ctx) {
             ${pLabel ? html`<div><dt>${pLabel.label}</dt><dd>${party ? party.name : html`<span class="muted">Not yet determined</span>`}</dd></div>` : ''}
             <div><dt>Location</dt><dd>${w.location || html`<span class="muted">Not yet determined</span>`}</dd></div>
             <div><dt>Stage</dt><dd>${w.stage || html`<span class="muted">Not yet determined</span>`}</dd></div>
+            ${w.section === 'cpm' && a.internal ? html`<div><dt>Budget &amp; payments</dt><dd>${w.budget_control === 'client' ? 'Controlled by the client' : 'Controlled by SarayDar'}</dd></div>` : ''}
             ${a.internal ? html`<div><dt>Responsible manager</dt><dd>${mgr ? mgr.n : html`<span class="muted">Not yet assigned</span>`}</dd></div>` : ''}
             <div><dt>Status</dt><dd>${statusPill(w.status)}</dd></div>
             <div><dt>Created</dt><dd>${fmtDate(w.created_at)}</dd></div>
@@ -265,6 +269,7 @@ function mountWorkspaces(r, ctx) {
             ${field({ name: 'name', label: 'Name', value: w.name, required: true, attrs: 'maxlength="160"' })}
             ${field({ name: 'location', label: 'Location', value: w.location || '', attrs: 'maxlength="200"', list: CH.BH_AREAS })}
             ${stageField(w.kind, w.stage)}
+            ${w.section === 'cpm' ? budgetControlField(w.budget_control) : ''}
             ${field({ name: 'manager', label: 'Responsible manager', value: w.manager_id || '', options: [['', 'Not yet assigned'], ...users.map(x => [x.id, x.label])] })}
             ${field({ name: 'status', label: 'Status', value: w.status, options: Object.entries(STATUS_LABEL) })}
             <div class="full actions"><button class="btn primary" type="submit">Save</button></div>
@@ -288,14 +293,15 @@ function mountWorkspaces(r, ctx) {
     if (!name) throw Object.assign(new Error('Name cannot be empty.'), { status: 400 });
     const status = Object.keys(STATUS_LABEL).includes(req.body.status) ? req.body.status : w.status;
     const manager = UUID.test(String(req.body.manager || '')) ? req.body.manager : null;
-    const after = { name, location: String(req.body.location || '').trim().slice(0, 200) || null, stage: String(req.body.stage || '').trim().slice(0, 80) || null, status, manager_id: manager };
-    const before = { name: w.name, location: w.location, stage: w.stage, status: w.status, manager_id: w.manager_id };
+    const after = { name, location: String(req.body.location || '').trim().slice(0, 200) || null, stage: String(req.body.stage || '').trim().slice(0, 80) || null, status, manager_id: manager,
+      budget_control: w.section === 'cpm' && ['saraydar', 'client'].includes(req.body.budget_control) ? req.body.budget_control : w.budget_control };
+    const before = { name: w.name, location: w.location, stage: w.stage, status: w.status, manager_id: w.manager_id, budget_control: w.budget_control };
     const changed = Object.keys(after).filter(k => (after[k] || null) !== (before[k] || null));
     if (!changed.length) return res.redirect(`/w/${w.id}`);
     await core.inTx(async db => U.track(db, req.user, { label: `Edited ${w.name} (${changed.join(', ')})`, workspaceId: w.id, returnTo: `/w/${w.id}`, targets: [['workspaces', w.id]] }, async () => {
-      await db.query(`update workspaces set name = $2, location = $3, stage = $4, status = $5, manager_id = $6, updated_at = now(),
+      await db.query(`update workspaces set name = $2, location = $3, stage = $4, status = $5, manager_id = $6, budget_control = $7, updated_at = now(),
         archived_at = case when $5 = 'archived' then coalesce(archived_at, now()) else null end where id = $1`,
-        [w.id, after.name, after.location, after.stage, after.status, after.manager_id]);
+        [w.id, after.name, after.location, after.stage, after.status, after.manager_id, after.budget_control]);
       if (manager) await db.query("insert into workspace_members (workspace_id, user_id, role, added_by) values ($1,$2,'manager',$3) on conflict (workspace_id, user_id) do update set revoked_at = null", [w.id, manager, req.user.id]);
       await core.audit(db, { actor: req.user, workspaceId: w.id, action: 'workspace.updated', entity: 'workspace', entityId: w.id,
         summary: `Changed ${changed.join(', ')}`, before: Object.fromEntries(changed.map(k => [k, before[k]])), after: Object.fromEntries(changed.map(k => [k, after[k]])), ip: req.ip });

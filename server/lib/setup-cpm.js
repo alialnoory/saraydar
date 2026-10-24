@@ -67,7 +67,7 @@ const { val, isUnknown } = dev;
 
 function review(a, extra = {}) {
   const missing = [], unknown = [], conflicts = [];
-  for (const s of STEPS) for (const f of s.fields) {
+  for (const s of STEPS.filter(x => !(extra.noBudget && x.key === 'budget'))) for (const f of s.fields) {
     if (isUnknown(a, f.k)) unknown.push(f.label);
     else if (val(a, f.k) === undefined && (f.required || IMPORTANT.includes(f.k))) missing.push({ label: f.label, required: !!f.required, step: s.key });
   }

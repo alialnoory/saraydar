@@ -35,7 +35,7 @@ function mountCompleteness(r, ctx) {
       add('Guided setup completed', (await one('select status from setup_drafts where workspace_id = $1', [id])).status === 'reviewed', W('/setup'));
       add('Plan approved (baseline)', await n("select count(*)::int as n from plans where workspace_id = $1 and status = 'approved'", [id]), W('/plan'));
       add('Phase weights set', !(await n('select count(*)::int as n from phases where workspace_id = $1 and archived_at is null and weight is null', [id])) && await n('select count(*)::int as n from phases where workspace_id = $1 and archived_at is null', [id]), W('/tasks'));
-      add('Budget amounts entered', await n('select count(*)::int as n from budget_lines where workspace_id = $1 and archived_at is null and coalesce(revised_minor, original_minor, 0) > 0', [id]), W('/budget'));
+      if (!(ws.section === 'cpm' && ws.budget_control === 'client')) add('Budget amounts entered', await n('select count(*)::int as n from budget_lines where workspace_id = $1 and archived_at is null and coalesce(revised_minor, original_minor, 0) > 0', [id]), W('/budget'));
       if (!cpm) add('Land / plots recorded', await n('select count(*)::int as n from plots where workspace_id = $1 and archived_at is null', [id]), W('/plots'));
       add('Progress update in the last 30 days', await n("select count(*)::int as n from progress_updates where workspace_id = $1 and status = 'published' and observed_on >= current_date - 30", [id]), W('/updates'));
     }

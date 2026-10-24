@@ -34,7 +34,7 @@ function mountProjectExports(r, ctx, P) {
     for (const u of updates) u.files = (await pool.query("select id, original_name, caption, mime from files where entity = 'progress_update' and entity_id = $1 and workspace_id = $2 and archived_at is null order by uploaded_at", [u.id, a.ws.id])).rows;
     const regs = (await pool.query('select * from register_items where workspace_id = $1 and archived_at is null order by kind, created_at', [a.ws.id])).rows;
     const units = (await pool.query('select * from dev_units where workspace_id = $1 order by sort, name', [a.ws.id])).rows;
-    const fin = a.finance ? {
+    const fin = a.finance && !(P.clientBudget && P.clientBudget(a.ws)) ? {
       budget: await P.budgetSummary(a.ws.id),
       commitments: (await pool.query('select * from commitments where workspace_id = $1 order by created_at', [a.ws.id])).rows,
       invoices: (await pool.query(`select * from cost_invoices where workspace_id = $1 ${per.from ? 'and (invoice_date is null or invoice_date >= $2)' : ''} order by created_at`, per.from ? [a.ws.id, per.from] : [a.ws.id])).rows,

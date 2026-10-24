@@ -187,6 +187,10 @@ Not included in SarayDar's services:
 
 The Client will pay SarayDar a monthly management fee of {{monthly_fee_amount}}, invoiced {{billing_timing}} and payable within {{payment_days}} days of the invoice. The Client's construction budget, contractor payments and consultant fees are the Client's own costs and are not part of SarayDar's fee.
 
+## Project budget and payments
+
+{{workspace.budget_control_text}}
+
 ## Term
 
 This Agreement starts on {{start_date}} for {{duration_months}} months, unless extended in writing.

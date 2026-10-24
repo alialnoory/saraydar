@@ -2,7 +2,7 @@
 // Undo / redo of a person's own edits to details. Only these tables and columns can be restored; financial
 // records (invoices, payments, ledgers) are never included: they are corrected by recorded reversals.
 const UNDO_TABLES = {
-  workspaces: { key: 'id', cols: ['name', 'location', 'stage', 'status', 'manager_id', 'archived_at'] },
+  workspaces: { key: 'id', cols: ['name', 'location', 'stage', 'status', 'manager_id', 'archived_at', 'budget_control'] },
   parties: { key: 'id', cols: ['kind', 'name', 'email', 'phone', 'notes', 'id_number', 'address', 'representative', 'representative_title', 'representative_cpr', 'representative_phone', 'representative_email', 'signs_personally', 'contact_person', 'representatives', 'preferred_contact', 'billing_name', 'billing_address', 'billing_email', 'tax_number', 'client_reference', 'approval_authorities', 'communication_notes', 'preferred_language', 'lead_source', 'agent_id'] },
   buyer_profiles: { key: 'party_id', cols: ['status', 'purpose', 'types', 'locations', 'budget_min_minor', 'budget_max_minor', 'currency', 'size_min_m2', 'size_max_m2', 'bedrooms_min', 'timing', 'funding', 'notes'] },
   tasks: { key: 'id', cols: ['phase_id', 'parent_id', 'title', 'owner_text', 'owner_user', 'start_date', 'due_date', 'actual_start', 'actual_finish', 'status', 'progress', 'weight', 'is_milestone', 'notes', 'archived_at'] },

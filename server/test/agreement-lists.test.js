@@ -36,3 +36,8 @@ test('a client who signs personally has no "represented by"; approvers are the c
   assert.deepEqual(A.approversOf({ ...p, signs_personally: false }), ['Sara', 'Mahdi']);
   assert.deepEqual(A.approversOf({ name: 'ACME WLL', kind: 'company', representative: 'Ahmed' }), ['Ahmed']);
 });
+
+test('the agreement states who controls the project budget', () => {
+  assert.match(A.builtins({ ws: { budget_control: 'client' } })['workspace.budget_control_text'], /^The Client controls the project budget/);
+  assert.match(A.builtins({ ws: { budget_control: 'saraydar' } })['workspace.budget_control_text'], /^SarayDar will manage and control/);
+});

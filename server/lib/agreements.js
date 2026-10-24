@@ -81,6 +81,9 @@ function builtins({ company = {}, ws = {}, party = {}, agreement = {}, counterpa
     'company.address': company.address, 'company.phone': company.phone, 'company.email': company.email,
     'company.signatory_name': company.signatory_name, 'company.signatory_title': company.signatory_title,
     'workspace.name': ws.name, 'workspace.ref': ws.ref, 'workspace.location': ws.location,
+    'workspace.budget_control_text': ws.budget_control === 'client'
+      ? 'The Client controls the project budget and pays contractors, suppliers, consultants and all other third parties directly. SarayDar has no responsibility for the budget, those payments or their control, and does not approve, process or certify them.'
+      : 'SarayDar will manage and control the project budget on the Client\'s behalf: it will track commitments, review invoices and payment applications, and process payments to contractors, suppliers, consultants and other third parties only within the approved budget and with the Client\'s approval. The funds remain the Client\'s.',
     'party.name': party.name, 'party.id_number': party.id_number, 'party.id_label': party.kind === 'company' ? 'CR No.' : 'CPR No.', 'party.address': party.address, 'party.phone': party.phone, 'party.email': party.email,
     'party.representative': party.representative, 'party.representative_title': party.representative_title,
     'party.represented_by': party.name ? rep : '', 'party.signatory': repName || party.name, 'party.signatory_title': repName ? repTitle || `${counterparty}'s Representative` : '',    // someone signing for the party without a recorded title
