@@ -29,7 +29,7 @@ function band(doc, { title, sub = '', right = [], x = 40, width }) {
   const W = width || doc.page.width - 2 * x, H = 104;
   doc.save();
   doc.rect(0, 0, doc.page.width, H).fill(BAND);
-  doc.rect(0, H - 3, 96, 3).fill(COPPER);
+  doc.rect(0, H - 3, doc.page.width, 3).fill(COPPER);
   doc.restore();
   const rightW = right.length ? Math.min(220, W * 0.42) : 0;
   logo(doc, x, 18, { size: 20 });
@@ -54,12 +54,12 @@ function footer(doc, { company = {}, ref = '', lines = null }) {
   for (let i = range.start; i < range.start + range.count; i++) {
     doc.switchToPage(i);
     const keep = doc.page.margins.bottom; doc.page.margins.bottom = 0;   // the footer sits below the margin; otherwise pdfkit starts an empty page
-    const H = 38, x0 = CM, w0 = doc.page.width - 2 * CM, y0 = doc.page.height - H;
-    doc.save(); doc.rect(x0, y0, w0, H).fill(BAND); doc.rect(x0, y0, 64, 2).fill(COPPER); doc.restore();
+    const H = 30, x0 = CM, w0 = doc.page.width - 2 * CM, y0 = doc.page.height - H;
+    doc.save(); doc.rect(x0, y0, w0, H).fill(BAND); doc.rect(x0, y0, w0, 2).fill(COPPER); doc.restore();
     const pad = 14, tx = x0 + pad, tw = w0 - 2 * pad;
-    doc.font('body').fontSize(7).fillColor(BAND_INK).text(l1 || '', tx, y0 + 10, { width: tw * 0.74, height: 9, ellipsis: true });
-    doc.font('body').fontSize(7).fillColor(BAND_MUTED).text(l2 || '', tx, y0 + 20, { width: tw * 0.74, height: 9, ellipsis: true });
-    doc.font('body').fontSize(7.5).fillColor(BAND_INK).text(`${ref ? `${ref} · ` : ''}page ${i + 1} of ${range.count}`, tx + tw * 0.74, y0 + 15, { width: tw * 0.26, align: 'right', lineBreak: false });
+    doc.font('body').fontSize(7).fillColor(BAND_INK).text(l1 || '', tx, y0 + 7, { width: tw * 0.74, height: 9, ellipsis: true });
+    doc.font('body').fontSize(7).fillColor(BAND_MUTED).text(l2 || '', tx, y0 + 16.5, { width: tw * 0.74, height: 9, ellipsis: true });
+    doc.font('body').fontSize(7.5).fillColor(BAND_INK).text(`${ref ? `${ref} · ` : ''}page ${i + 1} of ${range.count}`, tx + tw * 0.74, y0 + 11.5, { width: tw * 0.26, align: 'right', lineBreak: false });
     doc.page.margins.bottom = keep;
   }
 }
