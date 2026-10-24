@@ -461,3 +461,5 @@ form.inline { display: inline; }
 .cam-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 8px; }
 .cam-btn { font-size: 15px; padding: 10px 16px; }
 .cam-list { flex: 1 1 200px; }
+/* every tab button the same height, even when one label wraps onto two lines */
+.tabs { grid-auto-rows: 1fr; }
