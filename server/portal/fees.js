@@ -177,7 +177,7 @@ function mountFees(r, ctx, P) {
             <div><dt>Tax</dt><dd>${act.tax_mode === 'not_configured' ? html`<span class="err">Not configured — invoices cannot be issued until it is</span>` : taxText(act)}</dd></div>
             <div><dt>Client approvers</dt><dd class="pre-line">${act.client_approvers || '—'}</dd></div>
             <div><dt>Scope</dt><dd class="pre-line">${act.scope || '—'}</dd></div>
-            <div><dt>Responsibilities</dt><dd class="pre-line">${act.responsibilities || '—'}</dd></div>
+            ${act.responsibilities ? html`<div><dt>Responsibilities</dt><dd class="pre-line">${act.responsibilities}</dd></div>` : ''}
             <div><dt>Exclusions</dt><dd class="pre-line">${act.exclusions || '—'}</dd></div>
             <div><dt>Activated</dt><dd>${act.activator || '—'} · ${fmtDateTime(act.activated_at)}</dd></div></dl>`
             : html`<p class="muted">No terms in force yet. Record them below; Finance activates them.</p>`}
@@ -199,7 +199,7 @@ function mountFees(r, ctx, P) {
               ${field({ name: 'tax_rate', label: 'Tax rate (%)', value: base.tax_rate_bp !== undefined && base.tax_rate_bp !== null ? base.tax_rate_bp / 100 : '', attrs: 'inputmode="decimal"' })}
               ${tf('tax_label', 'Tax name on invoices', { hint: 'For example VAT.' })}
               ${tf('client_approvers', 'Authorised client approvers', { type: 'textarea' })}
-              ${tf('scope', 'SarayDar management scope', { type: 'textarea' })}${tf('responsibilities', 'Responsibilities', { type: 'textarea' })}${tf('exclusions', 'Exclusions', { type: 'textarea' })}
+              ${tf('scope', 'SarayDar management scope', { type: 'textarea' })}${tf('exclusions', 'Exclusions', { type: 'textarea' })}
               ${tf('notes', 'Notes', { type: 'textarea' })}
               <div class="actions full"><button class="btn primary" type="submit">Save draft terms</button></div>
               <p class="muted small full">Saved as a draft. Finance activates it; activation replaces the previous version from the effective date and keeps it in the history.</p></form></details>` : ''}
