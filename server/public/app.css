@@ -374,3 +374,28 @@ a.section-card .section-icon svg { width: 22px; height: 22px; }
   .section-go { width: 30px; height: 30px; } .section-go svg { width: 16px; height: 16px; }
   .section-stats { padding: 10px 14px 12px; } .section-stats > div { padding: 0 10px; } .section-stats dt { font-size: 12.5px; } .section-stats dd { font-size: 24px; } .section-stats .sub { font-size: 11.5px; }
 }
+/* ---------- tidy-up (owner request 2026-10-24, 10:01) ---------- */
+/* tabs: slimmer; three per row on phones so long workspaces need fewer rows */
+.tabs { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+.tabs a { min-height: 36px; padding: 5px 8px; font-size: 13.5px; }
+@media (max-width: 640px) { .tabs { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 5px; } .tabs a { min-height: 34px; font-size: 12px; padding: 4px 4px; line-height: 1.15; } }
+/* figure cards two per row on phones, smaller figures */
+@media (max-width: 640px) {
+  .grid-cards:not(.home-sections) { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .grid-cards:not(.home-sections) > .card { padding: 12px 14px; }
+  .big { font-size: 22px; } .mid { font-size: 15px; }
+}
+/* the edit form on the overview opens on demand */
+details.edit-panel > summary { cursor: pointer; list-style: none; display: flex; align-items: center; justify-content: space-between; }
+details.edit-panel > summary::-webkit-details-marker { display: none; }
+details.edit-panel > summary h2 { margin: 0; }
+details.edit-panel > summary::after { content: 'Open'; font-size: 13px; color: var(--accent); border: 1px solid var(--line-strong); border-radius: 8px; padding: 4px 12px; }
+details.edit-panel[open] > summary::after { content: 'Close'; }
+details.edit-panel[open] > summary { margin-bottom: 14px; }
+details.edit-panel:not([open]) { align-self: flex-start; }
+/* details lists stay label | value on phones (shorter pages) */
+@media (max-width: 640px) {
+  .details { gap: 6px; }
+  .details > div { grid-template-columns: minmax(96px, 38%) 1fr; gap: 10px; padding-bottom: 6px; }
+  .details dt { font-size: 13px; } .details dd { font-size: 14.5px; overflow-wrap: anywhere; }
+}

@@ -255,7 +255,7 @@ function mountWorkspaces(r, ctx) {
             <div><dt>Status</dt><dd>${statusPill(w.status)}</dd></div>
             <div><dt>Created</dt><dd>${fmtDate(w.created_at)}</dd></div>
           </dl></section>
-        ${editable ? html`<section class="panel grow1"><h2 class="h">Edit</h2>
+        ${editable ? html`<details class="panel grow1 edit-panel"><summary><h2 class="h">Edit details</h2></summary>
           <form method="post" action="/w/${w.id}/edit" class="form-grid">${csrfField(req)}
             ${field({ name: 'name', label: 'Name', value: w.name, required: true, attrs: 'maxlength="160"' })}
             ${field({ name: 'location', label: 'Location', value: w.location || '', attrs: 'maxlength="200"' })}
@@ -264,7 +264,7 @@ function mountWorkspaces(r, ctx) {
             ${field({ name: 'status', label: 'Status', value: w.status, options: Object.entries(STATUS_LABEL) })}
             <div class="full actions"><button class="btn primary" type="submit">Save</button></div>
             <p class="muted small full">Completed and archived items keep all their history and stay reachable through the section filters.</p>
-          </form></section>` : ''}
+          </form></details>` : ''}
       </div>
       ${legacy}
       ${w.details && w.details.imported_at && a.internal ? html`<p class="muted small">Tasks, budget, risks, units and the site log were imported from the earlier Abuquwa tracker on ${fmtDate(w.details.imported_at)}. Imported items are marked unverified until checked.</p>` : ''}
