@@ -179,7 +179,9 @@ The Client owns and funds the project {{workspace.name}} ({{workspace.ref}}) at 
 
 {{services}}
 
-Exclusions: {{exclusions}}
+Not included in SarayDar's services:
+
+{{exclusions}}
 
 ## Fees
 

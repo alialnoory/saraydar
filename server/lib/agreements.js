@@ -76,24 +76,46 @@ function builtins({ company = {}, ws = {}, party = {}, agreement = {} }) {
 }
 
 // Final map of placeholder → printed text.
+// Multi-line answers that are lists (scope, services, exclusions) print as a bulleted list; an introduction line
+// ending with ":" and lines already numbered or bulleted are kept as they are.
+const LIST_KEYS = new Set(['services', 'scope', 'exclusions', 'included_services']);
+function asList(v) {
+  const lines = String(v).replace(/\r/g, '').split('\n').map(l => l.trim()).filter(Boolean);
+  if (lines.length < 2) return v;
+  return lines.map((l, i) => (i === 0 && /:$/.test(l)) || /^(\d{1,3}\s*[.)]|[-•*–]\s)/.test(l) ? l : `- ${l}`).join('\n');
+}
 function resolve(fields, values, base) {
   const out = { ...base };
   for (const f of fields) out[f.key] = display(f, values[f.key]);
+  for (const k of LIST_KEYS) if (typeof out[k] === 'string' && out[k]) out[k] = asList(out[k]);
+  if ('exclusions' in out && (out.exclusions === null || out.exclusions === undefined || out.exclusions === '')) out.exclusions = 'None.';
   for (const k of Object.keys(out)) if (out[k] === null || out[k] === undefined || out[k] === '') out[k] = k === 'party.represented_by' ? '' : BLANK;
   return out;
 }
 const missingRequired = (fields, values) => fields.filter(f => f.required && (values[f.key] === undefined || values[f.key] === null || values[f.key] === ''));
 const fill = (text, map) => String(text).replace(TAG, (m, k) => map[k] ?? BLANK);
 
+// Tabs and unusual spaces (often pasted from Word) print as empty boxes in the PDF font: make them plain spaces.
+const tidy = t => String(t).replace(/\r/g, '').replace(/[\t  -​  　﻿]/g, ' ').replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, '');
+const NUM = /^\s*(\d{1,3})\s*[.)]\s*(\S.*)$/, BUL = /^\s*[-•*–]\s+(\S.*)$/;
 function blocks(text) {
   const out = [];
-  for (const para of String(text).replace(/\r/g, '').split(/\n{2,}/)) {
+  for (const para of tidy(text).split(/\n{2,}/)) {
     const t = para.trim(); if (!t) continue;
-    if (t.startsWith('# ')) out.push({ k: 'title', t: t.slice(2) });
-    else if (t.startsWith('## ')) out.push({ k: 'h', t: t.slice(3) });
-    else if (t.split('\n').every(l => l.trim().startsWith('- '))) for (const l of t.split('\n')) out.push({ k: 'li', t: l.trim().slice(2) });
-    else if (t.split('\n').every(l => /^\[\[sign:.*\]\]$/.test(l.trim()))) out.push({ k: 'sign', boxes: t.split('\n').map(signBox) });
-    else out.push({ k: 'p', t });
+    if (t.startsWith('# ')) { out.push({ k: 'title', t: t.slice(2) }); continue; }
+    if (t.startsWith('## ')) { out.push({ k: 'h', t: t.slice(3) }); continue; }
+    if (t.split('\n').every(l => /^\[\[sign:.*\]\]$/.test(l.trim()))) { out.push({ k: 'sign', boxes: t.split('\n').map(signBox) }); continue; }
+    // numbered ("1. …", "2) …") and bulleted ("- …", "• …") lines become a proper list with a hanging indent;
+    // the other lines of the paragraph stay as text around them
+    let buf = [];
+    const flush = () => { if (buf.length) out.push({ k: 'p', t: buf.join('\n').trim() }); buf = []; };
+    for (const l of t.split('\n')) {
+      const n = NUM.exec(l), b = !n && BUL.exec(l);
+      if (n) { flush(); out.push({ k: 'li', n: `${n[1]}.`, t: n[2].trim() }); }
+      else if (b) { flush(); out.push({ k: 'li', n: null, t: b[1].trim() }); }
+      else buf.push(l);
+    }
+    flush();
   }
   return out;
 }
@@ -164,12 +186,23 @@ function renderPdf({ text, ref, letterhead, company = {}, marginTop = 45, margin
     doc.registerFont('display', path.join(FONT_DIR, 'ibm-plex-sans-latin-600-normal.ttf'));
     const W = doc.page.width - mm(44);
     brand.band(doc, { title: 'Agreement', sub: [company.legal_name || company.trade_name, company.cr_number ? `C.R. ${company.cr_number}` : null].filter(Boolean).join(' · '), right: [[ref, { bold: true, size: 11 }]], x: mm(22), width: W });
+    let prev = null;
     for (const b of blocks(text)) {
+      if (prev === 'li' && b.k !== 'li') doc.moveDown(0.45);     // space after a list
+      prev = b.k;
       if (b.k === 'title') {
         doc.font('display').fontSize(18).fillColor('#2A1C15').text(b.t, { align: 'center', width: W }).moveDown(0.6);
         if (notice) doc.font('bold').fontSize(8.5).fillColor('#7A4F0C').text(NOTICE, { align: 'center', width: W }).moveDown(0.8);
       } else if (b.k === 'h') { if (doc.y > doc.page.height - mm(marginBottom) - 60) doc.addPage(); doc.moveDown(0.4).font('bold').fontSize(11).fillColor('#2A1C15').text(b.t, { width: W }).moveDown(0.25); }
-      else if (b.k === 'li') richText(doc, `•  ${b.t}`, { width: W, indent: 10 }).moveDown(0.15);
+      else if (b.k === 'li') {
+        const X = mm(22), y = doc.y, hang = b.n && b.n.length > 2 ? 22 : 18;
+        if (y > doc.page.height - mm(marginBottom) - 30) doc.addPage();
+        const y0 = doc.y;
+        doc.font('body').fontSize(10).fillColor('#2A1C15').text(b.n || '•', X + 4, y0, { width: hang - 4, lineBreak: false });
+        doc.x = X + hang + 4; doc.y = y0;
+        richText(doc, b.t, { width: W - hang - 4, lineGap: 1.5 });
+        doc.x = X; doc.moveDown(0.2);
+      }
       else if (b.k === 'sign') drawSignBoxes(doc, b.boxes, mm(22), W, doc.page.height - mm(marginBottom));
       else richText(doc, b.t, { width: W, align: 'justify', lineGap: 1.5 }).moveDown(0.55);
     }
@@ -190,7 +223,7 @@ async function renderDocx({ text, ref, letterhead, letterheadType, company = {},
       children.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 200 }, children: [new TextRun({ text: b.t, font: 'IBM Plex Sans', size: 36, bold: true })] }));
       if (notice) children.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 240 }, children: [new TextRun({ text: NOTICE, bold: true, size: 16, color: '7A4F0C' })] }));
     } else if (b.k === 'h') children.push(new Paragraph({ spacing: { before: 200, after: 80 }, keepNext: true, children: [new TextRun({ text: b.t, bold: true, font: 'IBM Plex Sans', size: 22 })] }));
-    else if (b.k === 'li') children.push(new Paragraph({ bullet: { level: 0 }, children: runs(b.t) }));
+    else if (b.k === 'li') children.push(b.n ? new Paragraph({ indent: { left: 440, hanging: 440 }, spacing: { after: 60 }, children: [new TextRun({ text: `${b.n}  `, font: 'IBM Plex Sans', size: 20 }), ...runs(b.t)] }) : new Paragraph({ bullet: { level: 0 }, spacing: { after: 60 }, children: runs(b.t) }));
     else if (b.k === 'sign') {
       const edge = { style: BorderStyle.SINGLE, size: 6, color: 'BFAE9F' };
       const field = (label, value, tall = false) => new Paragraph({ spacing: { before: tall ? 600 : 160, after: 0 }, border: { bottom: { style: BorderStyle.SINGLE, size: 4, color: 'D4C2B3', space: 2 } },
