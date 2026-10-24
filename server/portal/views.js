@@ -125,6 +125,15 @@ function field({ name, label, type = 'text', value = '', required = false, hint 
   return html`<label class="field${full ? ' full' : ''}" for="${id}"><span>${label}${required ? html` <i class="req" aria-hidden="true">*</i>` : ''}</span>${ctl}${dl}${hint ? html`<small>${hint}</small>` : ''}</label>`;
 }
 
+// Progress picker: a slider with quick buttons (0, 10, 25, 50, 75, 90, 100 %) instead of typing a number.
+function progressField({ name, label = 'Progress', value = 0, disabled = false, hint = '', full = true }) {
+  const v = Math.max(0, Math.min(100, Number(value) || 0));
+  return html`<div class="field progress-field${full ? ' full' : ''}" data-progress><span>${label}</span>
+    <div class="pp-row"><input type="range" name="${name}" min="0" max="100" step="5" value="${v}" aria-label="${label}" ${disabled ? raw('disabled') : ''}><output class="pp-val">${v}%</output></div>
+    ${disabled ? '' : html`<div class="pp-chips">${[0, 10, 25, 50, 75, 90, 100].map(n => html`<button type="button" class="chip" data-pp="${n}">${n === 100 ? 'Done 100%' : `${n}%`}</button>`)}</div>`}
+    ${hint ? html`<small>${hint}</small>` : ''}</div>`;
+}
+
 function pager(req, total, page, per) {
   const pages = Math.max(1, Math.ceil(total / per));
   if (pages <= 1) return '';
@@ -132,4 +141,4 @@ function pager(req, total, page, per) {
   return html`<nav class="pager" aria-label="Pages">${page > 1 ? html`<a class="btn" href="${link(page - 1)}">Previous</a>` : ''}<span>Page ${page} of ${pages} · ${total} total</span>${page < pages ? html`<a class="btn" href="${link(page + 1)}">Next</a>` : ''}</nav>`;
 }
 
-module.exports = { avatar, layout, html, raw, pill, statusPill, csrfField, emptyState, field, pager, icons, fmtDate, fmtDateTime, fmtSize, ROLE_LABELS, MESSAGES };
+module.exports = { avatar, layout, html, raw, pill, statusPill, csrfField, emptyState, field, progressField, pager, icons, fmtDate, fmtDateTime, fmtSize, ROLE_LABELS, MESSAGES };

@@ -140,3 +140,37 @@ document.addEventListener('change', e => {
     sync();
   });
 })();
+// Progress picker: slider + quick buttons, with the % shown beside it
+document.addEventListener('input', e => {
+  const r = e.target.closest('[data-progress] input[type="range"]'); if (!r) return;
+  const o = r.closest('[data-progress]').querySelector('.pp-val'); if (o) o.textContent = `${r.value}%`;
+});
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-pp]'); if (!b) return;
+  const r = b.closest('[data-progress]').querySelector('input[type="range"]');
+  r.value = b.dataset.pp; r.dispatchEvent(new Event('input', { bubbles: true }));
+});
+// Progress update: the progress picker shows only when a task is chosen, starting from the task's current %
+function syncAbout(sel) {
+  const box = sel.form && sel.form.querySelector('[data-task-only]'); if (!box) return;
+  const opt = sel.options[sel.selectedIndex];
+  box.hidden = !sel.value.startsWith('task:');
+  const r = box.querySelector('input[type="range"]');
+  if (r && opt && opt.dataset.progress !== undefined) { r.value = opt.dataset.progress; r.dispatchEvent(new Event('input', { bubbles: true })); }
+}
+document.addEventListener('change', e => { const s = e.target.closest('select[data-about]'); if (s) syncAbout(s); });
+document.querySelectorAll('select[data-about]').forEach(syncAbout);
+// Task form: progress and status follow each other (100% = Done, more than 0 = In progress, 0 = Not started)
+document.addEventListener('input', e => {
+  const r = e.target.closest('[data-progress] input[type="range"]'); if (!r || !r.form) return;
+  const st = r.form.querySelector('select[name="status"]'); if (!st) return;
+  const v = Number(r.value), auto = ['not_started', 'in_progress', 'done'];
+  if (!auto.includes(st.value)) return;
+  st.value = v === 100 ? 'done' : v > 0 ? 'in_progress' : 'not_started';
+});
+document.addEventListener('change', e => {
+  const st = e.target.closest('select[name="status"]'); if (!st || !st.form) return;
+  const r = st.form.querySelector('[data-progress] input[type="range"]'); if (!r) return;
+  if (st.value === 'done' && r.value !== '100') { r.value = 100; r.dispatchEvent(new Event('input', { bubbles: true })); }
+  if (st.value === 'not_started' && r.value !== '0') { r.value = 0; r.dispatchEvent(new Event('input', { bubbles: true })); }
+});

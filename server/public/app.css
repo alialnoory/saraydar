@@ -452,3 +452,9 @@ form.inline { display: inline; }
 .brand { gap: 11px; }
 .brand .band-sub { font-size: 14.5px; }
 @media (max-width: 640px) { .band-row .wordmark { font-size: 27px; } .brand { gap: 8px; } .brand .band-sub { font-size: 12px; } }
+.progress-field .pp-row { display: flex; align-items: center; gap: 14px; }
+.progress-field input[type="range"] { flex: 1; accent-color: var(--accent); min-height: 32px; padding: 0; border: 0; background: none; }
+.progress-field .pp-val { min-width: 52px; font-weight: 600; font-size: 18px; text-align: right; }
+.pp-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.pp-chips .chip { border: 1px solid var(--line-strong); background: var(--surface); border-radius: 999px; padding: 5px 12px; font: inherit; font-size: 13px; cursor: pointer; color: var(--ink); }
+.pp-chips .chip:hover { border-color: var(--accent); color: var(--accent); }

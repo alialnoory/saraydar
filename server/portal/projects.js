@@ -7,7 +7,7 @@ const U = require('../lib/undo');
 const multer = require('multer');
 const sharp = require('sharp');
 const crypto = require('crypto');
-const { layout, html, raw, pill, statusPill, csrfField, emptyState, field, fmtDate, fmtDateTime } = require('./views');
+const { progressField, layout, html, raw, pill, statusPill, csrfField, emptyState, field, fmtDate, fmtDateTime } = require('./views');
 const { SECTIONS, KIND_LABEL } = require('./core');
 const { parseMoney, formatMoney, toInput, num } = require('../lib/money');
 const progress = require('../lib/progress');
@@ -615,7 +615,7 @@ function mountProjects(r, ctx) {
         ${field({ name: 'start_date', label: 'Planned start', value: iso(t.start_date) || '', type: 'date', attrs: dis })}
         ${field({ name: 'due_date', label: 'Planned due', value: iso(t.due_date) || '', type: 'date', attrs: dis })}
         ${field({ name: 'status', label: 'Status', value: t.status, options: Object.entries(TASK_STATUS), attrs: contrib ? '' : 'disabled' })}
-        ${field({ name: 'progress', label: 'Progress %', value: t.progress, type: 'number', attrs: `min="0" max="100" step="1" ${contrib ? '' : 'disabled'}` })}
+        ${progressField({ name: 'progress', label: 'Progress', value: t.progress, disabled: !contrib })}
         ${field({ name: 'actual_start', label: 'Actual start', value: iso(t.actual_start) || '', type: 'date', attrs: contrib ? '' : 'disabled' })}
         ${field({ name: 'actual_finish', label: 'Actual finish', value: iso(t.actual_finish) || '', type: 'date', attrs: contrib ? '' : 'disabled' })}
         <label class="field check"><input type="checkbox" name="is_milestone" value="1" ${t.is_milestone ? raw('checked') : ''} ${raw(dis)}> <span>Milestone</span></label>
@@ -938,12 +938,15 @@ function mountProjects(r, ctx) {
     const [phases, tasks] = await Promise.all([loadPhases(a.ws.id), loadTasks(a.ws.id)]);
     res.send(page(req, a, 'Progress Updates', html`<form method="post" action="/w/${a.ws.id}/updates" enctype="multipart/form-data" class="panel form-grid">
       <input type="hidden" name="_csrf" value="${req.csrfToken}"><h2 class="h full">New progress update</h2>
-      ${field({ name: 'title', label: 'Title', required: true, full: true, attrs: 'maxlength="200"' })}
+      <label class="field full" for="f-about"><span>What is this update about? <i class="req" aria-hidden="true">*</i></span>
+        <select id="f-about" name="about" data-about>
+          <option value="">General site update (whole project)</option>
+          ${phases.map(p => html`<optgroup label="${p.name}"><option value="phase:${p.id}">${p.name}: whole phase</option>${tasks.filter(t => t.phase_id === p.id).map(t => html`<option value="task:${t.id}" data-progress="${t.progress || 0}" ${req.query.task === t.id ? raw('selected') : ''}>${t.title}${t.progress ? ` (now ${t.progress}%)` : ''}</option>`)}</optgroup>`)}
+          ${tasks.some(t => !t.phase_id) ? html`<optgroup label="Other tasks">${tasks.filter(t => !t.phase_id).map(t => html`<option value="task:${t.id}" data-progress="${t.progress || 0}">${t.title}</option>`)}</optgroup>` : ''}
+        </select><small>Pick a task to record its progress; the update is named after it.</small></label>
       ${field({ name: 'observed_on', label: 'Observation date', type: 'date', required: true, value: todayBH() })}
-      ${field({ name: 'phase_id', label: 'Phase', options: [['', '—'], ...phases.map(p => [p.id, p.name])] })}
-      ${field({ name: 'task_id', label: 'Task', options: [['', '—'], ...tasks.map(t => [t.id, t.title])] })}
-      ${field({ name: 'reported_progress', label: 'Task progress observed (%)', type: 'number', attrs: 'min="0" max="100" step="1"', hint: 'Updates the linked task only if you tick the box below.' })}
-      <label class="field check full"><input type="checkbox" name="apply_progress" value="1"> <span>Apply this % to the linked task</span></label>
+      <div class="full" data-task-only hidden>${progressField({ name: 'reported_progress', label: 'Progress of this task now', value: 0 })}
+      <label class="field check"><input type="checkbox" name="apply_progress" value="1" checked> <span>Also set the task's progress to this %</span></label></div>
       ${field({ name: 'completed_work', label: 'Work completed', type: 'textarea', full: true })}
       ${field({ name: 'remaining_work', label: 'Work remaining / next', type: 'textarea', full: true })}
       ${field({ name: 'issues', label: 'Issues', type: 'textarea' })}${field({ name: 'notes', label: 'Notes', type: 'textarea' })}
@@ -958,11 +961,14 @@ function mountProjects(r, ctx) {
   r.post('/w/:id/updates', upload.array('photos', 12), async (req, res) => {
     if (!core.checkCsrf(req)) throw new Forbidden('Your form expired. Reload the page and try again.');
     const a = await access(req, 'contribute');
-    const title = txt(req.body.title, 200); if (!title) throw bad('Enter a title.');
+    // one choice "what is this update about": a task (its phase follows), a whole phase, or the whole project;
+    // the update takes its name from that choice (title / phase_id / task_id are still accepted)
+    const about = String(req.body.about || '');
+    const task = about.startsWith('task:') ? await own('tasks', about.slice(5), a.ws.id) : req.body.task_id ? await own('tasks', req.body.task_id, a.ws.id) : null;
+    const phase = about.startsWith('phase:') ? await own('phases', about.slice(6), a.ws.id) : task && task.phase_id ? await own('phases', task.phase_id, a.ws.id) : req.body.phase_id ? await own('phases', req.body.phase_id, a.ws.id) : null;
+    const title = txt(req.body.title, 200) || (task ? task.title : phase ? phase.name : 'General site update');
     const observed = dateOrNull(req.body.observed_on); if (!observed) throw bad('Enter the observation date.');
-    const phase = req.body.phase_id ? await own('phases', req.body.phase_id, a.ws.id) : null;
-    const task = req.body.task_id ? await own('tasks', req.body.task_id, a.ws.id) : null;
-    const rp = req.body.reported_progress === '' || req.body.reported_progress === undefined ? null : Number(req.body.reported_progress);
+    const rp = !task || req.body.reported_progress === '' || req.body.reported_progress === undefined ? null : Number(req.body.reported_progress);   // progress belongs to a task
     if (rp !== null && (!Number.isInteger(rp) || rp < 0 || rp > 100)) throw bad('Progress must be 0–100.');
     const wf = req.body.workforce === '' || req.body.workforce === undefined ? null : Number(req.body.workforce);
     if (wf !== null && (!Number.isInteger(wf) || wf < 0)) throw bad('Workers must be a whole number.');
@@ -1023,7 +1029,7 @@ function mountProjects(r, ctx) {
         ${u.author_id === req.user.id || core.canEdit(a) ? html`<details class="inline-form" id="edit" ${req.query.edit ? raw('open') : ''}><summary>Edit this update</summary>
           <form method="post" action="/w/${a.ws.id}/updates/${u.id}/edit" class="form-grid">${csrfField(req)}
             ${field({ name: 'title', label: 'Title', value: u.title, required: true, attrs: 'maxlength="200"' })}${field({ name: 'observed_on', label: 'Observation date', type: 'date', required: true, value: iso(u.observed_on) })}
-            ${field({ name: 'reported_progress', label: 'Observed task progress (%)', type: 'number', value: u.reported_progress ?? '', attrs: 'min="0" max="100" step="1" inputmode="numeric"' })}
+            ${tk ? progressField({ name: 'reported_progress', label: 'Progress of this task', value: u.reported_progress ?? 0 }) : ''}
             ${field({ name: 'workforce', label: 'Workers on site', type: 'number', value: u.workforce ?? '', attrs: 'min="0" step="1" inputmode="numeric"' })}
             ${tk ? html`<label class="check full"><input type="checkbox" name="apply_progress" value="1" checked> Also set the task “${tk.title}” to this progress</label>` : ''}
             ${field({ name: 'completed_work', label: 'Work completed', type: 'textarea', value: u.completed_work || '', full: true })}
