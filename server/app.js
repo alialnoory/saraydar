@@ -25,6 +25,9 @@ function createApp({ pool, jwtSecret, corsOrigins = [], mailer, env = process.en
     referrerPolicy: { policy: 'same-origin' }
   }));
   // browsers also ask for /favicon.ico directly (before any page has loaded)
+  // iPhone and iPad look for the home-screen icon at these fixed addresses as well as the one named in the page
+  for (const n of ['/apple-touch-icon.png', '/apple-touch-icon-precomposed.png', '/apple-touch-icon-180x180.png', '/apple-touch-icon-120x120.png'])
+    app.get(n, (req, res) => res.set('Cache-Control', 'public, max-age=86400').sendFile(path.join(__dirname, 'public', 'apple-touch-icon.png')));
   app.get('/favicon.ico', (req, res) => res.set('Cache-Control', 'public, max-age=86400').sendFile(path.join(__dirname, 'public', 'favicon.ico')));
   app.use('/static', express.static(path.join(__dirname, 'public'), { maxAge: '1h', index: false }));
   app.get('/favicon.ico', (req, res) => res.status(204).end());
