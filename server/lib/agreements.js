@@ -92,9 +92,23 @@ function blocks(text) {
     if (t.startsWith('# ')) out.push({ k: 'title', t: t.slice(2) });
     else if (t.startsWith('## ')) out.push({ k: 'h', t: t.slice(3) });
     else if (t.split('\n').every(l => l.trim().startsWith('- '))) for (const l of t.split('\n')) out.push({ k: 'li', t: l.trim().slice(2) });
+    else if (t.split('\n').every(l => /^\[\[sign:.*\]\]$/.test(l.trim()))) out.push({ k: 'sign', boxes: t.split('\n').map(signBox) });
     else out.push({ k: 'p', t });
   }
   return out;
+}
+
+// [[sign: Heading | Name: … | Title: … | Company stamp]] lines become signature boxes, side by side.
+// Each box gets a signature space and a date; "Company stamp" adds a stamp space.
+function signBox(line) {
+  const parts = line.trim().replace(/^\[\[sign:/, '').replace(/\]\]$/, '').split('|').map(x => x.trim());
+  const box = { title: parts[0] || 'Signed by', rows: [], stamp: false };
+  for (const p of parts.slice(1)) {
+    if (/^company stamp$/i.test(p)) { box.stamp = true; continue; }
+    const i = p.indexOf(':');
+    if (i > 0) box.rows.push([p.slice(0, i).trim(), p.slice(i + 1).trim().replace(/^_+$/, '')]);
+  }
+  return box;
 }
 
 // **text** in a template prints in bold (used for the parties' names).
@@ -104,6 +118,37 @@ function richText(doc, t, opts, size = 10) {
   if (!segs.length) return doc;
   segs.forEach((g, i) => doc.font(g.b ? 'bold' : 'body').fontSize(size).fillColor('#2A1C15').text(g.t, i === 0 ? { ...opts, continued: i < segs.length - 1 } : { continued: i < segs.length - 1 }));
   return doc;
+}
+
+function drawSignBoxes(doc, boxes, X, W, limit) {
+  const gap = 16, perRow = 2, bw = (W - gap) / perRow;
+  for (let r = 0; r < boxes.length; r += perRow) {
+    const row = boxes.slice(r, r + perRow);
+    const hasStamp = row.some(b => b.stamp);
+    const rowsMax = Math.max(...row.map(b => b.rows.length));
+    const H = 30 + rowsMax * 22 + 58 + 22 + (hasStamp ? 62 : 0) + 10;
+    if (doc.y + H > limit) doc.addPage();
+    const y0 = doc.y + 4;
+    row.forEach((b, i) => {
+      const x = X + i * (bw + gap);
+      doc.save().lineWidth(0.8).strokeColor('#BFAE9F').rect(x, y0, bw, H).stroke().restore();
+      doc.save().rect(x, y0, bw, 24).fill('#140D0A').restore();
+      doc.font('bold').fontSize(9).fillColor('#F1E6DA').text(b.title, x + 10, y0 + 7, { width: bw - 20, height: 12, ellipsis: true });
+      let y = y0 + 34;
+      const line = (label, value, h = 22) => {
+        doc.font('body').fontSize(8).fillColor('#6E5B50').text(label, x + 10, y + h - 14, { width: 70, lineBreak: false });
+        if (value) { doc.font('bold').fontSize(9.5); const fit = Math.max(7, Math.min(9.5, 9.5 * (bw - 92) / Math.max(1, doc.widthOfString(value)))); doc.fontSize(fit).fillColor('#2A1C15').text(value, x + 80, y + h - 15, { width: bw - 90, height: 12, ellipsis: true }); }
+        doc.save().lineWidth(0.6).strokeColor('#D4C2B3').moveTo(x + 78, y + h - 2).lineTo(x + bw - 10, y + h - 2).stroke().restore();
+        y += h;
+      };
+      for (const [k, v] of b.rows) line(k, v);
+      for (let k = b.rows.length; k < rowsMax; k++) y += 22;
+      line('Signature', '', 58);
+      line('Date', '');
+      if (b.stamp) { doc.font('body').fontSize(8).fillColor('#6E5B50').text('Company stamp', x + 10, y + 6, { lineBreak: false }); doc.save().lineWidth(0.6).dash(3, { space: 3 }).strokeColor('#BFAE9F').rect(x + 78, y + 4, 90, 52).stroke().undash().restore(); y += 62; }
+    });
+    doc.x = X; doc.y = y0 + H + 14;
+  }
 }
 
 const NOTICE = 'STARTER DRAFT — prepared from a generic template. Have it reviewed by your legal adviser before signing.';
@@ -125,6 +170,7 @@ function renderPdf({ text, ref, letterhead, company = {}, marginTop = 45, margin
         if (notice) doc.font('bold').fontSize(8.5).fillColor('#7A4F0C').text(NOTICE, { align: 'center', width: W }).moveDown(0.8);
       } else if (b.k === 'h') { if (doc.y > doc.page.height - mm(marginBottom) - 60) doc.addPage(); doc.moveDown(0.4).font('bold').fontSize(11).fillColor('#2A1C15').text(b.t, { width: W }).moveDown(0.25); }
       else if (b.k === 'li') richText(doc, `•  ${b.t}`, { width: W, indent: 10 }).moveDown(0.15);
+      else if (b.k === 'sign') drawSignBoxes(doc, b.boxes, mm(22), W, doc.page.height - mm(marginBottom));
       else richText(doc, b.t, { width: W, align: 'justify', lineGap: 1.5 }).moveDown(0.55);
     }
     brand.footer(doc, { company, ref });
@@ -134,7 +180,7 @@ function renderPdf({ text, ref, letterhead, company = {}, marginTop = 45, margin
 
 async function renderDocx({ text, ref, letterhead, letterheadType, company = {}, marginTop = 45, marginBottom = 30, notice = false }) {
   letterhead = null; marginTop = 40; marginBottom = 20;     // dark SarayDar heading instead of a letterhead image
-  const { Document, Packer, Paragraph, TextRun, ImageRun, Header, Footer, AlignmentType, PageNumber, ShadingType, TabStopType, convertMillimetersToTwip } = docx;
+  const { Document, Packer, Paragraph, TextRun, ImageRun, Header, Footer, AlignmentType, PageNumber, ShadingType, TabStopType, Table, TableRow, TableCell, WidthType, BorderStyle, convertMillimetersToTwip } = docx;
   const runs = (t, opts = {}) => { const out = []; let first = true;
     for (const g of segments(t)) g.t.split('\n').forEach((line, i) => { out.push(new TextRun({ text: line, break: i ? 1 : 0, font: 'IBM Plex Sans', size: 20, bold: g.b, ...opts })); first = false; });
     return out; };
@@ -145,6 +191,19 @@ async function renderDocx({ text, ref, letterhead, letterheadType, company = {},
       if (notice) children.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 240 }, children: [new TextRun({ text: NOTICE, bold: true, size: 16, color: '7A4F0C' })] }));
     } else if (b.k === 'h') children.push(new Paragraph({ spacing: { before: 200, after: 80 }, keepNext: true, children: [new TextRun({ text: b.t, bold: true, font: 'IBM Plex Sans', size: 22 })] }));
     else if (b.k === 'li') children.push(new Paragraph({ bullet: { level: 0 }, children: runs(b.t) }));
+    else if (b.k === 'sign') {
+      const edge = { style: BorderStyle.SINGLE, size: 6, color: 'BFAE9F' };
+      const field = (label, value, tall = false) => new Paragraph({ spacing: { before: tall ? 600 : 160, after: 0 }, border: { bottom: { style: BorderStyle.SINGLE, size: 4, color: 'D4C2B3', space: 2 } },
+        children: [new TextRun({ text: `${label}  `, font: 'IBM Plex Sans', size: 16, color: '6E5B50' }), new TextRun({ text: value || '', font: 'IBM Plex Sans', size: 19, bold: true })] });
+      const cell = bx => new TableCell({ width: { size: 50, type: WidthType.PERCENTAGE }, borders: { top: edge, bottom: edge, left: edge, right: edge }, margins: { top: 0, bottom: 160, left: 140, right: 140 },
+        children: [new Paragraph({ shading: { type: ShadingType.CLEAR, color: 'auto', fill: '140D0A' }, spacing: { before: 0, after: 80 }, children: [new TextRun({ text: bx.title, font: 'IBM Plex Sans', bold: true, size: 18, color: 'F1E6DA' })] }),
+          ...bx.rows.map(([k, v]) => field(k, v)), field('Signature', '', true), field('Date', ''), ...(bx.stamp ? [field('Company stamp', '', true)] : [])] });
+      for (let r = 0; r < b.boxes.length; r += 2) {
+        const row = b.boxes.slice(r, r + 2);
+        children.push(new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, borders: { insideVertical: { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' } }, rows: [new TableRow({ cantSplit: true, children: row.map(cell).concat(row.length < 2 ? [new TableCell({ children: [new Paragraph('')], borders: { top: { style: BorderStyle.NONE }, bottom: { style: BorderStyle.NONE }, left: { style: BorderStyle.NONE }, right: { style: BorderStyle.NONE } } })] : []) })] }));
+        children.push(new Paragraph({ spacing: { after: 120 }, children: [] }));
+      }
+    }
     else children.push(new Paragraph({ alignment: AlignmentType.JUSTIFIED, spacing: { after: 120 }, children: runs(b.t) }));
   }
   const band = { type: ShadingType.CLEAR, color: 'auto', fill: '140D0A' };

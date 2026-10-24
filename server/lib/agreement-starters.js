@@ -17,11 +17,8 @@ const PARTIES = cp => `This Agreement is made on {{agreement_date}} (reference {
 
 const SIGN = cp => `## Signatures
 
-Signed for and on behalf of SarayDar: ______________________
-Name: {{company.signatory_name}}    Title: {{company.signatory_title}}    Date: __________
-
-Signed by the ${cp}: ______________________
-Name: {{party.signatory}}    Date: __________`;
+[[sign: For and on behalf of SarayDar | Name: {{company.signatory_name}} | Title: {{company.signatory_title}} | Company stamp]]
+[[sign: For and on behalf of the ${cp} | Name: {{party.signatory}} | Title: ]]`;
 
 const GENERAL = `## Governing law and disputes
 
