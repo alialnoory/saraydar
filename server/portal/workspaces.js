@@ -66,18 +66,19 @@ function mountWorkspaces(r, ctx) {
     const greet = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
     const card = key => {
       const s = SECTIONS[key], c = by[key] || { open: 0, total: 0, listings: 0, requests: 0 };
+      const plural = { dev: 'projects', cpm: 'projects', props: 'properties' }[key];
       const stats = key === 'sales'
-        ? [['Active listings', c.listings], ['Active search requests', c.requests]]
-        : [[`Active ${s.noun === 'property' ? 'properties' : s.noun + 's'}`, c.open], ['All, incl. completed', c.total]];
-      return html`<article class="card section-card">
-        <div class="section-head"><span class="section-icon">${icons[key]}</span><h2>${s.name}</h2></div>
-        <dl class="stats">${stats.map(([l, v]) => html`<div><dt>${l}</dt><dd>${v}</dd></div>`)}</dl>
-        <a class="btn primary block" href="/s/${key}">Open section</a></article>`;
+        ? [['Active listings', c.listings, true, 'Properties for sale'], ['Active requests', c.requests, true, 'Buyers searching']]
+        : [[`Active ${plural}`, c.open, true, ''], [`Total ${plural}`, c.total, false, 'Including completed']];
+      return html`<a class="card section-card" href="/s/${key}" aria-label="Open ${s.name}">
+        <div class="section-head"><span class="section-icon">${icons[key]}</span><h2>${s.name}</h2>
+          <span class="section-go" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></span></div>
+        <dl class="section-stats">${stats.map(([l, v, dot, sub]) => html`<div><dt>${dot ? html`<i class="dot" aria-hidden="true"></i>` : ''}${l}</dt><dd>${v}</dd>${sub ? html`<span class="sub">${sub}</span>` : ''}</div>`)}</dl></a>`;
     };
     res.send(layout(req, { title: 'Home', body: html`
       <div class="page-head"><div><div class="muted small">Home</div><h1 class="display">${greet}, ${(u.name || '').split(' ')[0] || 'there'}</h1>
         <p class="muted">${new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Bahrain' })}</p></div></div>
-      <section class="grid-cards" aria-label="Sections">${SECTION_KEYS.map(card)}</section>
+      <section class="grid-cards home-sections" aria-label="Sections">${SECTION_KEYS.map(card)}</section>
       <div class="split">
         <section class="panel grow2"><h2 class="h">Needs your attention</h2>
           ${attention.length ? html`<ul class="rows">${attention.map(([tag, tone, t, d, href]) => html`<li>${pill(tag, tone)}<div class="grow"><a href="${href}"><b>${t}</b></a><div class="muted small">${d}</div></div></li>`)}</ul>`
