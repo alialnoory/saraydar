@@ -11,12 +11,16 @@ function mountPdfView(r) {
     const name = (() => { const m = /\/~\/([^?]+)/.exec(src); try { return m ? decodeURIComponent(m[1]) : 'SarayDar.pdf'; } catch (e) { return 'SarayDar.pdf'; } })();
     res.set('Cache-Control', 'no-store');
     res.send('<!doctype html>' + html`<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>${name}</title><link rel="stylesheet" href="/static/app.css"><link rel="apple-touch-icon" href="/apple-touch-icon.png"></head>
+<title>${name}</title><link rel="stylesheet" href="/static/app.css"><link rel="apple-touch-icon" href="/apple-touch-icon.png"><meta name="theme-color" content="#FFFFFF"></head>
 <body class="pdfview"><header class="pv-bar">
-  <button type="button" class="pv-btn" id="pv-back" aria-label="Back">‹ Back</button>
-  <span class="pv-name" title="${name}">${name}</span>
-  <button type="button" class="pv-btn pv-main" id="pv-share">Share / Print</button>
-  <a class="pv-btn" id="pv-dl" href="${src}" download="${name}">Download</a>
+  <div class="pv-row">
+    <button type="button" class="pv-btn pv-back" id="pv-back" aria-label="Back"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Back</button>
+    <div class="pv-actions">
+      <a class="pv-btn pv-ghost" id="pv-dl" href="${src}" download="${name}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11"/><path d="M7 10l5 5 5-5"/><path d="M5 20h14"/></svg>Download</a>
+      <button type="button" class="pv-btn pv-main" id="pv-share"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V3"/><path d="M7 8l5-5 5 5"/><path d="M5 12v8h14v-8"/></svg>Share / Print</button>
+    </div>
+  </div>
+  <div class="pv-name">${name.replace(/\.pdf$/i, '')}<span class="pv-info" id="pv-info">PDF</span></div>
 </header>
 <main id="pv-pages" data-src="${src}" data-name="${name}"><p class="pv-msg">Opening…</p></main>
 <script type="module" src="/static/pdfview.mjs"></script></body></html>`);

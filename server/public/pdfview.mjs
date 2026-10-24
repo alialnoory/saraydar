@@ -17,6 +17,7 @@ async function load() {
   const data = new Uint8Array(await blob.arrayBuffer());
   const pdf = await pdfjs.getDocument({ data, isEvalSupported: false, standardFontDataUrl: '/static/pdfjs-fonts/' }).promise;
   box.innerHTML = '';
+  const info = document.getElementById('pv-info'); if (info) info.textContent = `PDF · ${pdf.numPages} page${pdf.numPages > 1 ? 's' : ''}`;
   const width = Math.min(box.clientWidth || window.innerWidth, 1000) - 16;
   for (let n = 1; n <= pdf.numPages; n++) {
     const page = await pdf.getPage(n);

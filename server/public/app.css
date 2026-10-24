@@ -464,14 +464,21 @@ form.inline { display: inline; }
 /* every tab button the same height, even when one label wraps onto two lines */
 .tabs { grid-auto-rows: 1fr; }
 
-/* in-portal PDF viewer */
-body.pdfview { background: #3A2B23; margin: 0; }
-.pv-bar { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 8px; padding: 10px 12px; padding-top: max(10px, env(safe-area-inset-top)); background: var(--band); color: var(--band-ink); }
-.pv-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; color: var(--band-soft); }
-.pv-btn { flex: none; border: 1px solid rgba(241,230,218,.3); background: transparent; color: var(--band-ink); border-radius: 8px; padding: 8px 12px; font: 600 14px var(--f-body); text-decoration: none; cursor: pointer; }
-.pv-btn.pv-main { background: var(--copper); border-color: var(--copper); color: #1A110C; }
-#pv-pages { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 10px 8px 40px; }
-.pv-page { background: #fff; box-shadow: 0 2px 10px rgba(0,0,0,.35); max-width: 100%; }
-.pv-msg { color: #F1E6DA; padding: 40px 16px; text-align: center; }
-@media (max-width: 480px) { .pv-btn { padding: 7px 9px; font-size: 13px; } #pv-dl { display: none; } }
+/* in-portal PDF viewer: light bar, white page background */
+body.pdfview { background: #FFFFFF; margin: 0; color: var(--ink); }
+.pv-bar { position: sticky; top: 0; z-index: 5; background: rgba(255,255,255,.96); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--line); padding: 10px 14px 10px; padding-top: max(10px, env(safe-area-inset-top)); }
+.pv-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.pv-actions { display: flex; gap: 8px; }
+.pv-btn { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line-strong); background: #fff; color: var(--ink); border-radius: 999px;
+  padding: 8px 14px; font: 600 14px var(--f-body); text-decoration: none; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.pv-btn svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.pv-back { border-color: transparent; padding-left: 4px; color: var(--accent); }
+.pv-main { background: var(--accent); border-color: var(--accent); color: #fff; }
+.pv-name { margin-top: 8px; font: 600 15px/1.35 var(--f-body); color: var(--ink); word-break: break-word; }
+.pv-info { display: block; font-weight: 400; font-size: 12px; color: var(--muted); margin-top: 2px; }
+#pv-pages { display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 14px 8px 40px; background: #FFFFFF; }
+.pv-page { background: #fff; border: 1px solid #E6DED6; box-shadow: 0 1px 6px rgba(42,28,21,.10); max-width: 100%; }
+.pv-msg { color: var(--muted); padding: 40px 16px; text-align: center; }
+@media (max-width: 480px) { .pv-btn { padding: 7px 11px; font-size: 13px; } .pv-ghost { padding: 7px 9px; } .pv-ghost span { display: none; } }
 .client-name { font-weight: 600 !important; }
