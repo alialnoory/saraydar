@@ -113,7 +113,7 @@ test('external portals, invitations and investors', { skip: !URL_ && 'set TEST_D
     const page = `/w/${hidd}/access`;
     const acc = await admin.get(page);
     assert.ok(acc.text.includes('Invite an external viewer') && acc.text.includes('Email is not configured'));
-    assert.equal((await admin.post(`/w/${hidd}/invitations`, { role: 'investor_viewer', party: alphaParty, confirm: '1' }, page)).status, 400);                       // no verification note
+    assert.equal((await admin.post(`/w/${hidd}/invitations`, { role: 'investor_viewer', party: alphaParty, name: 'Ahmed Alpha' }, page)).status, 400);                       // recipient box not ticked
     assert.equal((await admin.post(`/w/${hidd}/invitations`, { role: 'owner_viewer', party: alphaParty, recipient_checked: 'Phoned Mr A', confirm: '1' }, page)).status, 400);   // wrong role for a project
     assert.equal((await admin.post(`/w/${hidd}/invitations`, { role: 'investor_viewer', name: 'X', email: 'x@example.com', recipient_checked: 'Phoned Mr A', confirm: '1' }, page)).status, 400);   // investor must be linked
     assert.equal((await admin.post(`/w/${hidd}/invitations`, { role: 'investor_viewer', party: alphaParty, recipient_checked: 'Phoned', email: 'ali@example.com', confirm: '1' }, page)).status, 400);   // staff address
@@ -133,7 +133,7 @@ test('external portals, invitations and investors', { skip: !URL_ && 'set TEST_D
     assert.equal(old.status, 400); assert.match(old.text, /newer invitation/);
     assert.equal((await anon.get(`/invite/${invLink}`)).status, 200);
     // expired and revoked links
-    const e = await admin.post(`/w/${diyar}/invitations`, { role: 'client_viewer', name: 'Late Larry', email: 'larry@example.com', recipient_checked: 'Email from his company domain', confirm: '1' }, `/w/${diyar}/access`);
+    const e = await admin.post(`/w/${diyar}/invitations`, { role: 'client_viewer', name: 'Late Larry', email: 'larry@example.com', confirm: '1' }, `/w/${diyar}/access`);
     const et = tokenOf(e.text);
     await pool.query("update invitations set expires_at = now() - interval '1 minute' where email = 'larry@example.com'");
     assert.match((await anon.get(`/invite/${et}`)).text, /expired/);

@@ -92,7 +92,6 @@ function mountInvitations(r, ctx) {
           ${field({ name: 'email', label: 'Email address', type: 'email', attrs: 'maxlength="200" autocapitalize="none"', hint: 'Taken from the contact when left empty.' })}
           <fieldset class="full"><legend>They may also see</legend>
             ${grantsFor(w.kind).map(k => html`<label class="check"><input type="checkbox" name="${k}" value="1"> ${k === 'financials' ? 'Their own statement, invoices and receipts (investors: only their own contributions)' : GRANTS[k]}</label>`)}</fieldset>
-          ${field({ name: 'recipient_checked', label: 'How did you confirm this is the right person and address?', required: true, full: true, attrs: 'maxlength="300" placeholder="e.g. Confirmed by phone with Mr Ahmed on 24 Oct; matches the signed agreement"' })}
           <label class="field full check"><input type="checkbox" name="confirm" value="1" required> <span>I confirmed the email address belongs to the intended person, and they should see this ${SECTIONS[w.section].noun} only.</span></label>
           <div class="full actions"><button class="btn primary" type="submit">Create invitation</button>
             <a class="btn" href="/p/${w.id}?preview=${roles[0]}">Preview the external view</a></div>
@@ -138,10 +137,10 @@ function mountInvitations(r, ctx) {
     if (partyId && !party) throw bad('That contact was not found.');
     const name = txt(req.body.name, 120) || (party && party.name) || '';
     const email = (txt(req.body.email, 200) || (party && party.email) || '').toLowerCase();
-    const checked = txt(req.body.recipient_checked, 300);
+    // the written "how did you confirm" note was removed (owner request 2026-10-25); the tick box is the confirmation
+    const checked = txt(req.body.recipient_checked, 300) || 'Confirmed with the tick box';
     if (!name) throw bad('Enter the person’s full name.');
     if (!EMAIL_RE.test(email)) throw bad('Enter a valid email address (the contact has none on file).');
-    if (checked.length < 5) throw bad('Say how you confirmed this is the intended person and address.');
     if (req.body.confirm !== '1') throw bad('Tick the box to confirm the recipient.');
     if (role === 'investor_viewer' && !party) throw bad('Link an investor invitation to the investor’s contact record.');
     const existing = (await pool.query('select id, kind, active from users where lower(email) = $1', [email])).rows[0];
