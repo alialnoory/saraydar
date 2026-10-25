@@ -253,3 +253,27 @@ document.addEventListener('submit', e => {
   if (standalone) location.href = `/view?src=${encodeURIComponent(u.pathname + u.search)}`;
   else window.open(u.toString(), '_blank', 'noopener');
 });
+
+// Phones: every table becomes a list of cards (owner request 2026-10-25: never scroll sideways, only down).
+// Each cell is labelled with its column heading; the layout itself is in app.css (max-width 640px).
+(() => {
+  document.querySelectorAll('main table').forEach(t => {
+    if (t.classList.contains('kv') || t.closest('.pv-bar')) return;
+    const head = t.tHead && t.tHead.rows[t.tHead.rows.length - 1];
+    const labels = [];
+    if (head) for (const th of head.cells) { const n = th.colSpan || 1; for (let i = 0; i < n; i++) labels.push(th.textContent.trim()); }
+    t.classList.add('stack');
+    for (const body of t.tBodies) for (const tr of body.rows) {
+      let col = 0;
+      for (const td of tr.cells) {
+        const span = td.colSpan || 1;
+        if (span > 1 || !labels[col]) td.classList.add('nolabel'); else td.dataset.label = labels[col];
+        if (col === 0 && span === 1) td.classList.add('lead');            // the first column names the row: shown as the card title
+        if (!td.textContent.trim() && !td.querySelector('input, select, button, a, img, form')) td.classList.add('empty');
+        // the cell's contents stay together on the right of its label
+        if (td.dataset.label && !td.classList.contains('lead')) { const v = document.createElement('div'); v.className = 'cv'; while (td.firstChild) v.appendChild(td.firstChild); td.appendChild(v); }
+        col += span;
+      }
+    }
+  });
+})();

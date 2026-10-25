@@ -493,3 +493,42 @@ body.pdfview { background: #FFFFFF; margin: 0; color: var(--ink); }
 .band:has(.tabs) { border-bottom: 0; }
 /* Desktop uses the full screen width (owner request 2026-10-25): no fixed 1280 px column, just a comfortable side margin */
 .wrap { max-width: none; padding-left: max(clamp(16px, 2.5vw, 48px), env(safe-area-inset-left)); padding-right: max(clamp(16px, 2.5vw, 48px), env(safe-area-inset-right)); }
+
+/* Phones: tables stack into cards and nothing is wider than the screen (owner request 2026-10-25) */
+@media (max-width: 640px) {
+  html, body { overflow-x: hidden; }
+  main { overflow-wrap: anywhere; }
+  .table-wrap { overflow-x: visible; }
+  table.stack { min-width: 0; display: block; }
+  table.stack thead { display: none; }
+  table.stack tbody, table.stack tfoot { display: block; }
+  table.stack tr { display: block; padding: 10px 0; border-top: 1px solid var(--line); }
+  table.stack tbody tr:first-child { border-top: 0; }
+  table.stack td { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; border: 0; padding: 4px 2px; text-align: right; white-space: normal; }
+  table.stack td::before { content: attr(data-label); color: var(--muted); font-size: 13px; text-align: left; flex: 0 0 42%; white-space: normal; }
+  table.stack td.nolabel, table.stack td:not([data-label]) { display: block; text-align: left; }
+  table.stack td.nolabel::before, table.stack td:not([data-label])::before { content: none; }
+  table.stack td:first-child { font-size: 15px; }
+  table.stack td.empty { display: none; }
+  table.stack td.n { white-space: normal; }
+  table.stack td > * { min-width: 0; }
+  table.stack td form, table.stack td .actions { justify-content: flex-end; }
+  table.stack tr.total { background: var(--sunken); border-radius: 10px; padding: 8px 10px; margin-top: 6px; }
+  td .inline-form form { min-width: 0; }
+  table.stack td .inline-form { width: 100%; text-align: left; }
+  img, video, iframe { max-width: 100%; }
+  .pre { max-width: 100%; }
+  .tabs { overflow-x: visible; }
+  .filters { flex-wrap: wrap; }
+  .filters > * { min-width: 0; max-width: 100%; }
+}
+@media (max-width: 640px) {
+  .steps-nav ol, .subtabs { flex-wrap: wrap; overflow-x: visible; }
+  .steps-nav a, .subtabs a { white-space: normal; }
+}
+@media (max-width: 640px) {
+  table.stack td .cv { flex: 1 1 auto; min-width: 0; text-align: right; }
+  table.stack td.lead { display: block; text-align: left; font-weight: 600; padding-bottom: 6px; }
+  table.stack td.lead::before { content: none; }
+  table.stack td.lead .muted, table.stack td.lead .small { font-weight: 400; }
+}
