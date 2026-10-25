@@ -1,12 +1,21 @@
 'use strict';
-// View-only external portal (spec 5.6): client, owner, investor, seller and buyer viewers.
-// Everything here is read from the database through queries that select published fields only. No route in
-// this file changes a business record. Staff managers can preview exactly what a viewer role would see.
+// External portal (spec 5.6): client, owner, investor, seller and buyer viewers.
+// Everything here is read from the database through queries that select published fields only. Viewers can also
+// answer what SarayDar asks them (owner request 2026-10-25): a client approves or rejects approval requests, an owner
+// decides on maintenance estimates, a buyer gives feedback on shared properties; and they open their own invoices,
+// receipts and statements as PDFs. Staff managers can preview exactly what a viewer role would see (preview never writes).
 const { SECTIONS, SECTION_KEYS, KIND_LABEL, EXTERNAL_MEMBER_ROLES } = require('./core');
 const { layout, html, raw, pill, statusPill, emptyState, fmtDate, fmtDateTime, fmtSize } = require('./views');
 const { formatMoney } = require('../lib/money');
 const { periodOf, periodForm } = require('./owner');
 const { VIEWER_ROLES, ROLES_FOR, GRANTS, grantSummary } = require('./invitations');
+const multer = require('multer');
+const uploads = require('../lib/uploads');
+const { sniff } = require('./workspaces');
+const DL = require('../lib/download');
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024, files: 4, fields: 20 } });
+const txt = (v, n = 300) => { const s = String(v ?? '').trim().slice(0, n); return s || null; };
+const todayBH = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Bahrain' });
 
 const UUID = /^[0-9a-f-]{36}$/i;
 const fm = (m, c = 'BHD') => m === null || m === undefined ? '—' : formatMoney(Number(m), c);
@@ -19,7 +28,10 @@ const OFFER = { draft: 'Being prepared', submitted: 'Submitted', countered: 'Cou
 const LISTING = { draft: 'Being prepared', awaiting_verification: 'Being prepared', ready: 'Ready for marketing', available: 'Available', under_offer: 'Under offer', reserved: 'Reserved', sold: 'Sold', withdrawn: 'Withdrawn', archived: 'Closed' };
 
 function mountExternal(r, ctx) {
-  const { pool, core, NotFound } = ctx;
+  const { pool, core, NotFound, Forbidden, mailer } = ctx;
+  const bad = m => Object.assign(new Error(m), { status: 400 });
+  const csrf = req => html`<input type="hidden" name="_csrf" value="${req.csrfToken || ''}">`;
+  const pdfLink = (href, label) => html`<a class="btn small" href="${href}" target="_blank" rel="noopener">${label}</a>`;
 
   // The viewer for /p/:id — a real external member, or a staff manager previewing a role.
   async function viewer(req) {
@@ -58,7 +70,7 @@ function mountExternal(r, ctx) {
     return layout(req, { title: `${w.name} · ${tabs.find(t => t[0] === tab)[1]}`, heading: w.name,
       tabs: tabs.map(([k, l]) => [l, `/p/${w.id}${k === 'overview' ? '' : `/${k}`}${v.qs}`, k === tab]),
       crumbs: v.preview ? [['Home', '/'], [w.name, `/w/${w.id}`], ['Access & Invitations', `/w/${w.id}/access`], ['Preview']] : [['My Workspaces', '/my'], [w.name]],
-      sub: { above: `${w.ref} · ${KIND_LABEL[w.kind]} · View only`, below: w.location || '', badge: statusPill(w.status) },
+      sub: { above: `${w.ref} · ${KIND_LABEL[w.kind]}`, below: w.location || '', badge: statusPill(w.status) },
       body: html`${v.preview ? html`<div class="notice info preview-note"><b>Preview as ${EXTERNAL_MEMBER_ROLES[v.role]}.</b> This is exactly what an external viewer with these settings sees (${grantSummary(v.grants)}).
         ${(ROLES_FOR[w.kind] || []).length > 1 ? html` Preview as ${(ROLES_FOR[w.kind]).filter(x => x !== v.role).map(x => html`<a href="/p/${w.id}?preview=${x}">${EXTERNAL_MEMBER_ROLES[x]}</a>`)}.` : ''} <a href="/w/${w.id}/access">Back to Access & Invitations</a></div>` : ''}${body}` });
   }
@@ -165,11 +177,28 @@ function mountExternal(r, ctx) {
         ${ms.filter(m => m.status !== 'cancelled').map(m => html`<tr><td>${m.title}</td><td class="small">${fmtDate(m.due_date) || '—'}</td><td>${TASK[m.status] || human(m.status)}${m.actual_finish ? html` <span class="muted small">${fmtDate(m.actual_finish)}</span>` : ''}</td></tr>`)}</tbody></table></div>` : html`<p class="muted">None recorded.</p>`}</section>`;
   };
 
+  const canAnswer = v => !v.preview && v.role === 'client_viewer';
   T.approvals = async (req, v) => {
-    const rows = (await pool.query('select subject, title, linked_ref, requested_on, status, decided_on, approver_name from client_approvals where workspace_id = $1 and client_visible order by requested_on desc', [v.ws.id])).rows;
-    return html`<section class="panel"><h2 class="h">Approvals</h2>${rows.length ? html`<div class="table-wrap"><table><thead><tr><th>Subject</th><th>Requested</th><th>Status</th><th>Decided</th></tr></thead><tbody>
-      ${rows.map(x => html`<tr><td><b>${x.title}</b><div class="muted small">${human(x.subject)}${x.linked_ref ? ` · ${x.linked_ref}` : ''}</div></td><td class="small">${fmtDate(x.requested_on)}</td><td>${human(x.status)}</td><td class="small">${x.decided_on ? `${fmtDate(x.decided_on)}${x.approver_name ? ` · ${x.approver_name}` : ''}` : '—'}</td></tr>`)}</tbody></table></div>` : html`<p class="muted">No approvals shared yet.</p>`}
-      <p class="muted small">This portal is view-only. Approvals are given to SarayDar directly and recorded by staff with their evidence.</p></section>`;
+    const rows = (await pool.query(`select c.id, c.subject, c.title, c.linked_ref, c.client_note, c.requested_on, c.status, c.decided_on, c.approver_name, c.client_comment, c.responded_by,
+        (select json_agg(json_build_object('id', f.id, 'name', f.original_name, 'mime', f.mime) order by f.uploaded_at) from files f where f.entity = 'client_approval' and f.entity_id = c.id::text and f.tag = 'request' and f.archived_at is null) as docs
+      from client_approvals c where c.workspace_id = $1 and c.client_visible order by (c.status = 'requested') desc, c.requested_on desc`, [v.ws.id])).rows;
+    const pending = rows.filter(x => x.status === 'requested'), done = rows.filter(x => x.status !== 'requested');
+    const docs = x => x.docs && x.docs.length ? html`<ul class="rows">${x.docs.map(d => html`<li><a href="/files/${d.id}" target="_blank" rel="noopener">${d.name}</a></li>`)}</ul>` : '';
+    const card = x => html`<section class="panel" id="a-${x.id}"><div class="row-between"><h2 class="h">${x.title}</h2>${pill('Waiting for your answer', 'warn')}</div>
+        <p class="muted small">${human(x.subject)}${x.linked_ref ? ` · ${x.linked_ref}` : ''} · requested ${fmtDate(x.requested_on)}</p>
+        ${x.client_note ? html`<p class="pre-line">${x.client_note}</p>` : ''}${docs(x)}
+        ${canAnswer(v) ? html`<form method="post" action="/p/${v.ws.id}/approvals/${x.id}" enctype="multipart/form-data" class="form-grid">${csrf(req)}
+          <label class="field full"><span>Comment (optional; needed if you reject)</span><textarea name="comment" maxlength="2000" rows="3"></textarea></label>
+          <label class="field full"><span>Attach a file (optional)</span><input type="file" name="files" multiple accept=".pdf,image/*,.doc,.docx,.xls,.xlsx"></label>
+          <div class="actions full"><button class="btn primary" type="submit" name="decision" value="approved" data-confirm="Approve “${x.title}”?">Approve</button>
+            <button class="btn" type="submit" name="decision" value="rejected" data-confirm="Reject “${x.title}”?">Reject</button></div>
+          <p class="muted small full">Your answer is recorded with your name and the time, and SarayDar is notified.</p></form>`
+          : v.preview ? html`<p class="muted small">The client sees Approve and Reject buttons here.</p>` : html`<p class="muted small">Only the client can answer this request.</p>`}</section>`;
+    return html`${pending.map(card)}
+      <section class="panel"><h2 class="h">${pending.length ? 'Earlier approvals' : 'Approvals'}</h2>${done.length ? html`<ul class="rows">
+      ${done.map(x => html`<li><div class="grow"><b>${x.title}</b><div class="muted small">${human(x.subject)}${x.linked_ref ? ` · ${x.linked_ref}` : ''} · requested ${fmtDate(x.requested_on)}</div>
+        ${x.decided_on ? html`<div class="small">${x.status === 'withdrawn' ? 'Withdrawn' : human(x.status)} ${fmtDate(x.decided_on)}${x.approver_name ? ` by ${x.approver_name}` : ''}${x.responded_by ? ' in the portal' : ''}</div>` : ''}
+        ${x.client_comment ? html`<div class="small pre-line">“${x.client_comment}”</div>` : ''}${docs(x)}</div>${pill(human(x.status), x.status === 'approved' ? 'ok' : x.status === 'rejected' ? 'bad' : 'muted')}</li>`)}</ul>` : html`<p class="muted">${pending.length ? 'None yet.' : 'No approval requests yet.'}</p>`}</section>`;
   };
 
   T.units = async (req, v) => {
@@ -180,13 +209,25 @@ function mountExternal(r, ctx) {
   };
 
   T.maintenance = async (req, v) => {
-    const rows = (await pool.query(`select m.id, m.ref, m.title, m.category, m.reported_on, m.status, m.completed_on, u.ref as unit_ref,
+    const rows = (await pool.query(`select m.id, m.ref, m.title, m.category, m.reported_on, m.status, m.completed_on, m.approval, m.estimate_minor, m.provider, m.description, u.ref as unit_ref,
         (select array_agg(f.id order by f.uploaded_at) from files f where f.entity = 'maint_request' and f.entity_id = m.id::text and f.archived_at is null and f.thumb is not null) as photos
         from maint_requests m left join units u on u.id = m.unit_id where m.workspace_id = $1 and m.owner_visible order by m.reported_on desc limit 200`, [v.ws.id])).rows;
-    return html`<section class="panel"><h2 class="h">Maintenance</h2>${rows.length ? html`<ul class="rows">${rows.map(m => html`<li><div class="grow"><b>${m.ref} · ${m.title}</b>
+    const waiting = rows.filter(m => ownerDecides(m));
+    const decide = m => html`<section class="panel"><div class="row-between"><h2 class="h">${m.ref} · ${m.title}</h2>${pill('Your approval is needed', 'warn')}</div>
+        <p class="muted small">${m.unit_ref ? `Unit ${m.unit_ref}` : 'Common area'} · ${m.category} · reported ${fmtDate(m.reported_on)}</p>
+        ${m.description ? html`<p class="pre-line">${m.description}</p>` : ''}
+        ${kv([['Estimated cost', fm(m.estimate_minor)], ['Contractor / supplier', m.provider]])}${gallery(m.photos)}
+        ${!v.preview && v.role === 'owner_viewer' ? html`<form method="post" action="/p/${v.ws.id}/maintenance/${m.id}" class="form-grid">${csrf(req)}
+          <label class="field full"><span>Comment (optional; needed if you reject)</span><textarea name="comment" maxlength="1000" rows="2"></textarea></label>
+          <div class="actions full"><button class="btn primary" type="submit" name="decision" value="approved" data-confirm="Approve ${fm(m.estimate_minor)} for ${m.ref}?">Approve the work</button>
+            <button class="btn" type="submit" name="decision" value="rejected" data-confirm="Reject ${m.ref}?">Reject</button></div></form>` : html`<p class="muted small">The owner sees Approve and Reject buttons here.</p>`}</section>`;
+    return html`${waiting.map(decide)}<section class="panel"><h2 class="h">Maintenance</h2>${rows.length ? html`<ul class="rows">${rows.map(m => html`<li><div class="grow"><b>${m.ref} · ${m.title}</b>
         <div class="muted small">${m.unit_ref ? `Unit ${m.unit_ref}` : 'Common area'} · ${m.category} · reported ${fmtDate(m.reported_on)}${m.completed_on ? ` · completed ${fmtDate(m.completed_on)}` : ''}</div>${gallery(m.photos)}</div>${pill(MAINT[m.status] || human(m.status), ['verified', 'closed', 'completed'].includes(m.status) ? 'ok' : 'warn')}</li>`)}</ul>`
       : html`<p class="muted">No maintenance has been shared with you.</p>`}</section>`;
   };
+
+  // a maintenance job the owner decides on: shared with them, costed, not yet approved and not closed
+  const ownerDecides = m => m.approval === 'none' && m.estimate_minor !== null && ['open', 'assigned', 'awaiting_approval'].includes(m.status);
 
   T.activity = async (req, v) => {
     const mk = (await pool.query("select channel, url, status, published_on, ended_on, results from marketing_activities where workspace_id = $1 and status in ('published','ended') order by published_on desc", [v.ws.id])).rows;
@@ -214,7 +255,11 @@ function mountExternal(r, ctx) {
           ['Price', x.rechecked_price_minor ? `${fm(x.rechecked_price_minor, own ? x.currency : x.ext_currency)} (checked ${fmtDate(x.rechecked_on)})` : own ? (x.asking_minor ? fm(x.asking_minor, x.currency) : null) : (x.ext_price ? fm(x.ext_price, x.ext_currency) : null)],
           ['Land area', (own ? x.land_area_m2 : x.ext_land) ? `${Number(own ? x.land_area_m2 : x.ext_land)} m²` : null], ['Built-up area', (own ? x.built_area_m2 : x.ext_built) ? `${Number(own ? x.built_area_m2 : x.ext_built)} m²` : null],
           ['Bedrooms', own ? x.bedrooms : x.ext_beds], ['Features', own ? x.features : null], ['Why it was shortlisted', x.reason], ['Your feedback (as recorded)', x.client_feedback], ['Status', human(x.status)]])}
-        ${own && x.description ? html`<p class="pre-line small">${x.description}</p>` : ''}</section>`);
+        ${own && x.description ? html`<p class="pre-line small">${x.description}</p>` : ''}
+        ${!v.preview && v.role === 'buyer_viewer' ? html`<details class="inline-form"><summary>Give your feedback</summary><form method="post" action="/p/${v.ws.id}/shortlist/${x.id}" class="form-grid">${csrf(req)}
+          <label class="field"><span>Your interest</span><select name="interest"><option value="Interested">Interested</option><option value="Would like a viewing">Would like a viewing</option><option value="Maybe">Maybe</option><option value="Not interested">Not interested</option></select></label>
+          <label class="field full"><span>Comment</span><textarea name="comment" maxlength="1000" rows="2"></textarea></label>
+          <div class="actions full"><button class="btn primary" type="submit">Send feedback</button></div></form></details>` : ''}</section>`);
     }
     return out;
   };
@@ -242,6 +287,24 @@ function mountExternal(r, ctx) {
     return out;
   };
 
+  // issued fee invoices, receipts and credit notes with their PDFs (for a sales case: only this client's own)
+  async function feeDocs(w, party) {
+    const pf = party ? ' and i.party_id = $2' : '';
+    const vals = party ? [w.id, party] : [w.id];
+    const inv = (await pool.query(`select i.id, i.number, i.issue_date, i.due_date, i.total_minor, i.currency, i.status,
+        coalesce((select sum(amount_minor) from fee_credit_notes c where c.invoice_id = i.id),0) + coalesce((select sum(amount_minor) from fee_allocations x where x.invoice_id = i.id and x.status = 'active'),0) as settled
+       from fee_invoices i where i.workspace_id = $1${pf} and i.status in ('issued','void') and i.number is not null order by i.issue_date desc`, vals)).rows;
+    const pay = (await pool.query(`select i.id, i.receipt_no, i.received_on, i.amount_minor, i.currency, i.method, i.status from fee_payments i where i.workspace_id = $1${pf} and i.status in ('confirmed','reversed') order by i.received_on desc`, vals)).rows;
+    const cn = (await pool.query(`select c.id, c.number, c.issued_on, c.amount_minor, i.number as inv from fee_credit_notes c join fee_invoices i on i.id = c.invoice_id where c.workspace_id = $1${pf} order by c.issued_on desc`, vals)).rows;
+    const nm = (...p) => DL.pretty(DL.fileName(p, 'pdf'));
+    return html`<section class="panel"><h2 class="h">Invoices</h2>${inv.length ? html`<div class="table-wrap"><table><thead><tr><th>Invoice</th><th>Date</th><th>Due</th><th class="n">Amount</th><th class="n">Outstanding</th><th>Status</th><th></th></tr></thead><tbody>
+        ${inv.map(i => { const out = Number(i.total_minor) - Number(i.settled); return html`<tr><td class="mono">${i.number}</td><td class="small">${fmtDate(i.issue_date)}</td><td class="small">${fmtDate(i.due_date) || '—'}</td><td class="n">${fm(i.total_minor, i.currency)}</td><td class="n">${i.status === 'issued' ? fm(out, i.currency) : '—'}</td>
+          <td>${i.status === 'void' ? pill('Cancelled', 'muted') : out <= 0 ? pill('Paid', 'ok') : pill('Due', 'warn')}</td><td>${pdfLink(`/p/${w.id}/fees/invoices/${i.id}/invoice.pdf${nm(i.number, w.name)}`, 'PDF')}</td></tr>`; })}</tbody></table></div>` : html`<p class="muted">No invoices yet.</p>`}</section>
+      <section class="panel"><h2 class="h">Payments and receipts</h2>${pay.length ? html`<ul class="rows">${pay.map(p => html`<li><div class="grow"><b>${p.receipt_no || 'Payment received'}</b><div class="muted small">${fmtDate(p.received_on)} · ${p.method}${p.status === 'reversed' ? ' · reversed' : ''}</div></div><b>${fm(p.amount_minor, p.currency)}</b>
+          ${p.receipt_no ? pdfLink(`/p/${w.id}/fees/payments/${p.id}/receipt.pdf${nm(p.receipt_no, w.name)}`, 'Receipt PDF') : html`<span class="muted small">Receipt to follow</span>`}</li>`)}</ul>` : html`<p class="muted">No payments recorded.</p>`}</section>
+      ${cn.length ? html`<section class="panel"><h2 class="h">Credit notes</h2><ul class="rows">${cn.map(c => html`<li><div class="grow"><b>${c.number}</b><div class="muted small">${fmtDate(c.issued_on)} · on ${c.inv}</div></div><b>${fm(c.amount_minor)}</b>${pdfLink(`/p/${w.id}/fees/credits/${c.id}/credit.pdf${nm(c.number, w.name)}`, 'PDF')}</li>`)}</ul></section>` : ''}`;
+  }
+
   T.statement = async (req, v) => {
     const w = v.ws;
     if (v.role === 'investor_viewer') {
@@ -251,7 +314,9 @@ function mountExternal(r, ctx) {
     if (w.kind === 'property' && ctx.ownerAccount) {
       const per = periodOf(req.query);
       const acc = await ctx.ownerAccount(w.id, per.from, per.to);
+      const pq = new URLSearchParams({ ...(req.query.from ? { from: req.query.from } : {}), ...(req.query.to ? { to: req.query.to } : {}) });
       return html`${periodForm(per, v.preview ? raw(`<input type="hidden" name="preview" value="${v.role}">`) : '')}
+        <p>${pdfLink(`/p/${w.id}/owner/statement.pdf${DL.pretty(DL.fileName([w.ref, w.name, 'Owner statement', DL.today()], 'pdf'))}?${pq}`, 'Owner statement (PDF)')}</p>
         <section class="grid-cards"><div class="card"><div class="muted small">Funds held for you at ${fmtDate(per.to)}</div><div class="big">${fm(acc.closing)}</div></div>
           <div class="card"><div class="muted small">Available to transfer</div><div class="big">${fm(acc.available)}</div><div class="muted small">After approved unpaid expenses and the agreed reserve</div></div>
           <div class="card"><div class="muted small">Rent due but unpaid</div><div class="big">${fm(acc.arrears)}</div></div></section>
@@ -266,18 +331,14 @@ function mountExternal(r, ctx) {
       return html`<section class="panel"><h2 class="h">Statement of SarayDar fees</h2><div class="table-wrap"><table><thead><tr><th>Date</th><th>Document</th><th>Details</th><th class="n">Debit</th><th class="n">Credit</th><th class="n">Balance</th></tr></thead><tbody>
         ${st.rows.map(e => html`<tr><td class="small">${fmtDate(e.date)}</td><td class="mono small">${e.doc}</td><td class="small">${e.text}</td><td class="n">${e.debit ? fm(e.debit) : ''}</td><td class="n">${e.credit ? fm(e.credit) : ''}</td><td class="n">${fm(e.balance)}</td></tr>`)}
         <tr class="total"><td></td><td></td><td>Balance</td><td class="n">${fm(st.debits)}</td><td class="n">${fm(st.credits)}</td><td class="n">${fm(st.closing)}</td></tr></tbody></table></div>
-        <p class="muted small">Positive balance: amount due to SarayDar. Construction spending paid on your behalf is reported separately.</p></section>`;
+        <p class="muted small">Positive balance: amount due to SarayDar. Construction spending paid on your behalf is reported separately.</p>
+        <p>${pdfLink(`/p/${w.id}/fees/statement.pdf${DL.pretty(DL.fileName([w.ref, w.name, 'Statement', DL.today()], 'pdf'))}`, 'Statement (PDF)')}</p></section>
+        ${await feeDocs(w, null)}`;
     }
     // sales: this client's own fee invoices and receipts
     const party = partyOf(v);
     if (!party) return emptyState('No fee records', 'No fee records are linked to you for this case.');
-    const inv = (await pool.query(`select i.number, i.issue_date, i.due_date, i.total_minor, i.currency, i.status,
-        coalesce((select sum(amount_minor) from fee_credit_notes c where c.invoice_id = i.id),0) + coalesce((select sum(amount_minor) from fee_allocations x where x.invoice_id = i.id and x.status = 'active'),0) as settled
-       from fee_invoices i where i.workspace_id = $1 and i.party_id = $2 and i.status in ('issued','void') and i.number is not null order by i.issue_date`, [w.id, party])).rows;
-    const pay = (await pool.query("select receipt_no, received_on, amount_minor, currency, method, status from fee_payments where workspace_id = $1 and party_id = $2 and status in ('confirmed','reversed') order by received_on", [w.id, party])).rows;
-    return html`<section class="panel"><h2 class="h">Your fee invoices</h2>${inv.length ? html`<div class="table-wrap"><table><thead><tr><th>Invoice</th><th>Date</th><th>Due</th><th class="n">Amount</th><th class="n">Outstanding</th><th>Status</th></tr></thead><tbody>
-        ${inv.map(i => html`<tr><td class="mono">${i.number}</td><td class="small">${fmtDate(i.issue_date)}</td><td class="small">${fmtDate(i.due_date) || '—'}</td><td class="n">${fm(i.total_minor, i.currency)}</td><td class="n">${i.status === 'issued' ? fm(Number(i.total_minor) - Number(i.settled), i.currency) : '—'}</td><td>${i.status === 'void' ? 'Cancelled' : Number(i.total_minor) - Number(i.settled) <= 0 ? 'Paid' : 'Due'}</td></tr>`)}</tbody></table></div>` : html`<p class="muted">No invoices.</p>`}</section>
-      <section class="panel"><h2 class="h">Your payments</h2>${pay.length ? html`<ul class="rows">${pay.map(p => html`<li><div class="grow"><b>${p.receipt_no || 'Payment'}</b><div class="muted small">${fmtDate(p.received_on)} · ${p.method}</div></div><b>${fm(p.amount_minor, p.currency)}</b>${p.status === 'reversed' ? pill('Reversed', 'muted') : ''}</li>`)}</ul>` : html`<p class="muted">No payments recorded.</p>`}</section>`;
+    return feeDocs(w, party);
   };
 
   T.documents = async (req, v) => {
@@ -299,11 +360,133 @@ function mountExternal(r, ctx) {
     res.send(page(req, v, tab, body));
   });
 
+  // ---------- PDFs of the viewer's own fee documents and statements ----------
+  async function finViewer(req, kinds) {
+    const v = await viewer(req);
+    if (!kinds.includes(v.ws.kind) || !(v.preview || v.grants.financials) || v.role === 'investor_viewer') throw new NotFound();
+    return v;
+  }
+  const sendPdf = async (req, res, v, { buf, parts }, action, summary) => {
+    if (!v.preview) await core.audit(null, { actor: req.user, workspaceId: v.ws.id, action, entity: 'workspace', entityId: v.ws.id, summary: `${summary} (client portal)`, ip: req.ip });
+    res.set({ 'Content-Type': 'application/pdf', 'Content-Disposition': DL.disposition(DL.fileName(parts, 'pdf'), true), 'Cache-Control': 'private, no-store' });
+    res.end(buf);
+  };
+  const FEE_KINDS = ['client_project', 'listing', 'request'];
+  // the fee document must belong to this viewer: issued (never a draft), and for a sales case their own
+  const ownsFeeDoc = (v, partyId) => v.ws.kind === 'client_project' || (partyOf(v) && partyId === partyOf(v));
+  r.get('/p/:id/fees/invoices/:iid/invoice.pdf', async (req, res) => {
+    const v = await finViewer(req, FEE_KINDS);
+    if (!ctx.feePdfs) throw new NotFound();
+    const out = await ctx.feePdfs.invoice({ ws: v.ws }, req.params.iid);
+    if (!['issued', 'void'].includes(out.doc.status) || !ownsFeeDoc(v, out.doc.party_id)) throw new NotFound();
+    await sendPdf(req, res, v, out, 'fee.invoice_pdf', `Invoice PDF opened: ${out.doc.number}`);
+  });
+  r.get('/p/:id/fees/payments/:pid/receipt.pdf', async (req, res) => {
+    const v = await finViewer(req, FEE_KINDS);
+    if (!ctx.feePdfs) throw new NotFound();
+    const out = await ctx.feePdfs.receipt({ ws: v.ws }, req.params.pid);
+    if (!ownsFeeDoc(v, out.doc.party_id)) throw new NotFound();
+    await sendPdf(req, res, v, out, 'fee.receipt_pdf', `Receipt PDF opened: ${out.doc.receipt_no}`);
+  });
+  r.get('/p/:id/fees/credits/:cid/credit.pdf', async (req, res) => {
+    const v = await finViewer(req, FEE_KINDS);
+    if (!ctx.feePdfs) throw new NotFound();
+    const out = await ctx.feePdfs.credit({ ws: v.ws }, req.params.cid);
+    if (out.doc.invoice.status === 'draft' || !ownsFeeDoc(v, out.doc.invoice.party_id)) throw new NotFound();
+    await sendPdf(req, res, v, out, 'fee.credit_pdf', `Credit note PDF opened: ${out.doc.number}`);
+  });
+  r.get('/p/:id/fees/statement.pdf', async (req, res) => {
+    const v = await finViewer(req, ['client_project']);
+    if (!ctx.feePdfs) throw new NotFound();
+    const out = await ctx.feePdfs.statement({ ws: v.ws }, req.query);
+    await sendPdf(req, res, v, out, 'fee.statement_pdf', `Fee statement PDF opened: ${out.per.label}`);
+  });
+  r.get('/p/:id/owner/statement.pdf', async (req, res) => {
+    const v = await finViewer(req, ['property']);
+    if (!ctx.ownerStatementPdf) throw new NotFound();
+    const out = await ctx.ownerStatementPdf({ ws: v.ws }, req.query);
+    await sendPdf(req, res, v, out, 'owner.statement_pdf', `Owner statement PDF opened: ${out.per.label}`);
+  });
+
+  // ---------- answers from the viewer ----------
+  // staff responsible for the workspace hear about every answer by email (the manager and whoever asked)
+  async function tellStaff(ws, userIds, subject, text) {
+    const ids = [...new Set([ws.manager_id, ...userIds].filter(Boolean))];
+    if (!ids.length) return;
+    const staff = (await pool.query("select email from users where id = any($1::uuid[]) and active and kind = 'internal' and email is not null", [ids])).rows;
+    for (const s of staff) await mailer.send({ to: s.email, kind: 'portal_answer', workspaceId: ws.id, subject, text }).catch(() => {});
+  }
+  const answerer = async req => { const v = await viewer(req); if (v.preview) throw new Forbidden('A preview cannot answer. Only the invited viewer can.'); return v; };
+  const who = req => req.user.name || req.user.email;
+
+  r.post('/p/:id/approvals/:cid', upload.array('files', 4), async (req, res) => {
+    if (!core.checkCsrf(req)) throw new Forbidden('Your form expired. Reload the page and try again.');
+    const v = await answerer(req);
+    if (v.ws.kind !== 'client_project' || v.role !== 'client_viewer') throw new NotFound();
+    if (!UUID.test(req.params.cid)) throw new NotFound();
+    const c = (await pool.query('select * from client_approvals where id = $1 and workspace_id = $2 and client_visible', [req.params.cid, v.ws.id])).rows[0];
+    if (!c) throw new NotFound();
+    const decision = ['approved', 'rejected'].includes(req.body.decision) ? req.body.decision : null;
+    if (!decision) throw bad('Choose Approve or Reject.');
+    const comment = txt(req.body.comment, 2000);
+    if (decision === 'rejected' && !comment) throw bad('Please say why in the comment, so SarayDar can act on it.');
+    const files = await uploads.prepare(req.files, sniff);
+    await core.inTx(async db => {
+      const n = (await db.query(`update client_approvals set status = $2, decided_on = $3, approver_name = $4, method = 'Client portal', client_comment = $5, responded_by = $6, responded_at = now(), decided_at = now()
+        where id = $1 and status = 'requested'`, [c.id, decision, todayBH(), who(req), comment, req.user.id])).rowCount;
+      if (!n) throw bad('This request has already been answered.');
+      await uploads.insert(db, { workspaceId: v.ws.id, entity: 'client_approval', entityId: c.id, files, userId: req.user.id, tag: 'client_response', observedOn: todayBH() });
+      await core.audit(db, { actor: req.user, workspaceId: v.ws.id, action: `approval.${decision}`, entity: 'client_approval', entityId: c.id, summary: `Client ${decision} “${c.title}” in the portal${comment ? `: ${comment}` : ''}${files.length ? ` (${files.length} file(s))` : ''}`, ip: req.ip });
+      await db.query('update workspaces set updated_at = now() where id = $1', [v.ws.id]);
+    });
+    await tellStaff(v.ws, [c.created_by], `Client ${decision}: ${c.title} — ${v.ws.name}`, `${who(req)} ${decision} “${c.title}” in the client portal on ${fmtDateTime(new Date())}.${comment ? `\n\nComment: ${comment}` : ''}\n\nSee Client Approvals on ${v.ws.ref} ${v.ws.name}.`);
+    res.redirect(`/p/${v.ws.id}/approvals?msg=answered`);
+  });
+
+  r.post('/p/:id/maintenance/:mid', async (req, res) => {
+    const v = await answerer(req);
+    if (v.ws.kind !== 'property' || v.role !== 'owner_viewer') throw new NotFound();
+    if (!UUID.test(req.params.mid)) throw new NotFound();
+    const decision = ['approved', 'rejected'].includes(req.body.decision) ? req.body.decision : null;
+    if (!decision) throw bad('Choose Approve or Reject.');
+    const comment = txt(req.body.comment, 1000);
+    if (decision === 'rejected' && !comment) throw bad('Please say why in the comment, so SarayDar can act on it.');
+    let m;
+    await core.inTx(async db => {
+      m = (await db.query('select * from maint_requests where id = $1 and workspace_id = $2 and owner_visible for update', [req.params.mid, v.ws.id])).rows[0];
+      if (!m) throw new NotFound();
+      if (!ownerDecides(m)) throw bad('This job does not need your decision any more.');
+      const ok = decision === 'approved';
+      await db.query('update maint_requests set approval = $2, approval_ref = $3, approval_note = $4, approved_by = $5, approved_at = now(), status = $6 where id = $1',
+        [m.id, ok ? 'owner_approved' : 'owner_rejected', `Owner portal — ${who(req)}`, comment, req.user.id, ok ? 'approved' : 'rejected']);
+      await core.audit(db, { actor: req.user, workspaceId: v.ws.id, action: ok ? 'maint.owner_approved' : 'maint.owner_rejected', entity: 'maint_request', entityId: m.id, summary: `${m.ref}: owner ${decision} ${fm(m.estimate_minor)} in the portal${comment ? ` — ${comment}` : ''}`, ip: req.ip });
+    });
+    await tellStaff(v.ws, [m.created_by], `Owner ${decision} maintenance ${m.ref} — ${v.ws.name}`, `${who(req)} ${decision} ${m.ref} (${m.title}, estimate ${fm(m.estimate_minor)}) in the owner portal.${comment ? `\n\nComment: ${comment}` : ''}`);
+    res.redirect(`/p/${v.ws.id}/maintenance?msg=answered`);
+  });
+
+  r.post('/p/:id/shortlist/:sid', async (req, res) => {
+    const v = await answerer(req);
+    if (v.ws.kind !== 'request' || v.role !== 'buyer_viewer') throw new NotFound();
+    if (!UUID.test(req.params.sid)) throw new NotFound();
+    const s = (await pool.query("select s.id, coalesce(lw.name, e.title) as name from shortlist_items s left join workspaces lw on lw.id = s.listing_ws left join external_opps e on e.id = s.external_id where s.id = $1 and s.workspace_id = $2 and s.published and s.status <> 'withdrawn'", [req.params.sid, v.ws.id])).rows[0];
+    if (!s) throw new NotFound();
+    const interest = ['Interested', 'Would like a viewing', 'Maybe', 'Not interested'].includes(req.body.interest) ? req.body.interest : 'Interested';
+    const line = `${fmtDate(new Date())} (portal): ${interest}${txt(req.body.comment, 1000) ? ` — ${txt(req.body.comment, 1000)}` : ''}`;
+    await core.inTx(async db => {
+      await db.query("update shortlist_items set client_feedback = concat_ws(E'\\n', client_feedback, $2::text) where id = $1", [s.id, line]);
+      await core.audit(db, { actor: req.user, workspaceId: v.ws.id, action: 'shortlist.client_feedback', entity: 'shortlist_item', entityId: s.id, summary: `Buyer feedback on ${s.name}: ${interest}`, ip: req.ip });
+    });
+    await tellStaff(v.ws, [], `Buyer feedback: ${s.name} — ${v.ws.name}`, `${who(req)} gave feedback in the buyer portal on ${s.name}:\n\n${line}`);
+    res.redirect(`/p/${v.ws.id}/shortlist?msg=feedback`);
+  });
+
   // Files an external viewer may open beyond those published in Documents.
   ctx.externalFile = async (user, f, a) => {
     if (a && !a.internal) {
       if (f.entity === 'progress_update' && (await pool.query("select 1 from progress_updates where id::text = $1 and workspace_id = $2 and status = 'published' and external_visible and archived_at is null", [f.entity_id, f.workspace_id])).rowCount) return a.grants || {};
       if (f.entity === 'listing' && f.tag === 'published') return a.grants || {};
+      if (f.entity === 'client_approval' && f.tag === 'request' && a.role === 'client_viewer' && (await pool.query('select 1 from client_approvals where id::text = $1 and workspace_id = $2 and client_visible', [f.entity_id, f.workspace_id])).rowCount) return a.grants || {};
       if (f.entity === 'maint_request' && a.role === 'owner_viewer' && (await pool.query('select 1 from maint_requests where id::text = $1 and workspace_id = $2 and owner_visible', [f.entity_id, f.workspace_id])).rowCount) return a.grants || {};
       return null;
     }
@@ -327,7 +510,7 @@ function mountExternal(r, ctx) {
       .filter(w => !q || `${w.name} ${w.ref} ${w.location || ''}`.toLowerCase().includes(q));
     const GROUPS = [['Projects', ['dev', 'cpm']], ['Properties', ['props']], ['Sales & Acquisitions', ['sales']]];
     const groups = GROUPS.map(([l, secs]) => [l, rows.filter(x => secs.includes(x.section))]).filter(g => g[1].length);
-    res.send(layout(req, { title: 'My Workspaces', heading: 'My Workspaces', sub: { below: 'Projects, properties and cases shared with you. View only.' }, noExport: true, body: html`
+    res.send(layout(req, { title: 'My Workspaces', heading: 'My Workspaces', sub: { below: 'Projects, properties and cases shared with you.' }, noExport: true, body: html`
       <form class="filters" method="get" role="search"><input name="q" value="${q}" placeholder="Filter by name or reference" aria-label="Filter"><button class="btn" type="submit">Filter</button>${q ? html`<a class="btn" href="/my">Clear</a>` : ''}</form>
       ${groups.length ? groups.map(([l, list]) => html`<section class="panel"><h2 class="h">${l}</h2>
         <ul class="ws-cards">${list.map(w => html`<li><a class="ws-card" href="/p/${w.id}">

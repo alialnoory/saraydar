@@ -210,9 +210,9 @@ function mountOwner(r, ctx) {
     res.redirect(`/w/${a.ws.id}/owner?msg=saved`);
   });
 
-  r.get('/w/:id/owner/statement.pdf', async (req, res) => {
-    const a = await PR.access(req, 'finance');
-    const per = periodOf(req.query);
+  // the owner statement PDF; staff open it here, the owner from the portal (ctx.ownerStatementPdf, used by external.js)
+  async function ownerStatementPdf(a, query) {
+    const per = periodOf(query);
     const acc = await ownerAccount(a.ws.id, per.from, per.to);
     const co = (await pool.query('select * from company_profile where id = 1')).rows[0] || {};
     const owner = a.ws.party_id ? (await pool.query('select * from parties where id = $1', [a.ws.party_id])).rows[0] : null;
@@ -226,8 +226,14 @@ function mountOwner(r, ctx) {
         ['Closing balance held', docs.money(acc.closing), true], ['Unpaid approved expenses', docs.money(acc.liabilities)], ['Agreed reserve', docs.money(acc.reserve)], ['Available for transfer', docs.money(acc.available), true],
         ['Tenant arrears (outstanding, not received)', docs.money(acc.arrears)], ['Tenant deposits held (not your funds)', docs.money(acc.deposits)]],
       notes: ['Transfers listed are transfers recorded after they were made through the bank.', 'Arrears and deposits are shown separately and are not part of the balance held.'] });
+    return { buf, per, parts: [a.ws.ref, a.ws.name, 'Owner statement', DL.today()] };
+  }
+  ctx.ownerStatementPdf = ownerStatementPdf;
+  r.get('/w/:id/owner/statement.pdf', async (req, res) => {
+    const a = await PR.access(req, 'finance');
+    const { buf, per, parts } = await ownerStatementPdf(a, req.query);
     await core.audit(null, { actor: req.user, workspaceId: a.ws.id, action: 'owner.statement_pdf', entity: 'workspace', entityId: a.ws.id, summary: `Owner statement PDF: ${per.label}`, ip: req.ip });
-    res.set({ 'Content-Type': 'application/pdf', 'Content-Disposition': DL.disposition(DL.fileName([a.ws.ref, a.ws.name, 'Owner statement', DL.today()], 'pdf'), req.query.view === '1'), 'Cache-Control': 'private, no-store' }); res.end(buf);
+    res.set({ 'Content-Type': 'application/pdf', 'Content-Disposition': DL.disposition(DL.fileName(parts, 'pdf'), req.query.view === '1'), 'Cache-Control': 'private, no-store' }); res.end(buf);
   });
 
   // ---------- Unit History & Report ----------

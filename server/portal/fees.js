@@ -16,6 +16,7 @@ const { parseMoney, formatMoney, toInput, num } = require('../lib/money');
 const fees = require('../lib/fees');
 const docs = require('../lib/fee-docs');
 const { sniff } = require('./workspaces');
+const uploads = require('../lib/uploads');
 
 const UUID = /^[0-9a-f-]{36}$/i;
 const bad = m => Object.assign(new Error(m), { status: 400 });
@@ -842,10 +843,11 @@ function mountFees(r, ctx, P) {
   }
   const sendPdf = (res, buf, parts) => { res.set({ 'Content-Type': 'application/pdf', 'Content-Disposition': DL.disposition(DL.fileName(parts, 'pdf'), res.req.query.view === '1'), 'Cache-Control': 'private, no-store' }); res.end(buf); };
 
-  r.get('/w/:id/fees/invoices/:iid/invoice.pdf', async (req, res) => {
-    const a = await finAccess(req);
-    if (!UUID.test(req.params.iid)) throw new NotFound();
-    const { i } = await invoiceFull(a, req.params.iid);
+  // The fee documents as PDFs. Staff open them from Fee Billing; the client opens issued ones from the portal
+  // (ctx.feePdfs, used by external.js). Each returns the file and the parts of its download name.
+  async function invoicePdf(a, iid) {
+    if (!UUID.test(String(iid))) throw new NotFound();
+    const { i } = await invoiceFull(a, iid);
     const b = await docBase(a);
     const draft = i.status === 'draft';
     const t = draft ? fees.totals(i.lines, i.tax_mode, i.tax_rate_bp) : { subtotal: num(i.subtotal_minor), tax: num(i.tax_minor), total: i.total };
@@ -855,13 +857,10 @@ function mountFees(r, ctx, P) {
       totals: [['Subtotal', docs.money(t.subtotal, i.currency)], ...(i.tax_mode === 'rate' ? [[`${i.tax_label || 'Tax'} ${fees.pctLabel(i.tax_rate_bp || 0)}`, docs.money(t.tax, i.currency)]] : []), ['Total due', docs.money(t.total, i.currency), true],
         ...(i.status === 'issued' && (i.credited || i.allocated) ? [['Credited', docs.money(i.credited)], ['Paid', docs.money(i.allocated)], ['Outstanding', docs.money(i.outstanding), true]] : [])],
       notes: [i.kind === 'commission' ? `This invoice requests payment of SarayDar's brokerage fee under the mandate. ${i.calc_note || ''} The property price is not part of this invoice. It is not a receipt.` : 'This invoice requests payment of SarayDar\'s management fee under the management agreement. It is not a receipt.', i.tax_mode === 'none' ? 'No VAT has been charged on this fee.' : null, b.company.legal_name ? `${b.company.legal_name}${b.company.cr_number ? ` · CR ${b.company.cr_number}` : ''}${i.tax_mode === 'rate' && b.company.vat_number ? ` · VAT registration ${b.company.vat_number}` : ''}` : null] });
-    await core.audit(null, { actor: req.user, workspaceId: a.ws.id, action: 'fee.invoice_pdf', entity: 'fee_invoice', entityId: i.id, summary: `Invoice PDF downloaded: ${i.number || 'draft'}`, ip: req.ip });
-    sendPdf(res, buf, i.number ? [i.number, a.ws.name] : ['DRAFT invoice', a.ws.ref, a.ws.name]);
-  });
-
-  r.get('/w/:id/fees/payments/:pid/receipt.pdf', async (req, res) => {
-    const a = await finAccess(req);
-    const { p } = await paymentFull(a, req.params.pid);
+    return { buf, doc: i, parts: i.number ? [i.number, a.ws.name] : ['DRAFT invoice', a.ws.ref, a.ws.name] };
+  }
+  async function receiptPdf(a, pid) {
+    const { p } = await paymentFull(a, pid);
     if (!p.receipt_no) throw new NotFound();
     const b = await docBase(a);
     const allocs = p.allocs.filter(x => x.status === 'active');
@@ -871,24 +870,19 @@ function mountFees(r, ctx, P) {
         rows: allocs.map(x => [x.number, x.period_start ? `${fmtDate(x.period_start)} – ${fmtDate(x.period_end)}` : 'Additional charges', docs.money(num(x.amount_minor))]) }],
       totals: [['Amount received', docs.money(p.amount, p.currency), true], ['Applied to invoices', docs.money(allocs.reduce((s, x) => s + num(x.amount_minor), 0))], ['Unapplied credit', docs.money(p.status === 'confirmed' ? p.unapplied : 0)]],
       notes: [`Received with thanks from ${b.client ? b.client.name : 'the client'}. This receipt acknowledges a confirmed payment recorded by SarayDar.`, p.status === 'reversed' ? `This payment was reversed on ${fmtDate(p.reversed_at)}: ${p.reverse_reason}` : null] });
-    await core.audit(null, { actor: req.user, workspaceId: a.ws.id, action: 'fee.receipt_pdf', entity: 'fee_payment', entityId: p.id, summary: `Receipt PDF downloaded: ${p.receipt_no}`, ip: req.ip });
-    sendPdf(res, buf, [p.receipt_no, a.ws.name]);
-  });
-
-  r.get('/w/:id/fees/credits/:cid/credit.pdf', async (req, res) => {
-    const a = await finAccess(req);
-    const c = await own('fee_credit_notes', req.params.cid, a.ws.id);
-    const inv = (await pool.query('select number from fee_invoices where id = $1', [c.invoice_id])).rows[0];
+    return { buf, doc: p, parts: [p.receipt_no, a.ws.name] };
+  }
+  async function creditPdf(a, cid) {
+    const c = await own('fee_credit_notes', cid, a.ws.id);
+    const inv = (await pool.query('select number, status, party_id from fee_invoices where id = $1', [c.invoice_id])).rows[0];
     const b = await docBase(a);
     const buf = await docs.render({ ...b, title: 'Credit note', number: c.number, meta: [['Date', fmtDate(c.issued_on)], ['Against invoice', inv.number], ['Project', a.ws.ref], ['', a.ws.name]],
       tables: [{ head: ['Reason', 'Amount'], widths: [0.75, 0.25], align: ['left', 'right'], rows: [[c.reason, docs.money(num(c.amount_minor))]] }],
       totals: [['Credit', docs.money(num(c.amount_minor)), true]], notes: ['This credit note reduces the amount due on the invoice shown.'] });
-    sendPdf(res, buf, [c.number, a.ws.name]);
-  });
-
-  r.get('/w/:id/fees/statement.pdf', async (req, res) => {
-    const a = await finAccess(req);
-    const per = period(req.query);
+    return { buf, doc: { ...c, invoice: inv }, parts: [c.number, a.ws.name] };
+  }
+  async function statementPdf(a, query) {
+    const per = period(query);
     const st = await statementRows([a.ws.id], per.from, per.to);
     const b = await docBase(a);
     const nb = m => docs.money(m).replace(/^BHD /, '');     // currency is stated once in the heading
@@ -897,57 +891,106 @@ function mountFees(r, ctx, P) {
         rows: [Object.assign(['', '', 'Opening balance', '', '', nb(st.opening)], { bold: true }), ...st.rows.map(e => [fmtDate(e.date), e.doc, e.text, e.debit ? nb(e.debit) : '', e.credit ? nb(e.credit) : '', nb(e.balance)])] }],
       totals: [['Total debits', docs.money(st.debits)], ['Total credits', docs.money(st.credits)], ['Closing balance', docs.money(st.closing), true]],
       notes: ['Positive balance: amount due to SarayDar. Negative balance: credit in your favour.', 'Covers SarayDar management-fee documents only.'] });
+    return { buf, per, parts: [a.ws.ref, a.ws.name, 'Statement', DL.today()] };
+  }
+  ctx.feePdfs = { invoice: invoicePdf, receipt: receiptPdf, credit: creditPdf, statement: statementPdf, send: sendPdf };
+
+  r.get('/w/:id/fees/invoices/:iid/invoice.pdf', async (req, res) => {
+    const a = await finAccess(req);
+    const { buf, doc: i, parts } = await invoicePdf(a, req.params.iid);
+    await core.audit(null, { actor: req.user, workspaceId: a.ws.id, action: 'fee.invoice_pdf', entity: 'fee_invoice', entityId: i.id, summary: `Invoice PDF downloaded: ${i.number || 'draft'}`, ip: req.ip });
+    sendPdf(res, buf, parts);
+  });
+
+  r.get('/w/:id/fees/payments/:pid/receipt.pdf', async (req, res) => {
+    const a = await finAccess(req);
+    const { buf, doc: p, parts } = await receiptPdf(a, req.params.pid);
+    await core.audit(null, { actor: req.user, workspaceId: a.ws.id, action: 'fee.receipt_pdf', entity: 'fee_payment', entityId: p.id, summary: `Receipt PDF downloaded: ${p.receipt_no}`, ip: req.ip });
+    sendPdf(res, buf, parts);
+  });
+
+  r.get('/w/:id/fees/credits/:cid/credit.pdf', async (req, res) => {
+    const a = await finAccess(req);
+    const { buf, parts } = await creditPdf(a, req.params.cid);
+    sendPdf(res, buf, parts);
+  });
+
+  r.get('/w/:id/fees/statement.pdf', async (req, res) => {
+    const a = await finAccess(req);
+    const { buf, per, parts } = await statementPdf(a, req.query);
     await core.audit(null, { actor: req.user, workspaceId: a.ws.id, action: 'fee.statement_pdf', entity: 'workspace', entityId: a.ws.id, summary: `Fee statement PDF: ${per.label}`, ip: req.ip });
-    sendPdf(res, buf, [a.ws.ref, a.ws.name, 'Statement', DL.today()]);
+    sendPdf(res, buf, parts);
   });
 
   // ---------- client approvals ----------
   r.get('/w/:id/approvals', async (req, res) => {
     const a = cpmOnly(await access(req));
     const rows = (await pool.query(`select c.*, coalesce(nullif(u.name,''), u.email) as recorder,
-        (select array_agg(json_build_object('id', f.id, 'name', f.original_name) order by f.uploaded_at) from files f where f.entity = 'client_approval' and f.entity_id = c.id::text and f.archived_at is null) as evidence
-      from client_approvals c left join users u on u.id = coalesce(c.decided_by, c.created_by) where c.workspace_id = $1 order by (c.status = 'requested') desc, c.requested_on desc, c.created_at desc`, [a.ws.id])).rows;
+        (select array_agg(json_build_object('id', f.id, 'name', f.original_name, 'tag', f.tag) order by f.uploaded_at) from files f where f.entity = 'client_approval' and f.entity_id = c.id::text and f.archived_at is null) as evidence,
+        coalesce(nullif(ru.name,''), ru.email) as responder
+      from client_approvals c left join users u on u.id = coalesce(c.decided_by, c.created_by) left join users ru on ru.id = c.responded_by where c.workspace_id = $1 order by (c.status = 'requested') desc, c.requested_on desc, c.created_at desc`, [a.ws.id])).rows;
     const edit = core.canContribute(a);
     const id = a.ws.id;
     const client = await clientOf(a.ws);
     const terms = activeTerms(await termsAll(a.ws.id));
     res.send(page(req, a, 'Client Approvals', html`
-      <p class="muted">Approvals the client gives outside the system (signed letters, emails, meeting minutes) are recorded here by SarayDar staff with the evidence. Client viewers will see the status only; they cannot approve or comment in the portal.${client && AG.approversOf(client).length ? html` Authorised approvers: <b>${AG.approversOf(client).join(', ')}</b>.` : ''}</p>
+      <p class="muted">Requests shared with the client appear in their portal, where they approve or reject them with a comment (they are emailed when a request is added). Approvals given outside the system (signed letters, emails, meeting minutes) are recorded here by staff with the evidence.${client && AG.approversOf(client).length ? html` Authorised approvers: <b>${AG.approversOf(client).join(', ')}</b>.` : ''}</p>
       <section class="panel"><h2 class="h">Approvals</h2>
         ${rows.length ? html`<div class="table-wrap"><table><thead><tr><th>Subject</th><th>Item</th><th>Requested</th><th>Decision</th><th>Evidence</th><th></th></tr></thead><tbody>
-          ${rows.map(c => html`<tr><td>${SUBJECTS[c.subject]}</td><td><b>${c.title}</b>${c.linked_ref ? html`<div class="muted small">${c.linked_ref}</div>` : ''}${!c.client_visible ? html`<div class="small">${pill('Internal only', 'muted')}</div>` : ''}${c.notes ? html`<div class="muted small">${c.notes}</div>` : ''}</td>
+          ${rows.map(c => html`<tr><td>${SUBJECTS[c.subject]}</td><td><b>${c.title}</b>${c.linked_ref ? html`<div class="muted small">${c.linked_ref}</div>` : ''}${!c.client_visible ? html`<div class="small">${pill('Internal only', 'muted')}</div>` : ''}${c.client_note ? html`<div class="small pre-line">${c.client_note}</div>` : ''}${c.notes ? html`<div class="muted small">Internal: ${c.notes}</div>` : ''}</td>
             <td class="small">${fmtDate(c.requested_on)}${c.requested_from ? html`<br>from ${c.requested_from}` : ''}</td>
-            <td>${pill(c.status[0].toUpperCase() + c.status.slice(1), APPROVAL_TONE[c.status])}${c.decided_on ? html`<div class="small">${fmtDate(c.decided_on)}${c.approver_name ? ` · ${c.approver_name}` : ''}${c.method ? ` · ${c.method}` : ''}</div><div class="muted small">Recorded by ${c.recorder}</div>` : ''}</td>
-            <td class="small">${(c.evidence || []).map(f => html`<a href="/files/${f.id}">${f.name}</a><br>`)}</td>
+            <td>${pill(c.status[0].toUpperCase() + c.status.slice(1), APPROVAL_TONE[c.status])}${c.decided_on ? html`<div class="small">${fmtDate(c.decided_on)}${c.approver_name ? ` · ${c.approver_name}` : ''}${c.method ? ` · ${c.method}` : ''}</div><div class="muted small">${c.responded_by ? `Answered in the portal by ${c.responder}` : `Recorded by ${c.recorder}`}</div>` : ''}${c.client_comment ? html`<div class="small pre-line">“${c.client_comment}”</div>` : ''}</td>
+            <td class="small">${(c.evidence || []).map(f => html`<a href="/files/${f.id}">${f.name}</a>${f.tag === 'request' ? html` <span class="muted">(sent for review)</span>` : f.tag === 'client_response' ? html` <span class="muted">(from the client)</span>` : ''}<br>`)}</td>
             <td>${edit && c.status === 'requested' ? html`<details class="inline-form"><summary class="small">Record decision</summary>
               <form method="post" action="/w/${id}/approvals/${c.id}/decision" enctype="multipart/form-data" class="form-grid"><input type="hidden" name="_csrf" value="${req.csrfToken}">
                 ${field({ name: 'status', label: 'Decision', options: [['approved', 'Approved'], ['rejected', 'Rejected'], ['withdrawn', 'Request withdrawn']] })}
                 ${field({ name: 'decided_on', label: 'Decision date', type: 'date', required: true, value: todayBH() })}${field({ name: 'approver_name', label: 'Decided by (client side)', required: true })}
                 ${field({ name: 'method', label: 'How it was given', options: [['Signed letter', 'Signed letter'], ['Email', 'Email'], ['Meeting minutes', 'Meeting minutes'], ['Message', 'Message'], ['Other', 'Other']] })}
                 <label class="field full"><span>Evidence (PDF, image, email export)</span><input type="file" name="files" multiple></label>
-                ${field({ name: 'notes', label: 'Notes', full: true })}<div class="actions full"><button class="btn primary" type="submit">Save decision</button></div></form></details>` : ''}</td></tr>`)}</tbody></table></div>`
+                ${field({ name: 'notes', label: 'Notes', full: true })}<div class="actions full"><button class="btn primary" type="submit">Save decision</button></div></form></details>` : ''}${c.status === 'requested' && c.client_visible ? html`<div class="muted small">Waiting for the client in the portal</div>` : ''}</td></tr>`)}</tbody></table></div>`
           : html`<p class="muted">No approvals recorded yet.</p>`}
       </section>
-      ${edit ? html`<section class="panel"><h2 class="h">Record a request for client approval</h2><form method="post" action="/w/${id}/approvals" class="form-grid">${csrfField(req)}
+      ${edit ? html`<section class="panel"><h2 class="h">Ask the client for an approval</h2><form method="post" action="/w/${id}/approvals" enctype="multipart/form-data" class="form-grid"><input type="hidden" name="_csrf" value="${req.csrfToken}">
         ${field({ name: 'subject', label: 'Subject', options: Object.entries(SUBJECTS) })}${field({ name: 'title', label: 'What needs approval', required: true })}
         ${field({ name: 'linked_ref', label: 'Linked item / version', hint: 'For example Budget v2, VO-03, drawing A-101 rev C.' })}${field({ name: 'requested_on', label: 'Requested on', type: 'date', required: true, value: todayBH() })}
         ${field({ name: 'requested_from', label: 'Requested from (client approver)', list: client ? AG.approversOf(client) : [], value: client ? AG.approversOf(client)[0] || '' : '', hint: 'The client or their representative.' })}
-        <label class="field check"><input type="checkbox" name="client_visible" value="1" checked> <span>Client viewers can see the status</span></label>
-        ${field({ name: 'notes', label: 'Internal notes', full: true })}<div class="actions full"><button class="btn primary" type="submit">Record request</button></div></form></section>` : ''}`));
+        ${field({ name: 'client_note', label: 'Details for the client', type: 'textarea', full: true, hint: 'Shown in the client portal with the request: what they are approving, cost, deadline.' })}
+        <label class="field full"><span>Documents for the client to review (optional)</span><input type="file" name="files" multiple accept=".pdf,image/*,.doc,.docx,.xls,.xlsx"></label>
+        <label class="field check full"><input type="checkbox" name="client_visible" value="1" checked> <span>Show in the client portal so the client can approve or reject it (and email them)</span></label>
+        ${field({ name: 'notes', label: 'Internal notes (not shown to the client)', full: true })}<div class="actions full"><button class="btn primary" type="submit">Send request</button></div></form></section>` : ''}`));
   });
 
-  r.post('/w/:id/approvals', async (req, res) => {
+  r.post('/w/:id/approvals', upload.array('files', 6), async (req, res) => {
+    if (!core.checkCsrf(req)) throw new Forbidden('Your form expired. Reload the page and try again.');
     const a = cpmOnly(await access(req, 'contribute'));
+    const files = await uploads.prepare(req.files, sniff);
+    const visible = req.body.client_visible === '1';
     const title = txt(req.body.title, 200); if (!title) throw bad('Describe what needs approval.');
     const requested = dateOrNull(req.body.requested_on); if (!requested) throw bad('Enter the request date.');
     const subject = SUBJECTS[req.body.subject] ? req.body.subject : 'other';
-    await core.inTx(async db => {
-      const id = (await db.query('insert into client_approvals (workspace_id, subject, title, linked_ref, requested_on, requested_from, notes, client_visible, created_by) values ($1,$2,$3,$4,$5,$6,$7,$8,$9) returning id',
-        [a.ws.id, subject, title, txt(req.body.linked_ref, 120), requested, txt(req.body.requested_from, 120), txt(req.body.notes, 1000), req.body.client_visible === '1', req.user.id])).rows[0].id;
-      await core.audit(db, { actor: req.user, workspaceId: a.ws.id, action: 'approval.requested', entity: 'client_approval', entityId: id, summary: `Client approval requested: ${title}`, ip: req.ip });
+    const id = await core.inTx(async db => {
+      const id = (await db.query('insert into client_approvals (workspace_id, subject, title, linked_ref, requested_on, requested_from, notes, client_note, client_visible, created_by) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) returning id',
+        [a.ws.id, subject, title, txt(req.body.linked_ref, 120), requested, txt(req.body.requested_from, 120), txt(req.body.notes, 1000), txt(req.body.client_note, 2000), visible, req.user.id])).rows[0].id;
+      // documents attached here are what the client reviews before deciding (shown in the portal)
+      await uploads.insert(db, { workspaceId: a.ws.id, entity: 'client_approval', entityId: id, files, userId: req.user.id, tag: 'request', observedOn: todayBH() });
+      await core.audit(db, { actor: req.user, workspaceId: a.ws.id, action: 'approval.requested', entity: 'client_approval', entityId: id, summary: `Client approval requested: ${title}${files.length ? ` with ${files.length} document(s)` : ''}`, ip: req.ip });
       await touch(db, a.ws.id);
+      return id;
     });
-    res.redirect(`/w/${a.ws.id}/approvals?msg=added`);
+    // the client viewers of this project are told an approval is waiting for them in the portal
+    let told = 0;
+    if (visible) {
+      const viewers = (await pool.query(`select u.email, coalesce(nullif(u.name,''), u.email) as name from workspace_members m join users u on u.id = m.user_id
+        where m.workspace_id = $1 and m.revoked_at is null and m.role = 'client_viewer' and u.active and u.email is not null`, [a.ws.id])).rows;
+      const base = (ctx.env.APP_URL || `${req.protocol}://${req.get('host')}`).replace(/\/$/, '');
+      for (const v of viewers) {
+        await ctx.mailer.send({ to: v.email, kind: 'approval_request', workspaceId: a.ws.id, refKind: 'client_approval', refId: id,
+          subject: `Approval requested: ${title} — ${a.ws.name}`,
+          text: `Dear ${v.name},\n\nSarayDar asks for your approval on ${a.ws.name}:\n\n${title}${txt(req.body.client_note, 2000) ? `\n\n${txt(req.body.client_note, 2000)}` : ''}\n\nPlease review it and approve or reject it in the portal:\n${base}/p/${a.ws.id}/approvals\n\nSarayDar` });
+        told++;
+      }
+    }
+    res.redirect(`/w/${a.ws.id}/approvals?msg=${told ? 'sent' : 'added'}`);
   });
 
   r.post('/w/:id/approvals/:cid/decision', upload.array('files', 6), async (req, res) => {

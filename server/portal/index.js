@@ -32,8 +32,8 @@ const UNSAFE = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 const PUBLIC_PATHS = [/^\/invite\/[^/]+$/, /^\/login$/, /^\/forgot$/, /^\/reset\/[^/]+$/, /^\/static\//, /^\/healthz$/, /^\/launch$/];
 const PRE_MFA_PATHS = [/^\/mfa(\/setup)?$/, /^\/logout$/];
 // external viewers may open only these pages (deny by default); /w/:id links send them to their portal
-const EXTERNAL_READ_OK = [/^\/my$/, /^\/p\/[0-9a-f-]{36}(\/[a-z]+)?$/i, /^\/files\/[0-9a-f-]{36}(\/thumb)?$/i, /^\/account(\/[\w-]+)?$/, /^\/users\/[0-9a-f-]{36}\/photo$/i, /^\/mfa(\/setup)?$/, /^\/logout$/];
-const EXTERNAL_WRITE_OK = [/^\/logout$/, /^\/mfa(\/setup)?$/, /^\/account\/password$/, /^\/account\/sessions$/, /^\/account\/photo(\/remove)?$/];
+const EXTERNAL_READ_OK = [/^\/my$/, /^\/view$/, /^\/p\/[0-9a-f-]{36}(\/[a-z]+)?$/i, /^\/p\/[0-9a-f-]{36}\/(fees\/(invoices|payments|credits)\/[0-9a-f-]{36}\/(invoice|receipt|credit)\.pdf|fees\/statement\.pdf|owner\/statement\.pdf)$/i, /^\/files\/[0-9a-f-]{36}(\/thumb)?$/i, /^\/account(\/[\w-]+)?$/, /^\/users\/[0-9a-f-]{36}\/photo$/i, /^\/mfa(\/setup)?$/, /^\/logout$/];
+const EXTERNAL_WRITE_OK = [/^\/p\/[0-9a-f-]{36}\/(approvals|maintenance|shortlist)\/[0-9a-f-]{36}$/i, /^\/logout$/, /^\/mfa(\/setup)?$/, /^\/account\/password$/, /^\/account\/sessions$/, /^\/account\/photo(\/remove)?$/];
 
 class Forbidden extends Error { constructor(m = 'You do not have access to this.') { super(m); this.status = 403; } }
 class NotFound extends Error { constructor(m = 'This page does not exist, or you do not have access to it.') { super(m); this.status = 404; } }
@@ -89,7 +89,7 @@ function createPortal({ pool, secret, mailer, env = process.env }) {
     if (mfaOn && u.mfa_enabled && !req.session.mfa_ok) return res.redirect('/mfa');
     if (mfaOn && core.isSuper(u) && !u.mfa_enabled) return res.redirect('/mfa/setup');
     if (u.must_change_password && req.path !== '/account/password') return res.redirect('/account/password?forced=1');
-    // external viewers are read-only everywhere except their own account
+    // external viewers only read, except their own account and the answers the portal asks of them (external.js)
     if (core.isExternal(u) && UNSAFE.has(req.method) && !EXTERNAL_WRITE_OK.some(p => p.test(req.path))) return next(new Forbidden('Your access is view-only.'));
     if (core.isExternal(u) && !UNSAFE.has(req.method) && !EXTERNAL_READ_OK.some(p => p.test(req.path))) {
       const w = /^\/w\/([0-9a-f-]{36})(\/|$)/i.exec(req.path);

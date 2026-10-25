@@ -318,4 +318,66 @@ test('external portals, invitations and investors', { skip: !URL_ && 'set TEST_D
     // a tenant-only or unassigned path never shows up in search or staff dashboards
     assert.equal((await noorC.get('/')).location, '/my');
   });
+
+  await t.test('Portal answers: the client approves or rejects requests; owner decides on maintenance; buyer feedback; own PDFs', async () => {
+    const cpm = (await q1("select id from workspaces where name = 'Client Villa Saar'")).id;
+    const prop = (await q1("select id from workspaces where name = 'Seef Tower'")).id;
+    const request = (await q1("select id from workspaces where name = 'Noor family home search'")).id;
+    const noorC = client(base);
+    await noorC.post('/login', { identifier: 'noor@example.com', password: 'noor-pass-123' }, '/login');
+    // staff ask for an approval with details and a document for the client to review
+    const ask = await upload(admin, `/w/${cpm}/approvals`, `/w/${cpm}/approvals`, { subject: 'appointment', title: 'Meeting with Glass Supplier', requested_on: today, client_note: 'Approve the glass sample meeting on Tuesday.', client_visible: '1' }, [['files', 'glass-sample.png']]);
+    assert.equal(ask.status, 302, ask.text.slice(0, 300));
+    assert.equal(await n("select count(*)::int as n from outbox_messages where kind = 'approval_request' and to_address = 'noor@example.com'"), 1);
+    const ap = await noorC.get(`/p/${cpm}/approvals`);
+    assert.ok(ap.text.includes('Waiting for your answer') && ap.text.includes('Approve the glass sample meeting') && ap.text.includes('glass-sample.png'));
+    const reqId = (await q1("select id from client_approvals where title = 'Meeting with Glass Supplier'")).id;
+    const doc = (await q1("select id from files where original_name = 'glass-sample.png'")).id;
+    assert.equal((await noorC.raw('GET', `/files/${doc}`)).status, 200);
+    // rejecting needs a reason; approving records who, when and how
+    assert.equal((await upload(noorC, `/p/${cpm}/approvals/${reqId}`, `/p/${cpm}/approvals`, { decision: 'rejected' }, [])).status, 400);
+    const ok = await upload(noorC, `/p/${cpm}/approvals/${reqId}`, `/p/${cpm}/approvals`, { decision: 'approved', comment: 'Fine, Tuesday 10am' }, [['files', 'signed-note.png']]);
+    assert.equal(ok.status, 302); assert.match(ok.location, /msg=answered/);
+    const a1 = await q1('select * from client_approvals where id = $1', [reqId]);
+    assert.equal(a1.status, 'approved'); assert.equal(a1.method, 'Client portal'); assert.equal(a1.client_comment, 'Fine, Tuesday 10am'); assert.ok(a1.responded_by);
+    assert.equal((await upload(noorC, `/p/${cpm}/approvals/${reqId}`, `/p/${cpm}/approvals`, { decision: 'rejected', comment: 'changed my mind' }, [])).status, 400);   // answered once
+    const staff = await admin.get(`/w/${cpm}/approvals`);
+    assert.ok(staff.text.includes('Answered in the portal by Noor Hassan') && staff.text.includes('signed-note.png'));
+    // a staff preview never writes
+    assert.equal((await upload(admin, `/p/${cpm}/approvals/${reqId}`, `/p/${cpm}/approvals?preview=client_viewer`, { decision: 'approved' }, [])).status, 403);
+
+    // own fee documents as PDFs (financials granted on the client project)
+    const cid = (await q1("select party_id from workspaces where id = $1", [cpm])).party_id;
+    const inv = (await q1(`insert into fee_invoices (workspace_id, party_id, kind, status, number, issue_date, due_date, currency, subtotal_minor, tax_minor, total_minor, tax_mode)
+      values ($1,$2,'additional','issued','INV-2026-9001',$3,$3,'BHD',1000000,0,1000000,'none') returning id`, [cpm, cid, today])).id;
+    await pool.query("insert into fee_invoice_lines (invoice_id, kind, description, amount_minor) values ($1,'additional','Site visits',1000000)", [inv]);
+    const draft = (await q1("insert into fee_invoices (workspace_id, party_id, kind, status, currency, subtotal_minor, tax_minor, total_minor, tax_mode) values ($1,$2,'additional','draft','BHD',1,0,1,'none') returning id", [cpm, cid])).id;
+    const st = await noorC.get(`/p/${cpm}/statement`);
+    assert.ok(st.text.includes('INV-2026-9001') && st.text.includes(`/p/${cpm}/fees/invoices/${inv}/invoice.pdf`) && st.text.includes('/fees/statement.pdf'));
+    for (const path of [`/p/${cpm}/fees/invoices/${inv}/invoice.pdf/~/INV.pdf`, `/p/${cpm}/fees/statement.pdf`]) {
+      const r = await noorC.raw('GET', path);
+      assert.equal(r.status, 200, path);
+      assert.equal(Buffer.from(await r.res.arrayBuffer()).subarray(0, 5).toString(), '%PDF-');
+    }
+    assert.equal((await noorC.raw('GET', `/p/${cpm}/fees/invoices/${draft}/invoice.pdf`)).status, 404);   // never a draft
+    assert.equal((await noorC.raw('GET', `/w/${cpm}/fees/invoices/${inv}/invoice.pdf`)).status, 302);     // the staff address is not theirs
+    // the phone viewer page opens for viewers too
+    assert.equal((await noorC.get(`/view?src=${encodeURIComponent(`/p/${cpm}/fees/statement.pdf`)}`)).status, 200);
+
+    // the owner decides on a costed maintenance job shared with them
+    const mr = (await q1("insert into maint_requests (workspace_id, ref, category, title, reported_on, owner_visible, estimate_minor, status) values ($1,'MR-9','Plumbing','Replace water pump',$2,true,450000,'assigned') returning id", [prop, today])).id;
+    const mt = await noorC.get(`/p/${prop}/maintenance`);
+    assert.ok(mt.text.includes('Your approval is needed') && mt.text.includes('BHD 450.000'));
+    assert.equal((await noorC.post(`/p/${prop}/maintenance/${mr}`, { decision: 'approved' }, `/p/${prop}/maintenance`)).status, 302);
+    const m1 = await q1('select approval, status, approval_ref from maint_requests where id = $1', [mr]);
+    assert.equal(m1.approval, 'owner_approved'); assert.equal(m1.status, 'approved'); assert.match(m1.approval_ref, /Owner portal/);
+    assert.equal((await noorC.post(`/p/${prop}/maintenance/${mr}`, { decision: 'approved' }, `/p/${prop}/maintenance`)).status, 400);
+
+    // buyer feedback on a shared property is added to the shortlist item
+    const si = (await q1('select id from shortlist_items where workspace_id = $1 and published', [request])).id;
+    assert.equal((await noorC.post(`/p/${request}/shortlist/${si}`, { interest: 'Would like a viewing', comment: 'Weekend please' }, `/p/${request}/shortlist`)).status, 302);
+    assert.match((await q1('select client_feedback from shortlist_items where id = $1', [si])).client_feedback, /Would like a viewing — Weekend please/);
+    // other workspaces' records are never reachable
+    assert.equal((await noorC.post(`/p/${request}/shortlist/${reqId}`, { interest: 'Maybe' }, `/p/${request}/shortlist`)).status, 404);
+  });
 });

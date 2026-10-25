@@ -16,7 +16,8 @@ const MESSAGES = {
   reset_done: 'Your password has been reset. Sign in with the new password.', signed_out: 'You have signed out.',
   sessions: 'Other sessions have been signed out.', user_created: 'User created. Send them their temporary password.',
   user_saved: 'User updated.', pw_reset: 'Temporary password set. The user must change it at next sign-in.', mfa_reset: 'Two-step verification reset.',
-  roles: 'Role permissions updated.', expired: 'Your session has ended. Sign in again.'
+  roles: 'Role permissions updated.', expired: 'Your session has ended. Sign in again.',
+  sent: 'Added. The client has been notified by email.', answered: 'Thank you. Your answer has been sent to SarayDar.', feedback: 'Thank you. Your feedback has been sent to SarayDar.'
 };
 
 const fmtDate = d => d ? new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Asia/Bahrain' }) : '';
