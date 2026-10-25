@@ -103,7 +103,7 @@ async function toXlsx(page, { user, when }) {
   sum.columns = [{ width: 34 }, { width: 70 }];
   const addRow = (ws, vals, bold) => { const row = ws.addRow(vals.map(v => typed(v).v)); vals.forEach((v, i) => { const t = typed(v); if (t.fmt) row.getCell(i + 1).numFmt = t.fmt; row.getCell(i + 1).alignment = { wrapText: true, vertical: 'top' }; }); if (bold) row.font = { bold: true }; return row; };
   addRow(sum, ['SarayDar Management System', page.title], true);
-  for (const [k, v] of [['Page', page.tab || page.title], ['Location in the system', page.crumbs], ['Reference', page.eyebrow], ['Details', page.meta], ['Exported by', user], ['Exported at', when.toLocaleString('en-GB', { timeZone: 'Asia/Bahrain' }) + ' (Bahrain time)']]) if (v) addRow(sum, [k, v]);
+  for (const [k, v] of [['Page', page.tab || page.title], ['Location in the system', page.crumbs], ['Reference', page.eyebrow], ['Details', page.meta], ['Exported by', user], ['Exported at', when.toLocaleString('en-GB', { timeZone: 'Asia/Bahrain' }) + '']]) if (v) addRow(sum, [k, v]);
   sum.addRow([]);
   let heading = page.tab || page.title;
   for (const b of page.blocks) {
@@ -143,7 +143,7 @@ function toPdf(page, { user, when }) {
     const ref = [page.eyebrow ? page.eyebrow.split(' · ')[0] : '', /^Good (morning|afternoon|evening)/.test(page.title) ? '' : page.title].filter(Boolean).join(' · ');
     brand.band(doc, { title: plain(type), sub: plain(page.crumbs || ''), right: ref ? [[plain(ref), { bold: true, size: 11 }]] : [], x: X, width: W });
     doc.y = 116; doc.x = X;
-    doc.font('body').fontSize(8).fillColor(MUTED).text(plain(`${[page.eyebrow, page.meta].filter(Boolean).join(' · ')}${page.eyebrow || page.meta ? '\n' : ''}Exported ${when.toLocaleString('en-GB', { timeZone: 'Asia/Bahrain' })} (Bahrain time) by ${user}. Contents match what this user could see on the page.`), { width: W });
+    doc.font('body').fontSize(8).fillColor(MUTED).text(plain(`${[page.eyebrow, page.meta].filter(Boolean).join(' · ')}${page.eyebrow || page.meta ? '\n' : ''}Exported ${when.toLocaleString('en-GB', { timeZone: 'Asia/Bahrain' })} by ${user}. Contents match what this user could see on the page.`), { width: W });
     doc.moveDown(0.6);
     for (const b of page.blocks) {
       if (b.kind === 'heading') { ensure(40); doc.moveDown(0.4).font('display').fontSize(b.level <= 2 ? 13.5 : 11.5).fillColor(ACC).text(plain(b.text), X, doc.y, { width: W }).moveDown(0.25); continue; }
@@ -182,7 +182,7 @@ function toPdf(page, { user, when }) {
         doc.x = X; doc.moveDown(0.6);
       }
     }
-    brand.footer(doc, { lines: [plain(`SarayDar Management System · ${page.title}`), plain(`Exported ${when.toLocaleString('en-GB', { timeZone: 'Asia/Bahrain' })} (Bahrain time) by ${user} · saraydar.com`)] });
+    brand.footer(doc, { lines: [plain(`SarayDar Management System · ${page.title}`), plain(`Exported ${when.toLocaleString('en-GB', { timeZone: 'Asia/Bahrain' })} by ${user} · saraydar.com`)] });
     doc.end();
   });
 }
