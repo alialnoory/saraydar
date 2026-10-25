@@ -244,8 +244,7 @@ function mountWorkspaces(r, ctx) {
       const n = Object.fromEntries(c.map(x => [x.collection, x.n]));
       legacy = html`<section class="panel"><h2 class="h">Existing project tracker</h2>
         <p>This project's tasks, budget, risks and site log are still in the original Abuquwa tracker. They move into this workspace in Phase 3.</p>
-        <dl class="stats inline"><div><dt>Tasks</dt><dd>${n.tasks || 0}</dd></div><div><dt>Budget lines</dt><dd>${n.costs || 0}</dd></div><div><dt>Risks</dt><dd>${n.risks || 0}</dd></div><div><dt>Site log entries</dt><dd>${n.log || 0}</dd></div></dl>
-        <a class="btn" href="https://saraydar.netlify.app" rel="noopener">Open the current tracker</a></section>`;
+        <dl class="stats inline"><div><dt>Tasks</dt><dd>${n.tasks || 0}</dd></div><div><dt>Budget lines</dt><dd>${n.costs || 0}</dd></div><div><dt>Risks</dt><dd>${n.risks || 0}</dd></div><div><dt>Site log entries</dt><dd>${n.log || 0}</dd></div></dl></section>`;
     }
     const extras = html`${ctx.completenessPanel ? await ctx.completenessPanel(a) : ''}${ctx.overviewExtras && ctx.overviewExtras[w.section] ? await ctx.overviewExtras[w.section](req, a) : ''}`;
     const editable = core.canEdit(a);

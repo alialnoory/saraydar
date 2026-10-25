@@ -9,7 +9,10 @@ const { createMailer } = require('./lib/mailer');
 
 function createApp({ pool, jwtSecret, corsOrigins = [], mailer, env = process.env }) {
   const app = express();
-  app.set('trust proxy', 1);
+  // proxies in front of the app: Render's own (1); with the Netlify front door there are two (TRUST_PROXY_HOPS=2),
+  // so the visitor's address (used for sign-in rate limits and the audit log) is read correctly
+  const hops = parseInt(env.TRUST_PROXY_HOPS, 10);
+  app.set('trust proxy', hops >= 1 && hops <= 5 ? hops : 1);
   app.disable('x-powered-by');
   app.use(helmet({
     contentSecurityPolicy: {

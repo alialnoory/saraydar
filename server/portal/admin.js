@@ -223,7 +223,7 @@ function mountAdmin(r, ctx) {
         <p class="muted small">The result is also recorded in the Outbox.</p></section>
       <section class="panel"><h2 class="h">Set up Outlook email (Microsoft 365)</h2>
         <p>Recommended: Microsoft Graph with an app registration (no mailbox password; keeps working after Microsoft switches off password-based SMTP at the end of 2026). In Render › saraydar-api › Environment add:</p>
-        <ul class="mono small"><li>MS_TENANT_ID = Directory (tenant) ID</li><li>MS_CLIENT_ID = Application (client) ID</li><li>MS_CLIENT_SECRET = client secret value</li><li>MAIL_FROM = SarayDar &lt;info@saraydar.com&gt;</li><li>APP_URL = https://saraydar-api.onrender.com (later https://portal.saraydar.com)</li></ul>
+        <ul class="mono small"><li>MS_TENANT_ID = Directory (tenant) ID</li><li>MS_CLIENT_ID = Application (client) ID</li><li>MS_CLIENT_SECRET = client secret value</li><li>MAIL_FROM = SarayDar &lt;info@saraydar.com&gt;</li><li>APP_URL = https://portal.saraydar.com</li></ul>
         <p class="muted small">Alternative (until Microsoft disables it): SMTP_HOST = smtp.office365.com, SMTP_PORT = 587, SMTP_USER, SMTP_PASS, MAIL_FROM. If both are set, Microsoft Graph is used.</p>
       </section>`));
   });
