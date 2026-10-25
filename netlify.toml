@@ -1,36 +1,29 @@
-# Netlify settings for saraydar.netlify.app
+# Netlify front door for https://portal.saraydar.com
+#
+# The SarayDar Management System renders every page on the server (Node/Express on Render,
+# https://saraydar-api.onrender.com). There is no separate frontend bundle to build: Netlify serves the
+# public domain and passes every request through to Render as a proxy (status 200), so the browser
+# always stays on portal.saraydar.com and sign-in cookies belong to that domain.
+#
+# Earlier versions of this file sent "/" and "/abuquwa-villas/*" to Render with a 302 redirect, which
+# moved visitors to the Render address. Those rules are gone.
 
 [build]
-  publish = "."
+  # nothing to compile; netlify-site only holds a fallback page
+  command = "echo 'No build step: pages are rendered by the Render service'"
+  publish = "netlify-site"
 
-[[redirects]]
-  from = "/README.md"
-  to = "/404.html"
-  status = 404
-  force = true
-
-[[redirects]]
-  from = "/abuquwa-villas/README.md"
-  to = "/404.html"
-  status = 404
-  force = true
-
-# The project data is only available through the API after sign-in
-[[redirects]]
-  from = "/abuquwa-villas/data/*"
-  to = "/404.html"
-  status = 404
-  force = true
-
-# The Abuquwa tracker has moved into the SarayDar Management System (Phase 3)
+# The old Abuquwa tracker now lives inside the system
 [[redirects]]
   from = "/abuquwa-villas/*"
-  to = "https://saraydar-api.onrender.com/"
-  status = 302
+  to = "/"
+  status = 301
   force = true
 
+# Everything else (pages, forms, file downloads, /static assets and the /api tracker endpoints)
+# is proxied to the Render service. The address bar keeps showing portal.saraydar.com.
 [[redirects]]
-  from = "/"
-  to = "https://saraydar-api.onrender.com/"
-  status = 302
+  from = "/*"
+  to = "https://saraydar-api.onrender.com/:splat"
+  status = 200
   force = true

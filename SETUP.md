@@ -1,6 +1,8 @@
 # Saraydar project system: setup
 
-The page stays on Netlify. Logins, roles and data run on Render (a small Node server plus a Postgres database).
+Visitors use **https://portal.saraydar.com**, served by Netlify. Netlify passes every request through (a proxy, not a redirect) to the
+Render service `saraydar-api` (Node server plus a Postgres database), which renders all pages, handles sign-in and stores the data.
+The browser never leaves portal.saraydar.com. See `netlify.toml`.
 Tables, the starting project data and the first administrator are created automatically on first start.
 
 ## 1. Deploy on Render (about 5 minutes, works from a phone)
@@ -25,7 +27,8 @@ Commit. Netlify redeploys. Then block the public data snapshot by adding to `net
 Sign in with the administrator email and password. Users tab → add people with a role (Admin, Editor, Site, Viewer).
 
 ## Notes
-- Custom domain (e.g. projects.saraydar.com): add it in Netlify, then add it to `CORS_ORIGINS` on the Render service (comma separated).
+- Public address: on Render set `APP_URL=https://portal.saraydar.com`, add it to `CORS_ORIGINS` (comma separated) and set `TRUST_PROXY_HOPS=2`.
+  Another public address can be added in `PUBLIC_ORIGINS` (comma separated). Without these, sign-in through Netlify is refused as a different origin.
 - Lost the administrator password: on Render set `ADMIN_EMAIL`, `ADMIN_PASSWORD` and `ADMIN_FORCE_RESET=1`, redeploy, sign in, then remove `ADMIN_FORCE_RESET`.
 - Plans in `render.yaml` are paid (roughly $13/month together). Render's free plans exist, but the free web service sleeps when idle and the free database is temporary; check Render pricing.
 - Tests: `cd server && TEST_DATABASE_URL=postgres://... npm test`.

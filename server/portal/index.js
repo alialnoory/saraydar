@@ -42,6 +42,12 @@ function createPortal({ pool, secret, mailer, env = process.env }) {
   const core = createCore({ pool });
   // Two-step verification is off unless REQUIRE_MFA=1 (owner decision 2026-10-23).
   const mfaOn = env.REQUIRE_MFA === '1';
+  // The site is served on its public address (https://portal.saraydar.com, through Netlify) and directly on Render.
+  // Behind the Netlify proxy the Host header is the Render address while the browser's Origin is the public one,
+  // so the public addresses (APP_URL, PUBLIC_ORIGINS, CORS_ORIGINS) count as this site's own origin.
+  const ownHosts = new Set([env.APP_URL, ...String(env.PUBLIC_ORIGINS || '').split(','), ...String(env.CORS_ORIGINS || '').split(',')]
+    .map(s => String(s || '').trim()).filter(Boolean).map(s => { try { return new URL(s).host; } catch (e) { return null; } }).filter(Boolean));
+  core.isOwnHost = (req, host) => !!host && (host === req.get('host') || ownHosts.has(host));
   const r = express.Router();
   r.use(require('../lib/download').stripPretty);      // "/~/<file name>" at the end of a file link is only for the browser
   r.use(cookieParser());
@@ -63,7 +69,7 @@ function createPortal({ pool, secret, mailer, env = process.env }) {
     if (!UNSAFE.has(req.method)) return next();
     const origin = req.get('origin');
     let sameHost = true;
-    if (origin) { try { sameHost = new URL(origin).host === req.get('host'); } catch (e) { sameHost = false; } }
+    if (origin) { try { sameHost = core.isOwnHost(req, new URL(origin).host); } catch (e) { sameHost = false; } }
     if (!sameHost) return next(new Forbidden('Request blocked: different origin.'));
     if (PUBLIC_PATHS.some(p => p.test(req.path))) return next();       // these check their own pre-session token
     if (!req.user) return res.redirect('/login?msg=expired');

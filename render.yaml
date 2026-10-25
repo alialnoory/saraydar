@@ -1,5 +1,5 @@
 # Render Blueprint: the API (logins, roles, data) and its database.
-# The page itself stays on Netlify. See SETUP.md.
+# Visitors use https://portal.saraydar.com (Netlify), which proxies every request here. See SETUP.md.
 
 databases:
   - name: saraydar-db
@@ -28,7 +28,13 @@ services:
       - key: JWT_SECRET
         generateValue: true
       - key: CORS_ORIGINS
-        value: https://saraydar.netlify.app
+        value: https://portal.saraydar.com,https://saraydar.netlify.app
+      # public address used in emailed links and accepted as this site's own origin on form posts
+      - key: APP_URL
+        value: https://portal.saraydar.com
+      # Netlify + Render's own proxy sit in front of the app
+      - key: TRUST_PROXY_HOPS
+        value: "2"
       - key: ADMIN_EMAIL
         sync: false
       - key: ADMIN_PASSWORD

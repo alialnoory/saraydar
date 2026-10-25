@@ -440,7 +440,9 @@ function mountSalesCrm(r, ctx) {
       if (v.opportunity_id && to === 'completed') await db.query("update opportunities set stage = case when stage in ('new','contacted','qualified','matched','viewing_arranged') then 'viewing_completed' else stage end, next_followup_on = coalesce($2, next_followup_on), last_contact_on = $3, updated_at = now() where id = $1", [v.opportunity_id, dateOrNull(req.body.next_followup_on), todayBH()]);
       await core.audit(db, { actor: req.user, workspaceId: wsId, action: `viewing.${to}`, entity: 'viewing', entityId: v.id, summary: `Viewing of ${bhTime(v.starts_at)}: ${V_STATUS[to]}`, ip: req.ip });
     });
-    res.redirect(req.get('referer') && new URL(req.get('referer')).host === req.get('host') ? new URL(req.get('referer')).pathname + '?msg=saved' : '/sales/viewings?msg=saved');
+    let back = '/sales/viewings';
+    try { const ref = req.get('referer') && new URL(req.get('referer')); if (ref && core.isOwnHost(req, ref.host)) back = ref.pathname; } catch (e) { /* unreadable referer */ }
+    res.redirect(`${back}?msg=saved`);
   });
 
   r.get('/sales/viewings', async (req, res) => {
