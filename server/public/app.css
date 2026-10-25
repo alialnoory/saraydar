@@ -491,3 +491,5 @@ body.pdfview { background: #FFFFFF; margin: 0; color: var(--ink); }
 .band .tabs a[aria-current="page"] { background: var(--accent); border-color: var(--accent); color: #FFF8F2; font-weight: 600; }
 .band .tabs { margin-bottom: -1px; }
 .band:has(.tabs) { border-bottom: 0; }
+/* Desktop uses the full screen width (owner request 2026-10-25): no fixed 1280 px column, just a comfortable side margin */
+.wrap { max-width: none; padding-left: max(clamp(16px, 2.5vw, 48px), env(safe-area-inset-left)); padding-right: max(clamp(16px, 2.5vw, 48px), env(safe-area-inset-right)); }
