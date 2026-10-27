@@ -160,8 +160,7 @@ function syncAbout(sel, first) {
   const box = f.querySelector('[data-task-only]'); if (box) box.hidden = kind !== 'task';
   const hint = f.querySelector('[data-no-task]'); if (hint) hint.hidden = kind === 'task';
   const r = f.querySelector('[data-progress] input[type="range"]');
-  if (r && opt.dataset.progress !== undefined) { r.value = opt.dataset.progress; r.dispatchEvent(new Event('input', { bubbles: true })); }
-  const lbl = f.querySelector('.upd-progress [data-progress] > span'); if (lbl) lbl.textContent = kind === 'task' ? 'Progress of this task now' : kind === 'stage' ? 'Completion of this stage (as seen)' : 'Completion of the project (as seen)';
+  if (r && kind === 'task' && opt.dataset.progress !== undefined) { r.value = opt.dataset.progress; r.dispatchEvent(new Event('input', { bubbles: true })); }
   const next = f.querySelector('[data-next-target]');
   if (next && opt.dataset.next !== undefined && (!next.value || next.dataset.auto === '1')) { next.value = opt.dataset.next; next.dataset.auto = '1'; }
 }

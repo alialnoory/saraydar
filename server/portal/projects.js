@@ -965,27 +965,26 @@ function mountProjects(r, ctx) {
     const a = await access(req, 'contribute');
     const m = await metrics(a.ws.id);
     const { phases, tasks } = m;
-    const stagePct = Object.fromEntries((m.ov.phases || []).map(p => [p.id, p.pct]));
-    const overall = m.ov.available ? Math.round(m.ov.pct) : null;
     const open = ts => ts.filter(t => t.status !== 'done' && t.status !== 'cancelled');
     // what is next: the first open tasks of the stage (offered as "work remaining" when the field is still empty)
     const nextOf = (ph, after = -1) => open(tasks.filter(t => t.phase_id === ph && t.sort > after)).slice(0, 3).map(t => t.title).join('\n');
     const live = phases.filter(p => tasks.some(t => t.phase_id === p.id));
+    const ordered = live.flatMap(p => tasks.filter(t => t.phase_id === p.id));        // plan order: stage by stage
     const CH = require('./choices');
     res.send(page(req, a, 'Progress Updates', html`<form method="post" action="/w/${a.ws.id}/updates" enctype="multipart/form-data" class="panel form-grid" data-update-form>
       <input type="hidden" name="_csrf" value="${req.csrfToken}"><h2 class="h full">New progress update</h2>
       <label class="field full" for="f-about"><span>What is this update about? <i class="req" aria-hidden="true">*</i></span>
         <select id="f-about" name="about" data-about>
-          <option value="" data-progress="${overall ?? 0}" data-kind="project" data-next="${open(tasks).slice(0, 3).map(t => t.title).join('\n')}">General site update (whole project)${overall !== null ? ` · now ${overall}%` : ''}</option>
-          ${live.map((p, i) => html`<optgroup label="${i + 1}. ${p.name}"><option value="phase:${p.id}" data-progress="${Math.round(stagePct[p.id] || 0)}" data-kind="stage" data-next="${nextOf(p.id)}" ${req.query.phase === p.id ? raw('selected') : ''}>Whole stage: ${p.name} (now ${Math.round(stagePct[p.id] || 0)}%)</option>
+          <option value="" data-kind="project" data-next="${open(ordered).slice(0, 3).map(t => t.title).join('\n')}">General site update (whole project)</option>
+          ${live.map((p, i) => html`<optgroup label="${i + 1}. ${p.name}"><option value="phase:${p.id}" data-kind="stage" data-next="${nextOf(p.id)}" ${req.query.phase === p.id ? raw('selected') : ''}>Whole stage: ${p.name}</option>
             ${tasks.filter(t => t.phase_id === p.id).map((t, j) => html`<option value="task:${t.id}" data-progress="${t.status === 'done' ? 100 : t.progress || 0}" data-kind="task" data-next="${nextOf(p.id, t.sort)}" ${req.query.task === t.id ? raw('selected') : ''}>${i + 1}.${j + 1} ${t.title} (now ${t.status === 'done' ? 100 : t.progress || 0}%)</option>`)}</optgroup>`)}
           ${tasks.some(t => !t.phase_id) ? html`<optgroup label="Other tasks">${tasks.filter(t => !t.phase_id).map(t => html`<option value="task:${t.id}" data-progress="${t.progress || 0}" data-kind="task">${t.title}</option>`)}</optgroup>` : ''}
-        </select><small>Pick a task to move its progress; a stage or the whole project records what you saw.</small></label>
+        </select><small>Pick a task to record its progress.</small></label>
       ${field({ name: 'observed_on', label: 'Observation date', type: 'date', required: true, value: todayBH(), presets: null })}
-      <div class="full upd-progress">
-        ${progressField({ name: 'reported_progress', label: 'Completion now', value: overall ?? 0 })}
-        <p class="small muted" data-progress-note>Overall progress from the plan: ${overall !== null ? `${overall}%` : 'not available yet'}. The figure you record here is what you saw on site; the plan's progress comes from its tasks.</p>
-        <div data-task-only hidden><label class="field check"><input type="checkbox" name="apply_progress" value="1" checked> <span>Also set the task's progress (and status) to this %</span></label></div>
+      <p class="full notice info" data-no-task>Progress is recorded on tasks. To move a task's progress, choose the task in “What is this update about?”.</p>
+      <div class="full upd-progress" data-task-only hidden>
+        ${progressField({ name: 'reported_progress', label: 'Progress of this task now', value: 0 })}
+        <label class="field check"><input type="checkbox" name="apply_progress" value="1" checked> <span>Also set the task's progress (and status) to this %</span></label>
       </div>
       ${field({ name: 'completed_work', label: 'Work completed', type: 'textarea', full: true, attrs: 'rows="3" placeholder="What was done since the last update"' })}
       ${field({ name: 'remaining_work', label: 'Work remaining / next', type: 'textarea', full: true, attrs: 'rows="3" data-next-target', hint: 'Filled with the next open tasks; change it as needed.' })}
@@ -1010,7 +1009,7 @@ function mountProjects(r, ctx) {
     const phase = about.startsWith('phase:') ? await own('phases', about.slice(6), a.ws.id) : task && task.phase_id ? await own('phases', task.phase_id, a.ws.id) : req.body.phase_id ? await own('phases', req.body.phase_id, a.ws.id) : null;
     const title = txt(req.body.title, 200) || (task ? task.title : phase ? phase.name : 'General site update');
     const observed = dateOrNull(req.body.observed_on); if (!observed) throw bad('Enter the observation date.');
-    const rp = req.body.reported_progress === '' || req.body.reported_progress === undefined ? null : Number(req.body.reported_progress);   // what was seen; it changes a task only when asked
+    const rp = !task || req.body.reported_progress === '' || req.body.reported_progress === undefined ? null : Number(req.body.reported_progress);   // progress belongs to a task (owner decision 2026-10-28)
     if (rp !== null && (!Number.isInteger(rp) || rp < 0 || rp > 100)) throw bad('Progress must be 0–100.');
     const wf = req.body.workforce === '' || req.body.workforce === undefined ? null : Number(req.body.workforce);
     if (wf !== null && (!Number.isInteger(wf) || wf < 0)) throw bad('Workers must be a whole number.');
