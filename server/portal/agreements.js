@@ -139,7 +139,7 @@ function mountAgreements(r, ctx) {
           <p class="muted small full">Choosing an existing name fills these fields. Changes you make here update that person's or company's record.</p></section>
         <section class="panel form-grid" style="width:100%"><h2 class="h full">Terms</h2>
           ${fields.length ? fields.map(f => field({ name: `v_${f.key}`, label: f.label, type: f.type === 'money' ? 'text' : f.type, value: val(f), required: !!f.required, hint: [f.type === 'money' ? 'BHD' : '', f.hint || ''].filter(Boolean).join(' · '),
-            attrs: f.type === 'money' ? 'inputmode="decimal"' : f.type === 'number' ? 'step="any"' : '', full: f.type === 'textarea' })) : html`<p class="muted full">This template has no other questions.</p>`}
+            attrs: f.type === 'money' ? 'inputmode="decimal" data-money' : f.type === 'number' ? 'step="any"' : '', full: f.type === 'textarea' })) : html`<p class="muted full">This template has no other questions.</p>`}
           ${err ? html`<p class="err full" role="alert">${err}</p>` : ''}
           <div class="actions full"><button class="btn primary" type="submit">${g ? 'Save changes' : 'Save draft'}</button><span class="muted small">You can save with blanks and generate the document when everything required is filled.</span></div>
         </section></form>`));

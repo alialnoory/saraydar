@@ -277,3 +277,31 @@ document.addEventListener('submit', e => {
     }
   });
 })();
+
+// Amounts: money fields show thousands separators ("80,000"), also while typing (owner request 2026-10-27).
+// The server reads the value with parseMoney, which ignores the commas.
+(() => {
+  const NAMES = /^(amount|asking|charge_amount|committed|cost|counter_price|deposit|estimate|fee_fixed|final_price|market_rent|marketing_budget|min_price|monthly_fee|price|purchase_price|rechecked_price|rent|budget_min|budget_max|maintenance_limit|emergency_limit|reserve|revised|forecast|original|alloc_.+)$/;
+  const labelOf = el => { const l = el.closest('label') || (el.id && document.querySelector(`label[for="${CSS.escape(el.id)}"]`)); return l ? l.textContent : ''; };
+  const isMoney = el => (!el.type || el.type === 'text') && !el.hasAttribute('list') && (el.hasAttribute('data-money') || NAMES.test(el.name || '') || /\b(BHD|BD)\b/.test(labelOf(el)));
+  const group = v => {
+    const m = String(v).replace(/,/g, '').match(/^(\s*-?)(\d*)(\.\d*)?(.*)$/);
+    if (!m || m[4] || !m[2]) return v;                      // not a plain number: leave what the user typed alone
+    return m[1] + m[2].replace(/^0+(?=\d)/, '').replace(/\B(?=(\d{3})+(?!\d))/g, ',') + (m[3] || '');
+  };
+  const fmt = el => {
+    const before = el.value, pos = el.selectionStart;
+    const after = group(before);
+    if (after === before) return;
+    // keep the caret after the same number of digits
+    const digits = before.slice(0, pos == null ? before.length : pos).replace(/[^\d.-]/g, '').length;
+    el.value = after;
+    if (document.activeElement === el && pos != null) { let i = 0, n = 0; while (i < after.length && n < digits) { if (/[\d.-]/.test(after[i])) n++; i++; } el.setSelectionRange(i, i); }
+  };
+  document.querySelectorAll('input').forEach(el => {
+    if (!isMoney(el)) return;
+    el.classList.add('money-in'); el.setAttribute('inputmode', 'decimal');
+    fmt(el);
+    el.addEventListener('input', () => fmt(el));
+  });
+})();

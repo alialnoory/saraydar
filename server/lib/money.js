@@ -28,7 +28,8 @@ function formatMoney(minor, currency = 'BHD', { code = true } = {}) {
   const s = whole.toLocaleString('en-US') + (d ? '.' + String(frac).padStart(d, '0') : '');
   return `${code ? currency + ' ' : ''}${neg ? '-' : ''}${s}`;
 }
-const toInput = (minor, currency = 'BHD') => minor === null || minor === undefined ? '' : formatMoney(minor, currency, { code: false }).replace(/,/g, '');
+// The value shown in a form field: thousands separated, no trailing zero decimals ("80,000", "1,500.25").
+const toInput = (minor, currency = 'BHD') => minor === null || minor === undefined || minor === '' ? '' : formatMoney(minor, currency, { code: false }).replace(/\.0+$/, '').replace(/(\.\d*?)0+$/, '$1');
 const num = v => v === null || v === undefined ? null : Number(v);
 
 module.exports = { parseMoney, formatMoney, toInput, num, CURRENCIES, dp };
