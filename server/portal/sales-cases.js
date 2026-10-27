@@ -550,6 +550,7 @@ function mountSalesCases(r, ctx) {
               <div class="actions full"><button class="btn small" type="submit">Save</button></div><p class="muted small full">Publishing needs a recheck of availability and price within the last 14 days. A shortlist is not a reservation.</p></form></details>` : ''}</td></tr>`)}</tbody></table></div>`
           : html`<p class="muted">No options shortlisted yet.</p>`}
       </section>
+      ${ctx.marketPanel ? await ctx.marketPanel(req, a, b) : ''}
       <section class="panel"><h2 class="h">Internal listings checked against the brief</h2>
         ${!b ? html`<p class="muted">Record the brief first.</p>` : res2.length ? html`<div class="table-wrap"><table><thead><tr><th>Listing</th><th>Criteria</th><th>Result</th><th></th></tr></thead><tbody>
           ${res2.map(({ c, m }) => html`<tr><td><a href="/w/${c.id}">${c.name}</a><div class="muted small">${c.ref} · ${fm(c.asking_minor, c.currency)} · updated ${fmtDate(c.updated_at)}</div></td>

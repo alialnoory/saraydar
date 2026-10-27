@@ -146,6 +146,7 @@ function createPortal({ pool, secret, mailer, env = process.env }) {
   mountOwner(r, ctx);
   mountSalesCases(r, ctx);
   mountSalesCrm(r, ctx);
+  require('./market-search').mountMarketSearch(r, ctx);
   const P = mountProjects(r, ctx);
   mountProjectExports(r, ctx, P);
   mountInvestors(r, ctx, P);

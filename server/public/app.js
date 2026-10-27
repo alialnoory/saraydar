@@ -305,3 +305,11 @@ document.addEventListener('submit', e => {
     el.addEventListener('input', () => fmt(el));
   });
 })();
+
+// A page waiting for background work (AI market search) reloads itself every few seconds until it is done.
+(() => {
+  const el = document.querySelector('[data-autorefresh]');
+  if (!el) return;
+  const s = Math.max(3, Number(el.dataset.autorefresh) || 6);
+  setTimeout(() => { location.reload(); }, s * 1000);
+})();

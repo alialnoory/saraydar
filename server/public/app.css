@@ -661,3 +661,18 @@ body.pdfview { background: #FFFFFF; margin: 0; color: var(--ink); }
   .jr-next { flex-wrap: wrap; } .jr-next .btn { width: 100%; text-align: center; }
 }
 .readonly-val { min-height: 44px; display: flex; align-items: center; padding: 0 14px; border: 1px dashed var(--line-strong); border-radius: 10px; background: var(--sunken); font-weight: 600; }
+/* AI market search (acquisition requests) */
+.ms .h .pill { vertical-align: middle; margin-left: 6px; }
+.ms-wait { display: flex; gap: 14px; align-items: center; padding: 14px; border-radius: 12px; background: var(--accent-tint); }
+.ms-spin { width: 26px; height: 26px; border-radius: 50%; border: 3px solid var(--line); border-top-color: var(--accent); animation: ms-spin 0.9s linear infinite; flex-shrink: 0; }
+@keyframes ms-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .ms-spin { animation: none; } }
+.ms-list { list-style: none; margin: 10px 0; padding: 0; display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); }
+.ms-item { display: flex; flex-direction: column; gap: 12px; justify-content: space-between; padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+.ms-main { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.ms-title { font-weight: 600; color: var(--ink); overflow-wrap: anywhere; }
+.ms-facts { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 14px; margin-top: 2px; }
+.ms-fit { color: var(--muted); border-left: 3px solid var(--copper); padding-left: 8px; margin-top: 4px; }
+.ms-act { flex-shrink: 0; align-self: flex-start; margin-top: auto; }
+.ms-criteria { white-space: pre-wrap; font: inherit; background: var(--sunken); padding: 10px; border-radius: 8px; }
+@media (max-width: 640px) { .ms-list { grid-template-columns: 1fr; } .ms-item { flex-direction: column; } .ms-act .btn { width: 100%; } }
