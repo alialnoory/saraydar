@@ -136,12 +136,12 @@ function mountWorkspaces(r, ctx) {
           <div class="${x._maintEm ? 'wt-bad' : ''}"><b>${x._maint ?? 0}</b><span>Open maintenance</span></div></div>
         ${x._occPct !== null && x._occPct !== undefined ? html`<div class="wt-row"><span>Occupancy</span>${meter(x._occPct, 'ok')}</div>` : ''}
         ${fin ? html`<div class="wt-money"><div class="wt-money-top"><span>Rent this month</span><span><b>BHD ${money(x._collected)}</b> of ${money(x._due)} collected</span></div>${meter(rentPct === null ? 0 : rentPct, rentPct !== null && rentPct >= 100 ? 'ok' : '')}
-          ${x._arrears ? html`<div class="wt-flag bad">Arrears BHD ${money(x._arrears)}</div>` : ''}${x.fees && x.fees !== '—' && !/^BHD 0\.000$/.test(x.fees) ? html`<div class="wt-flag warn">Unpaid fees ${x.fees}</div>` : ''}</div>` : ''}`;
+          ${x._arrears ? html`<div class="wt-flag bad">Arrears BHD ${money(x._arrears)}</div>` : ''}${x.fees && x.fees !== '—' && !/^BHD 0(\.0+)?$/.test(x.fees) ? html`<div class="wt-flag warn">Unpaid fees ${x.fees}</div>` : ''}</div>` : ''}`;
     } else if ((s.key === 'dev' || s.key === 'cpm') && x) {
       figures = html`<div class="wt-progress"><div class="wt-money-top"><span>Progress</span><b>${x._pct === null || x._pct === undefined ? 'Not started' : `${Math.round(x._pct)}%`}</b></div>${meter(x._pct || 0)}</div>
         <div class="wt-next"><span>Next milestone</span><b>${x.next || '—'}</b></div>
         <div class="wt-chips">${x._overdue ? html`<span class="wt-flag bad">${x._overdue} overdue task${x._overdue === 1 ? '' : 's'}</span>` : ''}${x._highRisks ? html`<span class="wt-flag bad">${x._highRisks} high risk${x._highRisks === 1 ? '' : 's'}</span>` : ''}
-          ${s.key === 'cpm' && x.fees && x.fees !== '—' && !/^BHD 0\.000$/.test(x.fees) ? html`<span class="wt-flag warn">Unpaid fees ${x.fees}</span>` : ''}</div>`;
+          ${s.key === 'cpm' && x.fees && x.fees !== '—' && !/^BHD 0(\.0+)?$/.test(x.fees) ? html`<span class="wt-flag warn">Unpaid fees ${x.fees}</span>` : ''}</div>`;
     } else if (s.key === 'sales' && x) {
       figures = html`<div class="wt-price"><span>${w.kind === 'request' ? 'Budget' : 'Asking price'}</span><b>${x.price || '—'}</b></div>
         <div class="wt-chips"><span class="wt-chip">${x.status || '—'}</span><span class="wt-chip ${/not verified|not recorded|expired/i.test(x.mandate || '') ? 'warn' : ''}">Mandate: ${x.mandate || '—'}</span></div>
