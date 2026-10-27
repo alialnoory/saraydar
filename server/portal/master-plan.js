@@ -85,8 +85,10 @@ function mountMasterPlan(r, ctx, P) {
     if (!c.stages.length) return '';
     return html`<ol class="jr mp-pipe" style="--n:${c.stages.length}" aria-label="Construction stages">${c.stages.map((s, i) => {
       const cls = s.status === 'done' ? 'done' : s.status === 'in_progress' ? 'now' : s.status === 'on_hold' ? 'hold' : 'todo';
-      const inner = html`<span class="jr-dot" aria-hidden="true">${s.status === 'done' ? '✓' : s.status === 'on_hold' ? '❚❚' : String(i + 1)}</span>
-        <span class="jr-label">${i + 1}. ${s.name}</span><span class="mp-pipe-st">${M.STAGE_LABEL[s.status]}${s.pct !== null ? ` · ${Math.round(s.pct)}%` : ''}</span>`;
+      const p = s.pct === null ? null : Math.round(s.pct);
+      // a ring that fills with the stage's completion, the % inside it; the status as a small chip under the name
+      const inner = html`<span class="mp-ring" style="--p:${p || 0}" role="img" aria-label="${p === null ? 'Progress not available' : `${p}% complete`}"><b>${s.status === 'done' ? '✓' : p === null ? '—' : `${p}%`}</b></span>
+        <span class="jr-label">${s.name}</span><span class="mp-chip mp-chip-${s.status}">${M.STAGE_LABEL[s.status]}</span>`;
       return html`<li class="${cls}">${link ? html`<a href="/w/${a.ws.id}/master?open=${s.id}#stage-${s.id}" title="${s.name}: ${M.STAGE_LABEL[s.status]}${s.pct !== null ? `, ${Math.round(s.pct)}%` : ''}">${inner}</a>` : html`<span class="jr-static">${inner}</span>`}</li>`;
     })}</ol>`;
   }
