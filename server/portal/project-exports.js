@@ -99,6 +99,7 @@ function mountProjectExports(r, ctx, P) {
       units.map(u => ({ n: u.name, t: u.unit_type || '', a: u.area_m2 === null ? null : Number(u.area_m2), ...(fin ? { p: bhd(u.list_price_minor) } : {}), s: u.status })));
     await core.audit(null, { actor: req.user, workspaceId: a.ws.id, action: 'report.excel', entity: 'report', entityId: a.ws.id, summary: `Excel report downloaded (${per.label})`, ip: req.ip });
     res.set({ 'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'Content-Disposition': DL.disposition(DL.fileName([a.ws.ref, a.ws.name, 'Report', DL.today()], 'xlsx')), 'Cache-Control': 'private, no-store' });
+    require('../lib/page-export').wholeAmounts(wb);
     await wb.xlsx.write(res);
     res.end();
   });

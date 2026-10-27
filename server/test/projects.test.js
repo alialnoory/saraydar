@@ -22,7 +22,7 @@ test('money uses exact minor units', () => {
   assert.equal(money.parseMoney(''), null);
   assert.throws(() => money.parseMoney('1.2345'), /3 decimal/);
   assert.throws(() => money.parseMoney('12abc'), /not a valid/);
-  assert.equal(money.formatMoney(180000000), 'BHD 180,000.000');
+  assert.equal(money.formatMoney(180000000), 'BHD 180,000');
   assert.equal(money.formatMoney(-5), 'BHD -0.005');
 });
 
@@ -107,7 +107,7 @@ test('development projects', { skip: !URL_ && 'set TEST_DATABASE_URL to run' }, 
     other = (await pm.post('/s/dev/new', { kind: 'project', name: 'Other Project' }, '/s/dev/new')).location.slice(3, 39);
     assert.equal((await pm.get(`/w/${ws}/setup`)).location, `/w/${ws}/setup/identity`);
     assert.equal((await pm.post(`/w/${ws}/setup/identity`, { type: 'residential', outcome: 'sell', objective: '', developer: 'SarayDar', owner__unknown: '1', go: 'land' })).location, `/w/${ws}/setup/land?msg=saved`);
-    await pm.post(`/w/${ws}/setup/budget`, { total_budget: '500,000', land_cost: '600,000.000', contingency_pct: '', funding__unknown: '1', go: 'stay' });
+    await pm.post(`/w/${ws}/setup/budget`, { total_budget: '500,000', land_cost: '600,000', contingency_pct: '', funding__unknown: '1', go: 'stay' });
     await pm.post(`/w/${ws}/setup/timeline`, { start: '2026-12-01', target: '2026-06-01', go: 'stay' });
     const bad = await pm.post(`/w/${ws}/setup/budget`, { total_budget: '1.2345', go: 'stay' });
     assert.equal(bad.status, 400);
@@ -209,12 +209,12 @@ test('development projects', { skip: !URL_ && 'set TEST_DATABASE_URL to run' }, 
     const row = /<b>Construction<\/b>[\s\S]*?<\/tr>/.exec(b.text)[0];
     const cells = [...row.matchAll(/<td class="n">([\s\S]*?)<\/td>/g)].map(m => m[1].replace(/<[^>]+>/g, '').trim());
     // baseline, current, committed, incurred, paid, open commitments, forecast, EAC, variance
-    assert.equal(cells[2], 'BHD 100,000.000');
-    assert.equal(cells[3], 'BHD 60,000.000');
-    assert.equal(cells[4], 'BHD 60,000.000');
-    assert.equal(cells[5], 'BHD 40,000.000');
-    assert.equal(cells[7], 'BHD 120,000.000');     // 60,000 incurred + 40,000 open + 20,000 forecast
-    assert.equal(cells[8], 'BHD 60,000.000');
+    assert.equal(cells[2], 'BHD 100,000');
+    assert.equal(cells[3], 'BHD 60,000');
+    assert.equal(cells[4], 'BHD 60,000');
+    assert.equal(cells[5], 'BHD 40,000');
+    assert.equal(cells[7], 'BHD 120,000');     // 60,000 incurred + 40,000 open + 20,000 forecast
+    assert.equal(cells[8], 'BHD 60,000');
   });
 
   let upd;

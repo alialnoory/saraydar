@@ -61,7 +61,7 @@ test('AI assistant', { skip: !URL_ && 'set TEST_DATABASE_URL to run' }, async t 
     // listing context: public asking price only — never the confidential minimum or access notes
     await a2.post(`/w/${listing}/assistant`, { q: 'Summarise the listing' }, `/w/${listing}/assistant`);
     const s2 = seen[1].body.messages[0].content;
-    assert.match(s2, /90,000\.000/); assert.doesNotMatch(s2, /77,777|SECRET-KEY/);
+    assert.match(s2, /90,000/); assert.doesNotMatch(s2, /77,777|SECRET-KEY/);
     // a provider error is reported honestly
     fail = true;
     const e = await a2.post(`/w/${ws}/assistant`, { q: 'Again?' }, `/w/${ws}/assistant`);

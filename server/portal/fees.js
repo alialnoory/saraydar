@@ -208,7 +208,7 @@ function mountFees(r, ctx, P) {
               ${base.agreement_ref ? html`<p class="muted small full">Agreement ${base.agreement_ref}${base.signed_on ? ` · signed ${fmtDate(base.signed_on)}` : ''} — filled automatically from the agreement.</p>` : ''}
               ${tf('start_date', 'Agreement start', { type: 'date', required: true })}${tf('end_date', 'Agreement end', { type: 'date', hint: 'Leave empty if open-ended.' })}
               ${act ? field({ name: 'effective_from', label: 'This change applies from', type: 'date', required: true, value: draft ? iso(draft.effective_from) : '', hint: 'The date the new terms take effect.' }) : ''}
-              ${field({ name: 'monthly_fee', label: 'Monthly management fee (BHD)', required: true, value: base.monthly_fee_minor !== undefined ? toInput(num(base.monthly_fee_minor)) : '', attrs: 'inputmode="decimal" placeholder="0.000"' })}
+              ${field({ name: 'monthly_fee', label: 'Monthly management fee (BHD)', required: true, value: base.monthly_fee_minor !== undefined ? toInput(num(base.monthly_fee_minor)) : '', attrs: 'inputmode="decimal" placeholder="0"' })}
               ${field({ name: 'billing_timing', label: 'Billed', value: base.billing_timing || 'advance', options: [['advance', 'In advance (start of the month)'], ['arrears', 'In arrears (after the month)']] })}
               ${field({ name: 'proration', label: 'Part months', value: base.proration || 'daily', options: [['daily', 'Prorate by day'], ['none', 'Full monthly fee']] })}
               ${field({ name: 'payment_terms_days', label: 'Payment due (days after invoice)', value: base.payment_terms_days ?? 30, options: [7, 14, 15, 30, 45, 60, 90].concat(base.payment_terms_days != null && ![7, 14, 15, 30, 45, 60, 90].includes(base.payment_terms_days) ? [base.payment_terms_days] : []).map(d => [d, `${d} days`]) })}
@@ -423,7 +423,7 @@ function mountFees(r, ctx, P) {
             ${field({ name: 'method', label: 'Method', options: METHODS.map(m => [m, m]) })}${field({ name: 'reference', label: 'Bank / cheque reference', hint: 'The same reference cannot be recorded twice.' })}
             ${field({ name: 'notes', label: 'Notes' })}
             ${open.length ? html`<fieldset class="full"><legend class="small">Allocate to invoices now (optional)</legend><div class="form-grid">
-              ${open.map(i => field({ name: `alloc_${i.id}`, label: `${i.number} · outstanding ${fm(i.outstanding)}`, attrs: 'inputmode="decimal" placeholder="0.000"' }))}</div></fieldset>` : ''}
+              ${open.map(i => field({ name: `alloc_${i.id}`, label: `${i.number} · outstanding ${fm(i.outstanding)}`, attrs: 'inputmode="decimal" placeholder="0"' }))}</div></fieldset>` : ''}
             <div class="actions full"><button class="btn primary" type="submit">Record payment</button></div>
             <p class="muted small full">Record only money confirmed received. Any part not allocated stays as unapplied credit. The receipt is issued as a separate step.</p></form></details>` : ''}
       </section>`));

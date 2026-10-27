@@ -417,6 +417,7 @@ function mountOwner(r, ctx) {
     sum.eachRow((row, i) => { if (i > 1) row.eachCell((c, col) => { if (col >= 8) c.numFmt = fmt3; }); });
     await core.audit(null, { actor: req.user, workspaceId: a.ws.id, action: 'report.unit_history_xlsx', entity: 'workspace', entityId: a.ws.id, summary: `Unit history Excel: ${ids.length} unit(s), ${per.label}`, ip: req.ip });
     res.set({ 'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'Content-Disposition': DL.disposition(DL.fileName([a.ws.ref, a.ws.name, 'Unit history', DL.today()], 'xlsx')), 'Cache-Control': 'private, no-store' });
+    require('../lib/page-export').wholeAmounts(wb);
     res.end(Buffer.from(await wb.xlsx.writeBuffer()));
   });
 

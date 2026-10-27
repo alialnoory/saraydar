@@ -25,11 +25,12 @@ function formatMoney(minor, currency = 'BHD', { code = true } = {}) {
   const d = dp(currency);
   const neg = n < 0, abs = Math.abs(n);
   const whole = Math.floor(abs / 10 ** d), frac = abs % 10 ** d;
-  const s = whole.toLocaleString('en-US') + (d ? '.' + String(frac).padStart(d, '0') : '');
+  // Whole amounts without decimals ("80,000"); fils only when there are any, without trailing zeros ("1,500.25").
+  const s = whole.toLocaleString('en-US') + (d && frac ? '.' + String(frac).padStart(d, '0').replace(/0+$/, '') : '');
   return `${code ? currency + ' ' : ''}${neg ? '-' : ''}${s}`;
 }
 // The value shown in a form field: thousands separated, no trailing zero decimals ("80,000", "1,500.25").
-const toInput = (minor, currency = 'BHD') => minor === null || minor === undefined || minor === '' ? '' : formatMoney(minor, currency, { code: false }).replace(/\.0+$/, '').replace(/(\.\d*?)0+$/, '$1');
+const toInput = (minor, currency = 'BHD') => minor === null || minor === undefined || minor === '' ? '' : formatMoney(minor, currency, { code: false });
 const num = v => v === null || v === undefined ? null : Number(v);
 
 module.exports = { parseMoney, formatMoney, toInput, num, CURRENCIES, dp };

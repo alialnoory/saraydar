@@ -178,7 +178,7 @@ test('client projects', { skip: !URL_ && 'set TEST_DATABASE_URL to run' }, async
     assert.equal((await admin.post(`/w/${p1}/fees/payments/${pay2}/allocate`, { invoice_id: inv1, amount: '600' }, `/w/${p1}/fees/payments/${pay2}`)).status, 302);
     assert.equal(await outstanding(), 0);
     const view = await admin.get(`/w/${p1}/fees`);
-    assert.match(view.text, /Unapplied credit BHD 200\.000/);
+    assert.match(view.text, /Unapplied credit BHD 200/);
     // receipt is a separate event with its own number
     assert.equal((await pdf(admin, `/w/${p1}/fees/payments/${pay1}/receipt.pdf`)).status, 404);
     assert.equal((await admin.post(`/w/${p1}/fees/payments/${pay1}/receipt`, {}, `/w/${p1}/fees/payments/${pay1}`)).status, 302);
@@ -201,11 +201,11 @@ test('client projects', { skip: !URL_ && 'set TEST_DATABASE_URL to run' }, async
     const st = await admin.get(`/w/${p1}/fees/statement`);
     assert.equal(st.status, 200);
     // debits: invoice 1,600 + cheque reversal 800; credits: credit note 100 + payments 1,000 + 800; balance 500
-    assert.match(st.text, /Closing balance<\/td><td class="n">BHD 2,400\.000<\/td><td class="n">BHD 1,900\.000<\/td><td class="n">BHD 500\.000/);
+    assert.match(st.text, /Closing balance<\/td><td class="n">BHD 2,400<\/td><td class="n">BHD 1,900<\/td><td class="n">BHD 500/);
     assert.equal((await pdf(admin, `/w/${p1}/fees/statement.pdf`)).head, '%PDF-');
     assert.equal((await pdf(admin, `/w/${p1}/fees?export=xlsx`)).status, 200);
     const cs = await admin.get(`/clients/${clientA}/statement`);
-    assert.match(cs.text, /BHD 500\.000/);
+    assert.match(cs.text, /BHD 500/);
     assert.equal((await q1("select count(*)::int as n from audit_events where action like 'fee.%'")).n >= 10, true);
   });
 

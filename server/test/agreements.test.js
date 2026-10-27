@@ -24,7 +24,7 @@ test('template fields: built-ins filled by the system, the rest asked with sensi
   assert.equal(vals.rent_amount, 250000);
   assert.deepEqual(A.missingRequired(f, vals).map(x => x.key), ['notes']);
   const map = A.resolve(f, vals, A.builtins({ party: { name: 'Huda' }, ws: { name: 'Tower A' } }));
-  assert.equal(A.fill(tpl.body, map), 'Hello Huda rent BHD 250.000 from 1 November 2026 for 12 months, __________ Tower A');
+  assert.equal(A.fill(tpl.body, map), 'Hello Huda rent BHD 250 from 1 November 2026 for 12 months, __________ Tower A');
   assert.throws(() => A.readValues(f, { v_lease_start_date: 'soon' }), /must be a date/);
 });
 
@@ -102,7 +102,7 @@ test('agreements', { skip: !URL_ && 'set TEST_DATABASE_URL to run' }, async t =>
     assert.equal(pb.subarray(0, 5).toString(), '%PDF-');
     const w = await pm.raw('GET', `/w/${prop}/agreements/${agr}/v/1.docx`);
     const text = docText(Buffer.from(await w.res.arrayBuffer()));
-    for (const s of ['Residential Lease Agreement', 'Huda Ahmed', '880101234', 'BHD 250.000', '1 November 2026', 'Juffair Building 112', 'SarayDar Real Estate W.L.L.', 'STARTER DRAFT']) assert.ok(text.includes(s), s);
+    for (const s of ['Residential Lease Agreement', 'Huda Ahmed', '880101234', 'BHD 250', '1 November 2026', 'Juffair Building 112', 'SarayDar Real Estate W.L.L.', 'STARTER DRAFT']) assert.ok(text.includes(s), s);
     assert.ok(text.includes('__________'));                      // optional blanks left for hand completion, never invented
     assert.equal((await pm.raw('GET', `/w/${other}/agreements/${agr}/v/1.pdf`)).status, 404);   // another workspace's URL
   });
@@ -136,7 +136,7 @@ test('agreements', { skip: !URL_ && 'set TEST_DATABASE_URL to run' }, async t =>
     await pm.post(`/w/${prop}/agreements/${id}/generate`, {}, `/w/${prop}/agreements/${id}`);
     const out = await pm.raw('GET', `/w/${prop}/agreements/${id}/v/1.docx`);
     const text = docText(Buffer.from(await out.res.arrayBuffer()));
-    assert.ok(text.includes('Gulf Maintenance Co.') && text.includes('BHD 1,250.500') && text.includes('15 December 2026') && text.includes('Juffair Building 112'));
+    assert.ok(text.includes('Gulf Maintenance Co.') && text.includes('BHD 1,250.5') && text.includes('15 December 2026') && text.includes('Juffair Building 112'));
     assert.equal((await pm.raw('GET', `/w/${prop}/agreements/${id}/v/1.pdf`)).status, 404);    // Word templates produce Word only
     const bad = await upload(admin, '/admin/agreements/templates', '/admin/agreements', { name: 'x', category: 'x', counterparty: 'x', sections: ['props'] }, { name: 'file', data: Buffer.from('not a docx'), filename: 'x.docx' });
     assert.equal(bad.status, 400);

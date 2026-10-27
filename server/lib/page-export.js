@@ -121,7 +121,7 @@ async function toXlsx(page, { user, when }) {
       for (const r of b.rows) addRow(ws, r);
     }
   }
-  return wb.xlsx.writeBuffer();
+  return wholeAmounts(wb).xlsx.writeBuffer();
 }
 
 function toPdf(page, { user, when }) {
@@ -191,4 +191,11 @@ const fileBase = page => (page.eyebrow.split(' · ')[0] || page.title).concat(pa
 
 // download name: reference - name - page, e.g. "CPM-2026-001 - SAMAVILLA - Tasks & Schedule - 2026-10-24"
 const nameParts = page => { const ref = page.eyebrow.split(' · ')[0]; const title = /^Good (morning|afternoon|evening)/.test(page.title) ? 'SarayDar Home' : page.title; return [ref, title, page.tab && page.tab !== page.title ? page.tab : null, require('./download').today()]; };
-module.exports = { extract, toXlsx, toPdf, typed, safe, fileBase, nameParts };
+
+// Whole amounts show without decimals ("80,000"); cells with fils keep them.
+function wholeAmounts(wb) {
+  wb.eachSheet(ws => ws.eachRow(r => r.eachCell(c => { const f = c.numFmt; if (f && f.includes('0.000') && typeof c.value === 'number' && Number.isInteger(c.value)) c.numFmt = f.replace('0.000', '0'); })));
+  return wb;
+}
+
+module.exports = { wholeAmounts, extract, toXlsx, toPdf, typed, safe, fileBase, nameParts };

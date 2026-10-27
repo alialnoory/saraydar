@@ -162,7 +162,7 @@ test('managed properties', { skip: !URL_ && 'set TEST_DATABASE_URL to run' }, as
     assert.equal(await acct(), 200000);
     const st = await admin.get(`/w/${ws}/leases/${leaseA}/statement`);
     // charges 950 + reversed payment 250 = 1,200; payments 400 + 250 + 250 and credit 100 = 1,000; balance 200
-    assert.match(st.text, /Closing balance<\/td><td class="n">BHD 1,200\.000<\/td><td class="n">BHD 1,000\.000<\/td><td class="n">BHD 200\.000/);
+    assert.match(st.text, /Closing balance<\/td><td class="n">BHD 1,200<\/td><td class="n">BHD 1,000<\/td><td class="n">BHD 200/);
   });
 
   await t.test('deposits stay separate until an approved deduction', async () => {
@@ -240,7 +240,7 @@ test('managed properties', { skip: !URL_ && 'set TEST_DATABASE_URL to run' }, as
     assert.equal(big.status, 400); assert.match(big.text, /available/);
     assert.equal((await admin.post(`/w/${ws}/owner/fee-deduction`, { fee_invoice_id: inv, amount: '20', on_date: today }, `/w/${ws}/owner`)).status, 302);
     const over = await admin.post(`/w/${ws}/owner/fee-deduction`, { fee_invoice_id: inv, amount: '81', on_date: today }, `/w/${ws}/owner`);
-    assert.equal(over.status, 400); assert.match(over.text, /only BHD 80\.000 outstanding/);
+    assert.equal(over.status, 400); assert.match(over.text, /only BHD 80 outstanding/);
     assert.equal((await q1(`select count(*)::int as n from owner_txns where workspace_id = '${ws}' and kind = 'fee_deduction'`)).n, 1);
     const fp = await q1(`select p.method, a.amount_minor from fee_payments p join fee_allocations a on a.payment_id = p.id where p.workspace_id = '${ws}'`);
     assert.equal(fp.method, 'Deduction from rent'); assert.equal(Number(fp.amount_minor), 20000);
@@ -256,7 +256,7 @@ test('managed properties', { skip: !URL_ && 'set TEST_DATABASE_URL to run' }, as
     assert.match(r.text, /Ahmed Saleh/); assert.match(r.text, /Sara Khalid/);           // both tenancies
     assert.match(r.text, /Vacant: 1 Apr 2026–30 Apr 2026/);                           // gap between them
     assert.match(r.text, /AC not cooling/); assert.match(r.text, /CoolFix/);
-    assert.match(r.text, /BHD 100\.000/);                                             // its share of the lift service
+    assert.match(r.text, /BHD 100/);                                             // its share of the lift service
     assert.doesNotMatch(r.text, /<b>BHD 300\.001<\/b>/);                                // never the full shared cost as its share
     assert.match(r.text, /Ahmed Saleh moved|Lease LSE-2026-0001 starts/);
     // history before Sara's lease must not show her

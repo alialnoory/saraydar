@@ -122,7 +122,7 @@ test('property sales and acquisition', { skip: !URL_ && 'set TEST_DATABASE_URL t
     assert.equal((await q1('select status from listings where workspace_id = $1', [villa])).status, 'under_offer');   // not sold
     // the confidential minimum never appears on buyer-facing outputs (offers carry only offered prices)
     const buyerPage = await admin.get(`/sales/buyers/${b1}`);
-    assert.doesNotMatch(buyerPage.text, /140,000\.000 confidential|confidential minimum/);
+    assert.doesNotMatch(buyerPage.text, /140,000 confidential|confidential minimum/);
   });
 
   await t.test('deal: one live deal per property, checklist before completion, evidence required', async () => {
@@ -159,7 +159,7 @@ test('property sales and acquisition', { skip: !URL_ && 'set TEST_DATABASE_URL t
     assert.equal(r.status, 302);
     const inv = await q1("select * from fee_invoices where deal_ws = $1 and kind = 'commission'", [dealWs]);
     assert.equal(Number(inv.total_minor), 2960000);                                   // 2% × 148,000
-    assert.match(inv.calc_note, /2% × final transaction price BHD 148,000\.000 = BHD 2,960\.000/);
+    assert.match(inv.calc_note, /2% × final transaction price BHD 148,000 = BHD 2,960/);
     assert.equal(inv.workspace_id, villa);
     assert.equal((await admin.post(`/w/${dealWs}/deal/commission`, { side_ws: villa }, `/w/${dealWs}`)).status, 400);   // no duplicate
     assert.equal((await admin.post(`/w/${villa}/fees/invoices/${inv.id}/issue`, { issue_date: today }, `/w/${villa}/fees/invoices/${inv.id}`)).status, 302);
@@ -170,9 +170,9 @@ test('property sales and acquisition', { skip: !URL_ && 'set TEST_DATABASE_URL t
     assert.match((await q1('select receipt_no from fee_payments where id = $1', [pay])).receipt_no, /^RCT-/);
     assert.equal(await pdf(`/w/${villa}/fees/invoices/${inv.id}/invoice.pdf`), '%PDF-');
     const fees = await admin.get(`/w/${villa}/fees`);
-    assert.match(fees.text, /BHD 1,960\.000/);                                         // outstanding after the partial payment
+    assert.match(fees.text, /BHD 1,960/);                                         // outstanding after the partial payment
     const rep = await admin.get('/sales/reports');
-    assert.match(rep.text, /Transaction value BHD 148,000\.000 — not SarayDar revenue/);
+    assert.match(rep.text, /Transaction value BHD 148,000 — not SarayDar revenue/);
     assert.equal((await admin.raw('GET', '/sales/reports?export=xlsx')).status, 200);
   });
 
@@ -191,7 +191,7 @@ test('property sales and acquisition', { skip: !URL_ && 'set TEST_DATABASE_URL t
     assert.equal((await q1('select count(*)::int as n from request_briefs where workspace_id = $1', [req])).n, 2);
     const page = await admin.get(`/w/${req}/shortlist`);
     assert.match(page.text, /Saar Land 3/);
-    assert.doesNotMatch(page.text, /60,000\.000/);                                     // the seller's confidential minimum is never shown
+    assert.doesNotMatch(page.text, /60,000/);                                     // the seller's confidential minimum is never shown
     await admin.post(`/w/${req}/external`, { title: 'Budaiya plot (agent)', source: 'Gulf Agents', price: '78000', property_type: 'Land', location: 'Budaiya', verification: 'unverified', availability: 'available', arrangement: 'Co-broker 50/50 — letter on file' }, `/w/${req}/shortlist`);
     ext = (await q1('select id from external_opps where workspace_id = $1', [req])).id;
     await admin.post(`/w/${req}/shortlist`, { listing_ws: land, reason: 'Fits budget and area' }, `/w/${req}/shortlist`);

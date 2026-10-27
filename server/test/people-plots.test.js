@@ -90,7 +90,7 @@ test('people and plots', { skip: !URL_ && 'set TEST_DATABASE_URL to run' }, asyn
     assert.equal((await add('1201', 1)).status, 400);                      // same plot twice
     const page = await pmC.get(`/w/${ws}/plots`);
     assert.match(page.text, /700\.4 m²/);
-    assert.match(page.text, /BHD 250,000\.000/);
+    assert.match(page.text, /BHD 250,000/);
     const p1 = (await pool.query("select id from plots where workspace_id = $1 and ref = '1201'", [ws])).rows[0].id;
     // a unit is linked to a plot of the same project only
     assert.equal((await pmC.post(`/w/${ws}/units`, { name: 'Villa 1', plot_id: p1, unit_type: 'Townhouse', area_m2: '250' }, `/w/${ws}/units`)).location, `/w/${ws}/units?msg=added`);

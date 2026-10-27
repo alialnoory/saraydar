@@ -292,7 +292,7 @@ function mountProjects(r, ctx) {
       const list = f.list === 'names' ? names : f.list === 'client' ? clientNames : null;
       const extraAttrs = f.k === 'stage' ? `data-stage-phases='${JSON.stringify(phaseOrder)}'` : '';
       return html`<div class="q${f.type === 'checks' ? ' full' : ''}">${field({ name: f.k, label: f.label, type: f.type === 'money' ? 'text' : f.type, value, required: f.required, hint: f.hint || '', options: f.type === 'checks' ? f.options : opts, list,
-        attrs: `${f.type === 'money' ? 'inputmode="decimal" placeholder="0.000"' : ''} ${f.type === 'number' ? 'step="any" min="0" inputmode="decimal"' : ''} ${f.placeholder ? `placeholder="${f.placeholder}"` : ''} ${extraAttrs} ${ro ? 'disabled' : ''}`, full: f.type === 'textarea' })}
+        attrs: `${f.type === 'money' ? 'inputmode="decimal" placeholder="0"' : ''} ${f.type === 'number' ? 'step="any" min="0" inputmode="decimal"' : ''} ${f.placeholder ? `placeholder="${f.placeholder}"` : ''} ${extraAttrs} ${ro ? 'disabled' : ''}`, full: f.type === 'textarea' })}
         ${f.noUnknown || f.required ? '' : html`<label class="check small"><input type="checkbox" name="${f.k}__unknown" value="1" ${x && x.unknown ? raw('checked') : ''} ${ro ? raw('disabled') : ''}> Not yet determined</label>`}</div>`;
     };
     const phaseFields = step.fields.filter(f => f.k.startsWith('ph_'));

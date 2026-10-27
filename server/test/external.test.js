@@ -69,7 +69,7 @@ test('external portals, invitations and investors', { skip: !URL_ && 'set TEST_D
     assert.equal(Number(a.committed_minor), 50000000);
     assert.equal(await n('select count(*)::int as n from investor_participations where party_id = $1', [alphaParty]), 2);
     const tab = await admin.get(`/w/${hidd}/investors`);
-    assert.ok(tab.text.includes('Alpha Investments WLL') && tab.text.includes('Beta Holding') && tab.text.includes('BHD 80,000.000'));
+    assert.ok(tab.text.includes('Alpha Investments WLL') && tab.text.includes('Beta Holding') && tab.text.includes('BHD 80,000'));
     assert.ok(!(await admin.get(`/w/${diyar}/investors`)).text.includes(`/investors/${betaHidd}`));
     const profile = await admin.get(`/investors/${alphaParty}`);
     assert.ok(profile.text.includes('Hidd Villas') && profile.text.includes('Diyar Villas'));
@@ -101,7 +101,7 @@ test('external portals, invitations and investors', { skip: !URL_ && 'set TEST_D
     await admin.post(`/w/${hidd}/investors/${alphaHidd}/terms`, { participation: 'profit_share', committed: '50000', status: 'active', agreement_ref: 'IA-01', profit_terms: '20% of net profit on completion', terms_confirmed: '1', change_reason: 'Signed agreement IA-01 reviewed' }, `/w/${hidd}/investors/${alphaHidd}`);
     assert.equal((await add(alphaHidd, { kind: 'distribution', amount: '500', reference: 'DIST-1', approval_ref: 'Board minute 5/2026' })).status, 302);
     const st = await admin.get(`/w/${hidd}/investors/${alphaHidd}`);
-    for (const s of ['BHD 10,000.000', 'BHD 8,000.000', 'BHD 500.000', 'BHD 40,000.000', 'Board minute 5/2026']) assert.ok(st.text.includes(s), s);
+    for (const s of ['BHD 10,000', 'BHD 8,000', 'BHD 500', 'BHD 40,000', 'Board minute 5/2026']) assert.ok(st.text.includes(s), s);
     const audit = await n("select count(*)::int as n from audit_events where workspace_id = $1 and action like 'investor.%'", [hidd]);
     assert.ok(audit >= 8);
     // Finance-only actions are refused to a project contributor
@@ -190,9 +190,9 @@ test('external portals, invitations and investors', { skip: !URL_ && 'set TEST_D
 
     const st = await inv.get(`/p/${hidd}/statement`);
     assert.equal(st.status, 200);
-    for (const s of ['Alpha Investments WLL', 'BHD 10,000.000', 'BHD 8,000.000', 'BHD 500.000']) assert.ok(st.text.includes(s), s);
+    for (const s of ['Alpha Investments WLL', 'BHD 10,000', 'BHD 8,000', 'BHD 500']) assert.ok(st.text.includes(s), s);
     assert.ok(!st.text.includes('Beta Holding') && !st.text.includes('7,500'));
-    assert.ok(!st.text.includes('BHD 20,000.000'));                         // the Diyar participation is not shown
+    assert.ok(!st.text.includes('BHD 20,000'));                         // the Diyar participation is not shown
     // the second project, staff pages, investor profiles and other workspaces are unreachable
     assert.equal((await inv.get(`/p/${diyar}`)).status, 404);
     assert.equal((await inv.get(`/w/${diyar}/investors`)).location, `/p/${diyar}`);
@@ -294,10 +294,10 @@ test('external portals, invitations and investors', { skip: !URL_ && 'set TEST_D
     const mt = await noorC.get(`/p/${prop}/maintenance`);
     assert.ok(mt.text.includes('Lobby AC repair') && !mt.text.includes('HIDDEN-MAINT'));
     const lv = await noorC.get(`/p/${listing}`);
-    assert.ok(lv.text.includes('Sea-facing villa') && lv.text.includes('BHD 250,000.000'));
+    assert.ok(lv.text.includes('Sea-facing villa') && lv.text.includes('BHD 250,000'));
     assert.ok(!lv.text.includes('199,999') && !lv.text.includes('SECRET-KEYBOX') && !lv.text.includes('title-deed'));
     const mk = await noorC.get(`/p/${listing}/activity`);
-    assert.ok(mk.text.includes('Property portal') && !mk.text.includes('HIDDEN-CHANNEL') && !mk.text.includes('99.000'));
+    assert.ok(mk.text.includes('Property portal') && !mk.text.includes('HIDDEN-CHANNEL') && !mk.text.includes('BHD 99'));
     assert.equal((await noorC.get(`/p/${listing}/offers`)).status, 404);         // offers need their own grant
     const front = (await q1("select id from files where original_name = 'front.png'")).id;
     const deed = (await q1("select id from files where original_name = 'title-deed.png'")).id;
@@ -367,7 +367,7 @@ test('external portals, invitations and investors', { skip: !URL_ && 'set TEST_D
     // the owner decides on a costed maintenance job shared with them
     const mr = (await q1("insert into maint_requests (workspace_id, ref, category, title, reported_on, owner_visible, estimate_minor, status) values ($1,'MR-9','Plumbing','Replace water pump',$2,true,450000,'assigned') returning id", [prop, today])).id;
     const mt = await noorC.get(`/p/${prop}/maintenance`);
-    assert.ok(mt.text.includes('Your approval is needed') && mt.text.includes('BHD 450.000'));
+    assert.ok(mt.text.includes('Your approval is needed') && mt.text.includes('BHD 450'));
     assert.equal((await noorC.post(`/p/${prop}/maintenance/${mr}`, { decision: 'approved' }, `/p/${prop}/maintenance`)).status, 302);
     const m1 = await q1('select approval, status, approval_ref from maint_requests where id = $1', [mr]);
     assert.equal(m1.approval, 'owner_approved'); assert.equal(m1.status, 'approved'); assert.match(m1.approval_ref, /Owner portal/);
