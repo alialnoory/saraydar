@@ -181,6 +181,7 @@ function mountWorkspaces(r, ctx) {
     const from = `from workspaces w left join parties p on p.id = w.party_id left join users mu on mu.id = w.manager_id where ${where.join(' and ')}`;
     const total = (await pool.query(`select count(*)::int as n ${from}`, vals)).rows[0].n;
     const rows = (await pool.query(`select w.*, p.name as party_name, coalesce(mu.name, mu.email) as manager_name ${from} order by ${sort} limit ${req.exportAll ? 5000 : PER_PAGE} offset ${req.exportAll ? 0 : (page - 1) * PER_PAGE}`, vals)).rows;
+    if (ctx.syncStage) for (const w of rows) await ctx.syncStage(w);
     const extra = ctx.portfolioExtras && ctx.portfolioExtras[s.key] && rows.length ? await ctx.portfolioExtras[s.key](rows.map(x => x.id), req.user) : null;
     const pcols = ctx.portfolioCols && ctx.portfolioCols[s.key];
     const createKinds = [];
@@ -215,7 +216,7 @@ function mountWorkspaces(r, ctx) {
           <datalist id="party-list">${parties.map(p => html`<option value="${p.name}"></option>`)}</datalist>` : ''}
         ${field({ name: 'location', label: 'Location', value: vals.location || '', attrs: 'maxlength="200"', hint: 'Pick an area from the list or type one. Leave empty if not yet determined.', list: CH.BH_AREAS })}
         ${field({ name: 'manager', label: 'Responsible manager', value: vals.manager || req.user.id, options: [['', 'Not yet assigned'], ...users.map(x => [x.id, x.label])] })}
-        ${['dev', 'cpm'].includes(s.key) ? '' : stageField(kind, vals.stage)}
+        ${['dev', 'cpm'].includes(s.key) || (ctx.autoStage && ctx.autoStage(kind)) ? '' : stageField(kind, vals.stage)}
         ${s.key === 'cpm' ? budgetControlField(vals.budget_control || 'saraydar') : ''}
         <p class="muted small full">${['dev', 'cpm'].includes(s.key) ? 'After creating it, the guided setup asks the remaining questions. Everything entered here can be edited later.' : 'The guided setup questionnaire for this section is added in a later phase. Everything entered here can be edited later.'}${s.key === 'cpm' ? html` New clients get a basic record; complete their profile under <a href="/clients">Clients</a>.` : ''}</p>
         ${err ? html`<p class="err full" role="alert">${err}</p>` : ''}
@@ -312,7 +313,7 @@ function mountWorkspaces(r, ctx) {
           <form method="post" action="/w/${w.id}/edit" class="form-grid">${csrfField(req)}
             ${field({ name: 'name', label: 'Name', value: w.name, required: true, attrs: 'maxlength="160"' })}
             ${field({ name: 'location', label: 'Location', value: w.location || '', attrs: 'maxlength="200"', list: CH.BH_AREAS })}
-            ${stageField(w.kind, w.stage)}
+            ${ctx.autoStage && ctx.autoStage(w.kind) ? html`<div class="field"><span>Current stage</span><div class="readonly-val">${w.stage || '—'}</div><small>Set automatically from the stages bar on the Overview.</small></div>` : stageField(w.kind, w.stage)}
             ${w.section === 'cpm' ? budgetControlField(w.budget_control) : ''}
             ${field({ name: 'manager', label: 'Responsible manager', value: w.manager_id || '', options: [['', 'Not yet assigned'], ...users.map(x => [x.id, x.label])] })}
             ${field({ name: 'status', label: 'Status', value: w.status, options: Object.entries(STATUS_LABEL) })}
@@ -337,7 +338,7 @@ function mountWorkspaces(r, ctx) {
     if (!name) throw Object.assign(new Error('Name cannot be empty.'), { status: 400 });
     const status = Object.keys(STATUS_LABEL).includes(req.body.status) ? req.body.status : w.status;
     const manager = UUID.test(String(req.body.manager || '')) ? req.body.manager : null;
-    const after = { name, location: String(req.body.location || '').trim().slice(0, 200) || null, stage: String(req.body.stage || '').trim().slice(0, 80) || null, status, manager_id: manager,
+    const after = { name, location: String(req.body.location || '').trim().slice(0, 200) || null, stage: ctx.autoStage && ctx.autoStage(w.kind) ? w.stage : String(req.body.stage || '').trim().slice(0, 80) || null, status, manager_id: manager,
       budget_control: w.section === 'cpm' && ['saraydar', 'client'].includes(req.body.budget_control) ? req.body.budget_control : w.budget_control };
     const before = { name: w.name, location: w.location, stage: w.stage, status: w.status, manager_id: w.manager_id, budget_control: w.budget_control };
     const changed = Object.keys(after).filter(k => (after[k] || null) !== (before[k] || null));
