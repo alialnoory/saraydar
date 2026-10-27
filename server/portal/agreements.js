@@ -16,7 +16,7 @@ const UUID = /^[0-9a-f-]{36}$/i;
 const bad = m => Object.assign(new Error(m), { status: 400 });
 const txt = (v, n = 300) => { const s = String(v ?? '').trim().slice(0, n); return s || null; };
 const STATUS = { draft: ['Draft', 'muted'], issued: ['Issued for signature', 'warn'], signed: ['Signed', 'ok'], cancelled: ['Cancelled', 'muted'] };
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 15 * 1024 * 1024, files: 1, fields: 80 } });
+const upload = require('./choices').withChoices(multer({ storage: multer.memoryStorage(), limits: { fileSize: 15 * 1024 * 1024, files: 1, fields: 80 } }));
 const today = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Bahrain' });
 const PARTY_FIELDS = [['name', 'Full name / company name', true], ['id_number', 'CPR / CR / passport number'], ['address', 'Address'], ['phone', 'Telephone'], ['email', 'Email'], ['representative', 'Represented by (for companies)'], ['representative_title', 'Representative title'], ['representative_cpr', 'Representative CPR number']];
 

@@ -13,7 +13,7 @@ const multer = require('multer');
 const uploads = require('../lib/uploads');
 const { sniff } = require('./workspaces');
 const DL = require('../lib/download');
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024, files: 4, fields: 20 } });
+const upload = require('./choices').withChoices(multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024, files: 4, fields: 20 } }));
 const txt = (v, n = 300) => { const s = String(v ?? '').trim().slice(0, n); return s || null; };
 const todayBH = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Bahrain' });
 

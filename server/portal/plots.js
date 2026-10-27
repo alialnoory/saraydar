@@ -15,7 +15,7 @@ const bad = m => Object.assign(new Error(m), { status: 400 });
 const txt = (v, n = 200) => { const s = String(v ?? '').trim().slice(0, n); return s || null; };
 const STATUS = { owned: 'Owned', under_purchase: 'Being purchased', option: 'Option / under negotiation', client_owned: 'Owned by client', sold: 'Sold' };
 const TENURE = { freehold: 'Freehold', leasehold: 'Leasehold', other: 'Other' };
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024, files: 5, fields: 30 } });
+const upload = require('./choices').withChoices(multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024, files: 5, fields: 30 } }));
 const n2 = v => v === null || v === undefined ? null : Number(v);
 const fmtArea = v => v === null || v === undefined ? '—' : `${Number(v).toLocaleString('en-US', { maximumFractionDigits: 2 })} m²`;
 

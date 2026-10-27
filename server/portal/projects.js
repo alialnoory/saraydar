@@ -51,7 +51,7 @@ const COMMIT_KIND = { contract: 'Contract', order: 'Purchase order', appointment
 const DOC_TYPE = { invoice: 'Invoice', payment_application: 'Contractor payment application', consultant_fee: 'Consultant fee', variation: 'Variation' };
 const PAYER = { client: 'Client (direct)', on_behalf: 'SarayDar on the client\'s behalf (exceptional)', other: 'Other party' };
 const humanize = s => String(s || '').replace(/_/g, ' ').replace(/^./, c => c.toUpperCase());
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024, files: 12, fields: 30 } });
+const upload = require('./choices').withChoices(multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024, files: 12, fields: 30 } }));
 
 function mountProjects(r, ctx) {
   const { pool, core, NotFound, Forbidden } = ctx;

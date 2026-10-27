@@ -30,7 +30,7 @@ const METHODS = ['Bank transfer', 'Cheque', 'Cash', 'Card', 'BenefitPay', 'Other
 const SUBJECTS = { budget: 'Budget', appointment: 'Appointment', material: 'Material / sample', variation: 'Variation', payment: 'Payment', design: 'Design', other: 'Other' };
 const APPROVAL_TONE = { requested: 'warn', approved: 'ok', rejected: 'bad', withdrawn: 'muted' };
 const INV_TONE = { draft: 'muted', issued: 'info', void: 'bad' };
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024, files: 6, fields: 30 } });
+const upload = require('./choices').withChoices(multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024, files: 6, fields: 30 } }));
 
 function mountFees(r, ctx, P) {
   const { pool, core, NotFound, Forbidden } = ctx;

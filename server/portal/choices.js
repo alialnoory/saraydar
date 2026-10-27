@@ -54,6 +54,8 @@ const PROC_ITEMS = [['Steel reinforcement', 'S4'], ['Ready-mix concrete', 'S4'],
   ['Floor and wall tiles', 'S7'], ['Marble / stone', 'S7'], ['Gypsum ceilings', 'S7'], ['Kitchen cabinets', 'S7'], ['Wardrobes and joinery', 'S7'], ['Sanitary ware', 'S7'],
   ['Light fittings and switches', 'S7'], ['AC units', 'S7'], ['Lift', 'S7'], ['Water tank and pumps', 'S8'], ['Solar water heater', 'S7'], ['Electrical distribution boards', 'S6'],
   ['Boundary wall gates and motor', 'S8'], ['Landscaping and paving', 'S8'], ['CCTV and intercom', 'S7']];
+const SITE_ISSUES = ['Material delivery delay', 'Labour shortage', 'Weather', 'Waiting for an approval or inspection', 'Design clarification needed', 'Quality issue to rectify', 'Client decision needed', 'Safety observation'];
+const WORK_AREAS = ['Whole site', 'Ground floor', 'First floor', 'Second floor', 'Roof', 'Basement', 'External works', 'Boundary wall', 'Car park'];
 const LOST_REASONS = ['Price too high', 'Location', 'Bought elsewhere', 'Financing not available', 'No longer looking', 'No response', 'Property sold', 'Changed requirements'];
 const VIEWING_OUTCOMES = ['Interested', 'Second viewing requested', 'Offer expected', 'Not interested', 'Undecided'];
 const NEXT_ACTIONS = ['Call', 'Send WhatsApp', 'Send more options', 'Arrange a viewing', 'Follow up on the offer', 'Send documents', 'Meet in the office'];
@@ -107,5 +109,12 @@ function combineOther(req, res, next) {
   next();
 }
 
-module.exports = { FEATURES, PURPOSES, TIMING, FUNDING, PROC_ITEMS, LOST_REASONS, VIEWING_OUTCOMES, NEXT_ACTIONS, REASONS, combineOther, BH_AREAS, STAGES, BUDGET_CATEGORIES, PAY_METHODS, BH_APPROVALS, COMMON_RISKS, MGMT_SCOPE, MGMT_EXCLUSIONS, PROP_SCOPE, PROP_EXCLUSIONS, MARKETING_CHANNELS,
+// Forms with file uploads are read by multer inside the route, after the shared middleware; this wraps an upload
+// handler so tick groups and "Other (type it)" answers are combined there too.
+function withChoices(m) {
+  const wrap = mw => (req, res, next) => mw(req, res, err => err ? next(err) : combineChecks(req, res, () => combineOther(req, res, next)));
+  return { array: (...a) => wrap(m.array(...a)), single: (...a) => wrap(m.single(...a)), fields: (...a) => wrap(m.fields(...a)), none: (...a) => wrap(m.none(...a)), any: (...a) => wrap(m.any(...a)) };
+}
+
+module.exports = { withChoices, SITE_ISSUES, WORK_AREAS, FEATURES, PURPOSES, TIMING, FUNDING, PROC_ITEMS, LOST_REASONS, VIEWING_OUTCOMES, NEXT_ACTIONS, REASONS, combineOther, BH_AREAS, STAGES, BUDGET_CATEGORIES, PAY_METHODS, BH_APPROVALS, COMMON_RISKS, MGMT_SCOPE, MGMT_EXCLUSIONS, PROP_SCOPE, PROP_EXCLUSIONS, MARKETING_CHANNELS,
   SALES_EXPENSE_CATEGORIES, CONTACT_CHANNELS, LANGUAGES, LEAD_SOURCES, UNIT_TYPES, CONDITIONS, today, knownNames, lines, combineChecks };
