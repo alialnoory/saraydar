@@ -535,7 +535,7 @@ function mountOwner(r, ctx) {
   ctx.propsPortfolioRow = async (wsId, user) => {
     const s = await snapshot(wsId);
     const fin = core.isSuper(user) || await core.can(user, 'view:financials') || ((await core.workspaceAccess(user, wsId)) || {}).role === 'manager';
-    return { units: String(s.total), occ: s.occPct === null ? '—' : `${s.occPct}% (${s.occupied}/${s.denom})`, rent: fin ? `${fm(s.due)} / ${fm(s.collected)}` : '—', maint: String(s.maint.n), fees: fin && s.fees ? fm(s.fees.outstanding) : '—' };
+    return { _units: s.total, _occPct: s.occPct, _occupied: s.occupied, _denom: s.denom, _due: fin ? s.due : null, _collected: fin ? s.collected : null, _arrears: fin ? s.arrears : null, _maint: s.maint.n, _maintEm: s.maint.em, units: String(s.total), occ: s.occPct === null ? '—' : `${s.occPct}% (${s.occupied}/${s.denom})`, rent: fin ? `${fm(s.due)} / ${fm(s.collected)}` : '—', maint: String(s.maint.n), fees: fin && s.fees ? fm(s.fees.outstanding) : '—' };
   };
 
   return { ownerAccount, unitReport, arrearsAsOf, periodOf };

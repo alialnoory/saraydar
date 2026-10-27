@@ -104,19 +104,58 @@ function mountWorkspaces(r, ctx) {
   });
 
   // ---------- section portfolio ----------
-  // one workspace as a small card on the section page (the whole card opens it)
-  function wsCard(w, s, partyLabel, extra, pcols, todo) {
+  // one workspace as a card on the section page (the whole card opens it). Redesigned 2026-10-27: a cover
+  // (latest photo, or the section mark), the key figures as large numbers with bars, and the record's completeness.
+  const { formatMoney } = require('../lib/money');
+  const I = {
+    pin: raw('<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg>'),
+    person: raw('<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg>'),
+    lead: raw('<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/><path d="M16 3.5a4 4 0 0 1 0 7"/></svg>'),
+    go: raw('<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>')
+  };
+  const initials = n => String(n || '?').trim().split(/\s+/).filter(w => /^[A-Za-z0-9؀-ۿ]/.test(w)).slice(0, 2).map(w => w[0].toUpperCase()).join('') || '?';
+  const money = m => m === null || m === undefined ? '—' : formatMoney(Number(m)).replace(/^BHD /, '');
+  const meter = (pctv, tone = '') => html`<div class="wt-meter ${tone}"><span style="width:${Math.max(0, Math.min(100, Number(pctv) || 0))}%"></span></div>`;
+  function wsCard(w, s, partyLabel, extra, pcols, comp) {
     const x = extra ? extra[w.id] || {} : null;
-    const facts = [];
-    const who = s.key === 'cpm' ? ['Client', w.party_name] : partyLabel ? [partyLabel.label, w.party_name] : null;
-    if (who) facts.push([who[0], who[1] || 'Not linked']);
-    facts.push(['Location', w.location || '—'], ['Manager', w.manager_name || '—']);
-    if (x && pcols) for (const [l, k] of pcols) facts.push([l.replace(' (due / collected)', ' (due / in)'), x[k]]);
-    else if (x) { facts.push(['Progress', x.progress], ['Next milestone', x.next]); if (s.key === 'cpm') facts.push(['Unpaid fees', x.fees]); }
-    return html`<li><a class="ws-tile" href="/w/${w.id}">
-      <div class="ws-tile-top"><div class="grow"><b class="ws-tile-name">${w.name}</b><div class="muted small">${w.ref}${w.stage ? ` · ${w.stage}` : ''}</div></div>${statusPill(w.status)}</div>
-      <dl class="ws-tile-facts">${facts.map(([l, v]) => html`<div><dt>${l}</dt><dd>${v === null || v === undefined || v === '' ? '—' : v}</dd></div>`)}</dl>
-      <div class="ws-tile-foot"><span>Updated ${fmtDate(w.updated_at)}</span>${todo ? pill(`${todo} to complete`, 'warn') : ''}${x && !pcols && x.alerts ? pill(`${x.alerts} alert${x.alerts === 1 ? '' : 's'}`, 'bad') : ''}<span class="ws-tile-go" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></span></div></a></li>`;
+    const who = s.key === 'cpm' ? 'Client' : partyLabel ? partyLabel.label : null;
+    // key figures for this kind of record
+    let figures = '';
+    if (s.key === 'props' && x) {
+      const fin = x._due !== null && x._due !== undefined;
+      const rentPct = fin && x._due > 0 ? x._collected / x._due * 100 : null;
+      figures = html`<div class="wt-stats">
+          <div><b>${x._units ?? '—'}</b><span>Units</span></div>
+          <div><b>${x._occPct === null || x._occPct === undefined ? '—' : `${Math.round(x._occPct)}%`}</b><span>Occupied${x._denom ? ` · ${x._occupied}/${x._denom}` : ''}</span></div>
+          <div class="${x._maintEm ? 'wt-bad' : ''}"><b>${x._maint ?? 0}</b><span>Open maintenance</span></div></div>
+        ${x._occPct !== null && x._occPct !== undefined ? html`<div class="wt-row"><span>Occupancy</span>${meter(x._occPct, 'ok')}</div>` : ''}
+        ${fin ? html`<div class="wt-money"><div class="wt-money-top"><span>Rent this month</span><span><b>BHD ${money(x._collected)}</b> of ${money(x._due)} collected</span></div>${meter(rentPct === null ? 0 : rentPct, rentPct !== null && rentPct >= 100 ? 'ok' : '')}
+          ${x._arrears ? html`<div class="wt-flag bad">Arrears BHD ${money(x._arrears)}</div>` : ''}${x.fees && x.fees !== '—' && !/^BHD 0\.000$/.test(x.fees) ? html`<div class="wt-flag warn">Unpaid fees ${x.fees}</div>` : ''}</div>` : ''}`;
+    } else if ((s.key === 'dev' || s.key === 'cpm') && x) {
+      figures = html`<div class="wt-progress"><div class="wt-money-top"><span>Progress</span><b>${x._pct === null || x._pct === undefined ? 'Not started' : `${Math.round(x._pct)}%`}</b></div>${meter(x._pct || 0)}</div>
+        <div class="wt-next"><span>Next milestone</span><b>${x.next || '—'}</b></div>
+        <div class="wt-chips">${x._overdue ? html`<span class="wt-flag bad">${x._overdue} overdue task${x._overdue === 1 ? '' : 's'}</span>` : ''}${x._highRisks ? html`<span class="wt-flag bad">${x._highRisks} high risk${x._highRisks === 1 ? '' : 's'}</span>` : ''}
+          ${s.key === 'cpm' && x.fees && x.fees !== '—' && !/^BHD 0\.000$/.test(x.fees) ? html`<span class="wt-flag warn">Unpaid fees ${x.fees}</span>` : ''}</div>`;
+    } else if (s.key === 'sales' && x) {
+      figures = html`<div class="wt-price"><span>${w.kind === 'request' ? 'Budget' : 'Asking price'}</span><b>${x.price || '—'}</b></div>
+        <div class="wt-chips"><span class="wt-chip">${x.status || '—'}</span><span class="wt-chip ${/not verified|not recorded|expired/i.test(x.mandate || '') ? 'warn' : ''}">Mandate: ${x.mandate || '—'}</span></div>
+        <div class="wt-stats two"><div><b>${x.enq ?? 0}</b><span>Open enquiries</span></div><div><b class="wt-small">${x.next || '—'}</b><span>Next follow-up</span></div></div>`;
+    } else if (x && pcols) {
+      figures = html`<dl class="wt-list">${pcols.map(([l, k]) => html`<div><dt>${l}</dt><dd>${x[k] === null || x[k] === undefined || x[k] === '' ? '—' : x[k]}</dd></div>`)}</dl>`;
+    }
+    const pctDone = comp && comp.total ? Math.round(comp.done / comp.total * 100) : null;
+    return html`<li><a class="ws-tile wt" href="/w/${w.id}">
+      <div class="wt-cover ${w.cover_id ? 'has-photo' : `wt-${s.key}`}">${w.cover_id ? html`<img src="/files/${w.cover_id}/thumb" alt="" loading="lazy">` : html`<span class="wt-mark" aria-hidden="true">${icons[s.key] || ''}</span><span class="wt-initials" aria-hidden="true">${initials(w.name)}</span>`}
+        <span class="wt-ref">${w.ref}</span><span class="wt-status">${statusPill(w.status)}</span></div>
+      <div class="wt-body">
+        <b class="ws-tile-name">${w.name}</b>
+        <div class="wt-meta">${w.location ? html`<span>${I.pin}${w.location}</span>` : ''}${w.stage ? html`<span class="wt-stage">${w.stage}</span>` : ''}</div>
+        <div class="wt-people">${who ? html`<div><span class="wt-avatar">${initials(w.party_name)}</span><span><small>${who}</small>${w.party_name || html`<em>Not linked</em>`}</span></div>` : ''}
+          <div><span class="wt-avatar staff">${initials(w.manager_name)}</span><span><small>Manager</small>${w.manager_name || html`<em>Not assigned</em>`}</span></div></div>
+        ${figures}
+      </div>
+      <div class="wt-foot">${comp && comp.total ? (comp.missing.length ? html`<span class="wt-done" title="${comp.done} of ${comp.total} recorded"><span class="wt-ring" style="--p:${pctDone}"></span>${comp.missing.length} to complete</span>` : html`<span class="wt-done full"><span class="wt-ring" style="--p:100"></span>Record complete</span>`) : html`<span></span>`}
+        <span class="wt-updated">Updated ${fmtDate(w.updated_at)}</span><span class="ws-tile-go" aria-hidden="true">${I.go}</span></div></a></li>`;
   }
 
   r.get('/s/:section', async (req, res) => {
@@ -135,7 +174,8 @@ function mountWorkspaces(r, ctx) {
     if (q) { vals.push(`%${q.replace(/[%_\\]/g, '\\$&')}%`); where.push(`(w.name ilike $${vals.length} or w.ref ilike $${vals.length} or coalesce(w.location,'') ilike $${vals.length} or coalesce(p.name,'') ilike $${vals.length})`); }
     const from = `from workspaces w left join parties p on p.id = w.party_id left join users mu on mu.id = w.manager_id where ${where.join(' and ')}`;
     const total = (await pool.query(`select count(*)::int as n ${from}`, vals)).rows[0].n;
-    const rows = (await pool.query(`select w.*, p.name as party_name, coalesce(mu.name, mu.email) as manager_name ${from} order by ${sort} limit ${req.exportAll ? 5000 : PER_PAGE} offset ${req.exportAll ? 0 : (page - 1) * PER_PAGE}`, vals)).rows;
+    const rows = (await pool.query(`select w.*, p.name as party_name, coalesce(mu.name, mu.email) as manager_name,
+      (select f.id from files f where f.workspace_id = w.id and f.thumb is not null and f.archived_at is null order by (f.entity is null) desc, f.uploaded_at desc limit 1) as cover_id ${from} order by ${sort} limit ${req.exportAll ? 5000 : PER_PAGE} offset ${req.exportAll ? 0 : (page - 1) * PER_PAGE}`, vals)).rows;
     const extra = ctx.portfolioExtras && ctx.portfolioExtras[s.key] && rows.length ? await ctx.portfolioExtras[s.key](rows.map(x => x.id), req.user) : null;
     const pcols = ctx.portfolioCols && ctx.portfolioCols[s.key];
     const createKinds = [];
@@ -151,7 +191,7 @@ function mountWorkspaces(r, ctx) {
         <select name="status" aria-label="Status">${[['open', 'Active & on hold'], ['active', 'Active'], ['on_hold', 'On hold'], ['completed', 'Completed'], ['archived', 'Archived'], ['all', 'All']].map(([v, l]) => html`<option value="${v}" ${v === status ? raw('selected') : ''}>${l}</option>`)}</select>
         <select name="sort" aria-label="Sort">${[['updated', 'Recently updated'], ['name', 'Name'], ['ref', 'Reference'], ['created', 'Newest']].map(([v, l]) => html`<option value="${v}" ${v === (req.query.sort || 'updated') ? raw('selected') : ''}>${l}</option>`)}</select>
         <button class="btn" type="submit">Apply</button></form>
-      ${rows.length && !req.exportAll ? html`<ul class="ws-grid" aria-label="${s.name}">${await Promise.all(rows.map(async w => wsCard(w, s, partyLabel, extra, pcols, ctx.completeness && ['active', 'on_hold'].includes(w.status) ? (await ctx.completeness(w)).missing.length : 0)))}</ul>${pager(req, total, page, PER_PAGE)}`
+      ${rows.length && !req.exportAll ? html`<ul class="ws-grid" aria-label="${s.name}">${await Promise.all(rows.map(async w => wsCard(w, s, partyLabel, extra, pcols, ctx.completeness && ['active', 'on_hold'].includes(w.status) ? await ctx.completeness(w) : null)))}</ul>${pager(req, total, page, PER_PAGE)}`
         : rows.length ? html`<div class="table-wrap"><table><thead><tr>${s.key === 'cpm' ? html`<th>Client</th>` : ''}<th>Name</th><th>Reference</th>${partyLabel && s.key !== 'cpm' ? html`<th>${partyLabel.label}</th>` : ''}<th>Location</th><th>Manager</th>${extra && pcols ? pcols.map(c => html`<th>${c[0]}</th>`) : extra ? html`<th>Progress</th><th>Next milestone</th>${s.key === 'cpm' ? html`<th>Unpaid fees</th>` : ''}<th>Alerts</th>` : ''}<th>Status</th><th>Updated</th></tr></thead><tbody>
         ${rows.map(w => html`<tr>${s.key === 'cpm' ? html`<td class="client-cell">${w.party_name || html`<span class="muted">Not linked</span>`}</td>` : ''}<td><a href="/w/${w.id}"><b>${w.name}</b></a>${w.stage ? html`<div class="muted small">${w.stage}</div>` : ''}</td><td class="mono">${w.ref}</td>${partyLabel && s.key !== 'cpm' ? html`<td>${w.party_name || '—'}</td>` : ''}<td>${w.location || '—'}</td><td>${w.manager_name || '—'}</td>${extra && pcols ? pcols.map(c => html`<td class="small">${extra[w.id][c[1]]}</td>`) : extra ? html`<td>${extra[w.id].progress}</td><td class="small">${extra[w.id].next}</td>${s.key === 'cpm' ? html`<td class="n">${extra[w.id].fees}</td>` : ''}<td>${extra[w.id].alerts ? pill(String(extra[w.id].alerts), 'bad') : '—'}</td>` : ''}<td>${statusPill(w.status)}</td><td class="small">${fmtDate(w.updated_at)}</td></tr>`)}
         </tbody></table></div>${pager(req, total, page, PER_PAGE)}`

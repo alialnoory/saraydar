@@ -54,7 +54,7 @@ test('client projects', { skip: !URL_ && 'set TEST_DATABASE_URL to run' }, async
     p1 = await mk('Al Noor Villa', 'Al Noor Holdings'); p2 = await mk('Al Noor Offices', 'Al Noor Holdings'); p3 = await mk('Hassan House', 'Hassan Ali');
     assert.equal((await q1(`select count(distinct party_id)::int as n from workspaces where id in ('${p1}','${p2}','${p3}')`)).n, 2);
     const list = await admin.get('/s/cpm');
-    assert.match(list.text, /<dt>Client<\/dt><dd>Al Noor Holdings/); assert.match(list.text, /Unpaid fees/);
+    assert.match(list.text, /<small>Client<\/small>Al Noor Holdings/);
     const prof = await admin.get(`/clients/${clientA}`);
     assert.match(prof.text, /Al Noor Villa/); assert.match(prof.text, /Al Noor Offices/); assert.doesNotMatch(prof.text, /Hassan House/);
     for (const p of ['client', 'setup/identity', 'plan', 'tasks', 'budget', 'fees', 'approvals', 'updates', 'registers', 'agreements', 'documents', 'reports', 'access', 'activity', 'plots'])

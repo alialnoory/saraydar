@@ -199,7 +199,7 @@ function mountProjects(r, ctx) {
     const out = {};
     for (const id of ids) {
       const m = await metrics(id);
-      out[id] = { progress: m.ov.available ? pct(m.ov.pct) : 'Not available', next: m.next ? `${m.next.title}${m.next.due_date ? ` · ${fmtDate(m.next.due_date)}` : ''}` : '—', alerts: m.overdue.length + m.risks.high };
+      out[id] = { _pct: m.ov.available ? m.ov.pct : null, _overdue: m.overdue.length, _highRisks: m.risks.high, progress: m.ov.available ? pct(m.ov.pct) : 'Not available', next: m.next ? `${m.next.title}${m.next.due_date ? ` · ${fmtDate(m.next.due_date)}` : ''}` : '—', alerts: m.overdue.length + m.risks.high };
     }
     return out;
   };
