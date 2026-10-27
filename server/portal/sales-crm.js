@@ -5,7 +5,7 @@ const U = require('../lib/undo');
 // follow-ups and duplicates; viewings; offers with immutable versions and externally recorded decisions;
 // deals (reservation, completion with evidence, fall-through); commissions on the shared fee ledger; sales
 // expenses; the section dashboard tabs and reports.
-const { layout, html, raw, pill, statusPill, csrfField, field, emptyState, fmtDate, fmtDateTime } = require('./views');
+const { layout, html, raw, pill, statusPill, csrfField, field, emptyState, fmtDate, fmtDateTime, personCard } = require('./views');
 const { SECTIONS, KIND_LABEL } = require('./core');
 const { parseMoney, formatMoney, toInput } = require('../lib/money');
 const fees = require('../lib/fees');
@@ -69,7 +69,14 @@ function mountSalesCrm(r, ctx) {
       <form class="filters" method="get"><input type="search" name="q" value="${q}" placeholder="Name, phone, email" aria-label="Search buyers">
         <select name="show" aria-label="Show">${[['active', 'Active'], ['overdue', `Overdue follow-up (${overdue})`], ['stale', `No contact for ${STALE_DAYS} days`], ['all', 'All']].map(([v, l]) => html`<option value="${v}" ${v === show ? raw('selected') : ''}>${l}</option>`)}</select><button class="btn" type="submit">Apply</button>
         ${dups.length ? html`<span class="grow"></span><a class="btn small" href="/sales/duplicates">${dups.length} possible duplicate(s)</a>` : ''}</form>
-      ${list.length ? html`<div class="table-wrap"><table><thead><tr><th>Buyer</th><th>Looking for</th><th class="n">Budget up to</th><th>Agent</th><th>Open enquiries</th><th>Last contact</th><th>Next follow-up</th></tr></thead><tbody>
+      ${list.length && !req.exportAll ? html`<ul class="ws-grid pc-grid">${list.map(x => { const od = x.next_fu && String(x.next_fu) < today, stale = !x.last_contact || String(x.last_contact) < staleBefore;
+          return personCard({ href: `/sales/buyers/${x.id}`, name: x.name, tone: 'sales', sub: x.lead_source ? `Source: ${x.lead_source}` : 'Prospective buyer', foot: x.agent ? `Agent: ${x.agent}` : 'No agent assigned',
+            badge: x.status !== 'active' ? pill(x.status === 'bought' ? 'Bought' : String(x.status).replace(/_/g, ' '), 'muted') : '',
+            lines: [['phone', x.phone], ['mail', x.email], ['pin', [x.types, x.locations].filter(Boolean).join(' · ') || null]],
+            highlight: ['Budget up to', x.budget_max_minor == null ? 'Not stated' : fm(x.budget_max_minor, x.currency)],
+            stats: [[x.open_opps, 'Open enquiries'], [fmtDate(x.last_contact) || 'Never', 'Last contact', stale ? 'warn' : ''], [fmtDate(x.next_fu) || '—', 'Next follow-up', od ? 'bad' : '']],
+            chips: [x.no_next ? [`${x.no_next} without next action`, 'warn'] : null, od ? ['Follow-up overdue', 'bad'] : null] }); })}</ul>`
+        : list.length ? html`<div class="table-wrap"><table><thead><tr><th>Buyer</th><th>Looking for</th><th class="n">Budget up to</th><th>Agent</th><th>Open enquiries</th><th>Last contact</th><th>Next follow-up</th></tr></thead><tbody>
         ${list.map(x => html`<tr><td><a href="/sales/buyers/${x.id}"><b>${x.name}</b></a><div class="muted small">${[x.phone, x.email].filter(Boolean).join(' · ')}${x.lead_source ? ` · ${x.lead_source}` : ''}</div></td>
           <td class="small">${[x.types, x.locations].filter(Boolean).join(' · ') || html`<span class="muted">Not stated</span>`}</td><td class="n">${x.budget_max_minor == null ? '—' : fm(x.budget_max_minor, x.currency)}</td><td class="small">${x.agent || html`<span class="warn-text">Unassigned</span>`}</td>
           <td>${x.open_opps}${x.no_next ? html` ${pill(`${x.no_next} without next action`, 'warn')}` : ''}</td><td class="small ${!x.last_contact || String(x.last_contact) < staleBefore ? 'warn-text' : ''}">${fmtDate(x.last_contact) || 'Never'}</td>

@@ -4,7 +4,7 @@ const U = require('../lib/undo');
 // Client register for Clients Projects Management: profiles, linked projects and agreements,
 // correspondence log and a client-level fee statement across that client's projects.
 // Only projects the signed-in user can open are listed or counted.
-const { layout, html, raw, pill, statusPill, csrfField, field, emptyState, fmtDate } = require('./views');
+const { layout, html, raw, pill, statusPill, csrfField, field, emptyState, fmtDate, personCard } = require('./views');
 const { formatMoney } = require('../lib/money');
 
 const UUID = /^[0-9a-f-]{36}$/i;
@@ -76,7 +76,13 @@ function mountClients(r, ctx, F) {
     }
     res.send(shell(req, 'Clients', [['Clients']], html`
       <form class="filters" method="get"><input type="search" name="q" value="${q}" placeholder="Search clients" aria-label="Search clients"><button class="btn" type="submit">Search</button></form>
-      ${rows.length ? html`<div class="table-wrap"><table><thead><tr><th>Client</th><th>Main contact</th><th>Telephone</th><th>Email</th><th class="n">Projects</th>${g.seeFees ? html`<th class="n">Fees outstanding</th>` : ''}</tr></thead><tbody>
+      ${rows.length && !req.exportAll ? html`<ul class="ws-grid pc-grid">${rows.map(c => personCard({ href: `/clients/${c.id}`, name: c.name, tone: 'cpm',
+          sub: c.kind === 'company' ? 'Company' : 'Individual',
+          lines: [['person', c.contact_person && c.contact_person !== c.name ? `Contact: ${c.contact_person}` : c.representative ? `Represented by ${c.representative}` : null], ['phone', c.phone], ['mail', c.email]],
+          stats: [[c.projects.length, c.projects.length === 1 ? 'Project' : 'Projects'], ...(g.seeFees ? [[fm(c.outstanding), 'Fees outstanding', c.overdue ? 'bad' : '']] : [])],
+          chips: [c.overdue ? [`${fm(c.overdue)} overdue`, 'bad'] : null, c.projects.some(w => w.status === 'active') ? ['Active project', 'ok'] : null],
+          foot: c.projects.length ? c.projects.slice(0, 2).map(w => w.name).join(' · ') + (c.projects.length > 2 ? ` +${c.projects.length - 2}` : '') : 'No projects yet' }))}</ul>`
+        : rows.length ? html`<div class="table-wrap"><table><thead><tr><th>Client</th><th>Main contact</th><th>Telephone</th><th>Email</th><th class="n">Projects</th>${g.seeFees ? html`<th class="n">Fees outstanding</th>` : ''}</tr></thead><tbody>
         ${rows.map(c => html`<tr><td><a href="/clients/${c.id}"><b>${c.name}</b></a><div class="muted small">${c.kind === 'company' ? 'Company' : 'Individual'}</div></td><td>${c.contact_person || c.representative || '—'}</td><td>${c.phone || '—'}</td><td>${c.email || '—'}</td><td class="n">${c.projects.length}</td>
           ${g.seeFees ? html`<td class="n ${c.overdue ? 'err' : ''}">${fm(c.outstanding)}${c.overdue ? html`<div class="small">${fm(c.overdue)} overdue</div>` : ''}</td>` : ''}</tr>`)}</tbody></table></div>`
         : emptyState(q ? 'No clients match' : 'No clients yet', 'Add a client, then create client projects for them.')}`,

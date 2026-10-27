@@ -601,3 +601,16 @@ body.pdfview { background: #FFFFFF; margin: 0; color: var(--ink); }
 .wt-chip.warn { background: var(--warn-bg); color: var(--warn); }
 .wt-stats.two { grid-template-columns: 1fr 1fr; }
 .wt-stats .wt-small { font-size: 14.5px; line-height: 1.35; padding: 3px 4px 0; }
+/* list cards for people (clients, buyers) */
+.pc-head { position: relative; display: flex; align-items: center; gap: 14px; padding: 18px; color: var(--band-ink); background: linear-gradient(135deg, #1C1A16 0%, #3E3527 60%, #8C7350 140%); }
+.pc-head.wt-sales { background: linear-gradient(135deg, #1D1416 0%, #45262B 60%, #9A5A4E 140%); }
+.pc-head.wt-props { background: linear-gradient(135deg, #16191B 0%, #2D3A3D 60%, #5F7A72 140%); }
+.pc-head.wt-dev { background: linear-gradient(135deg, #1E1410 0%, #4F2F1D 60%, #A7643A 140%); }
+.pc-avatar { width: 50px; height: 50px; flex-shrink: 0; border-radius: 50%; display: grid; place-items: center; font-weight: 600; font-size: 17px; letter-spacing: .04em; background: rgba(255, 255, 255, .14); border: 1px solid rgba(255, 255, 255, .25); }
+.pc-title { display: flex; flex-direction: column; min-width: 0; flex: 1; } .pc-title b { font-size: 18px; line-height: 1.25; overflow-wrap: anywhere; } .pc-title small { color: var(--band-muted); font-size: 12.5px; }
+.pc-lines { display: flex; flex-direction: column; gap: 5px; font-size: 14px; }
+.pc-lines span { display: flex; align-items: flex-start; gap: 8px; overflow-wrap: anywhere; }
+.pc-lines svg { width: 16px; height: 16px; flex-shrink: 0; margin-top: 3px; fill: none; stroke: var(--muted); stroke-width: 1.8; }
+.wt-stats .wt-warn b { color: var(--warn); }
+.wt-chip.ok { background: var(--ok-bg); color: var(--ok); } .wt-chip.bad { background: var(--bad-bg); color: var(--bad); }
+.wt-foot > span:first-child { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

@@ -5,7 +5,7 @@
 // decides on maintenance estimates, a buyer gives feedback on shared properties; and they open their own invoices,
 // receipts and statements as PDFs. Staff managers can preview exactly what a viewer role would see (preview never writes).
 const { SECTIONS, SECTION_KEYS, KIND_LABEL, EXTERNAL_MEMBER_ROLES } = require('./core');
-const { layout, html, raw, pill, statusPill, emptyState, fmtDate, fmtDateTime, fmtSize } = require('./views');
+const { layout, html, raw, pill, statusPill, emptyState, fmtDate, fmtDateTime, fmtSize, icons, initialsOf } = require('./views');
 const { formatMoney } = require('../lib/money');
 const { periodOf, periodForm } = require('./owner');
 const { VIEWER_ROLES, ROLES_FOR, GRANTS, grantSummary } = require('./invitations');
@@ -513,10 +513,13 @@ function mountExternal(r, ctx) {
     res.send(layout(req, { title: 'My Workspaces', heading: 'My Workspaces', sub: { below: 'Projects, properties and cases shared with you.' }, noExport: true, body: html`
       <form class="filters" method="get" role="search"><input name="q" value="${q}" placeholder="Filter by name or reference" aria-label="Filter"><button class="btn" type="submit">Filter</button>${q ? html`<a class="btn" href="/my">Clear</a>` : ''}</form>
       ${groups.length ? groups.map(([l, list]) => html`<section class="panel"><h2 class="h">${l}</h2>
-        <ul class="ws-cards">${list.map(w => html`<li><a class="ws-card" href="/p/${w.id}">
-          ${w.cover ? html`<img src="/files/${w.cover}/thumb" alt="" loading="lazy">` : html`<span class="ws-cover" aria-hidden="true">${(w.name || '?').slice(0, 1)}</span>`}
-          <span class="grow"><b>${w.name}</b><span class="muted small">${w.ref} · ${KIND_LABEL[w.kind]}${w.location ? ` · ${w.location}` : ''}</span>
-          <span class="muted small">${SECTIONS[w.section].name} · ${EXTERNAL_MEMBER_ROLES[w.role] || ''}${w.last_update ? ` · updated ${fmtDate(w.last_update)}` : ''}</span></span>${statusPill(w.status)}</a></li>`)}</ul></section>`)
+        <ul class="ws-grid">${list.map(w => html`<li><a class="ws-tile wt" href="/p/${w.id}">
+          <div class="wt-cover ${w.cover ? 'has-photo' : `wt-${w.section}`}">${w.cover ? html`<img src="/files/${w.cover}/thumb" alt="" loading="lazy">` : html`<span class="wt-mark" aria-hidden="true">${icons[w.section] || ''}</span><span class="wt-initials" aria-hidden="true">${initialsOf(w.name)}</span>`}
+            <span class="wt-ref">${w.ref}</span><span class="wt-status">${statusPill(w.status)}</span></div>
+          <div class="wt-body"><b class="ws-tile-name">${w.name}</b>
+            <div class="wt-meta">${w.location ? html`<span>${w.location}</span>` : ''}<span class="wt-stage">${KIND_LABEL[w.kind]}</span></div>
+            <div class="wt-next"><span>Your access</span><b>${EXTERNAL_MEMBER_ROLES[w.role] || ''}</b></div></div>
+          <div class="wt-foot"><span>${w.last_update ? `Latest update ${fmtDate(w.last_update)}` : 'No updates published yet'}</span><span class="ws-tile-go" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></span></div></a></li>`)}</ul></section>`)
         : emptyState(q ? 'No matches' : 'Nothing shared with you yet', q ? 'Only workspaces shared with you are searched.' : 'SarayDar staff will share projects or properties with you when they are ready.')}` }));
   });
 }

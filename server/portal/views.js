@@ -150,4 +150,27 @@ function pager(req, total, page, per) {
   return html`<nav class="pager" aria-label="Pages">${page > 1 ? html`<a class="btn" href="${link(page - 1)}">Previous</a>` : ''}<span>Page ${page} of ${pages} · ${total} total</span>${page < pages ? html`<a class="btn" href="${link(page + 1)}">Next</a>` : ''}</nav>`;
 }
 
-module.exports = { ASSET_V, avatar, layout, html, raw, pill, statusPill, csrfField, emptyState, field, progressField, pager, icons, fmtDate, fmtDateTime, fmtSize, ROLE_LABELS, MESSAGES };
+// Cards for people and records in lists (clients, buyers), in the style of the section cards (owner request 2026-10-27).
+const initialsOf = n => String(n || '?').trim().split(/\s+/).filter(w => /^[A-Za-z0-9\u0600-\u06FF]/.test(w)).slice(0, 2).map(w => w[0].toUpperCase()).join('') || '?';
+const CI = {
+  phone: raw('<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z"/></svg>'),
+  mail: raw('<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg>'),
+  person: raw('<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg>'),
+  pin: raw('<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg>'),
+  go: raw('<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>')
+};
+// o: { href, name, sub, tone ('cpm'|'sales'|...), chips: [[text, tone]], lines: [[icon, text]], stats: [[value, label, tone]], highlight: [label, value], foot }
+function personCard(o) {
+  const lines = (o.lines || []).filter(l => l && l[1]);
+  return html`<li><a class="ws-tile wt pc" href="${o.href}">
+    <div class="pc-head wt-${o.tone || 'cpm'}"><span class="pc-avatar">${initialsOf(o.name)}</span><span class="pc-title"><b>${o.name}</b>${o.sub ? html`<small>${o.sub}</small>` : ''}</span>${o.badge || ''}</div>
+    <div class="wt-body">
+      ${lines.length ? html`<div class="pc-lines">${lines.map(([i, t]) => html`<span>${CI[i] || ''}${t}</span>`)}</div>` : ''}
+      ${o.highlight ? html`<div class="wt-price"><span>${o.highlight[0]}</span><b>${o.highlight[1]}</b></div>` : ''}
+      ${o.chips && o.chips.filter(Boolean).length ? html`<div class="wt-chips">${o.chips.filter(Boolean).map(([t, tone]) => html`<span class="wt-chip ${tone || ''}">${t}</span>`)}</div>` : ''}
+      ${o.stats && o.stats.length ? html`<div class="wt-stats" style="grid-template-columns:repeat(${o.stats.length}, minmax(0, 1fr))">${o.stats.map(([v, l, tone]) => html`<div class="${tone ? `wt-${tone}` : ''}"><b class="${String(v).length > 7 ? 'wt-small' : ''}">${v}</b><span>${l}</span></div>`)}</div>` : ''}
+    </div>
+    <div class="wt-foot"><span>${o.foot || ''}</span><span class="ws-tile-go" aria-hidden="true">${CI.go}</span></div></a></li>`;
+}
+
+module.exports = { personCard, initialsOf, ASSET_V, avatar, layout, html, raw, pill, statusPill, csrfField, emptyState, field, progressField, pager, icons, fmtDate, fmtDateTime, fmtSize, ROLE_LABELS, MESSAGES };
