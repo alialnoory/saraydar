@@ -144,9 +144,22 @@ function mountCompleteness(r, ctx) {
   }
   ctx.journey = journey;
 
+  // "Current stage" follows the bar for sales cases and properties (owner decision 2026-10-27): no typing.
+  const AUTO = ['listing', 'request', 'property'];
+  ctx.autoStage = kind => AUTO.includes(kind);
+  async function syncStage(ws, j) {
+    if (!AUTO.includes(ws.kind) || !['active', 'on_hold'].includes(ws.status)) return ws.stage;
+    j = j || await journey(ws);
+    const st = j.cur >= 0 ? j.stations[j.cur].name : ws.kind === 'property' ? 'Running' : 'Closed & invoiced';
+    if (st !== ws.stage) { await pool.query('update workspaces set stage = $2 where id = $1', [ws.id, st]); ws.stage = st; }   // updated_at left alone: not a user edit
+    return st;
+  }
+  ctx.syncStage = syncStage;
+
   ctx.completenessPanel = async a => {
     if (!a.internal || ['completed', 'archived'].includes(a.ws.status)) return '';
     const j = await journey(a.ws);
+    await syncStage(a.ws, j);
     if (!j.stations.length) return '';
     const what = a.ws.kind === 'property' ? 'property' : a.ws.kind === 'listing' ? 'listing' : a.ws.kind === 'request' ? 'request' : 'project';
     const now = j.cur >= 0 ? j.stations[j.cur] : null;

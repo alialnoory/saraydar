@@ -660,3 +660,4 @@ body.pdfview { background: #FFFFFF; margin: 0; color: var(--ink); }
   .jr { margin-bottom: 30px; }
   .jr-next { flex-wrap: wrap; } .jr-next .btn { width: 100%; text-align: center; }
 }
+.readonly-val { min-height: 44px; display: flex; align-items: center; padding: 0 14px; border: 1px dashed var(--line-strong); border-radius: 10px; background: var(--sunken); font-weight: 600; }
