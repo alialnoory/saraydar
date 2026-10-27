@@ -203,3 +203,35 @@ test('construction master plan', { skip: !URL_ && 'set TEST_DATABASE_URL to run'
     assert.equal((await live(D))[0].name, 'Project start-up');
   });
 });
+
+test('one-time move of existing projects: fresh master plan, old plan deleted', { skip: !URL_ && 'set TEST_DATABASE_URL to run' }, async () => {
+  const MS = require('../lib/master-store');
+  const pool = new Pool({ connectionString: URL_ });
+  try {
+    await pool.query('drop schema public cascade; create schema public;');
+    await db.migrate(pool); await db.seed(pool);
+    const mk = async (ref, status, section = 'dev') => (await pool.query("insert into workspaces (section, kind, ref, name, status) values ($1, $2, $3, $3, $4) returning id", [section, section === 'dev' ? 'project' : 'client_project', ref, status])).rows[0].id;
+    const act = await mk('DEV-T-1', 'active'), cpm = await mk('CPM-T-1', 'on_hold', 'cpm'), fin = await mk('DEV-T-2', 'completed');
+    for (const ws of [act, cpm, fin]) {
+      const ph = (await pool.query("insert into phases (workspace_id, name, weight) values ($1,'Construction',100) returning id", [ws])).rows[0].id;
+      const t = (await pool.query("insert into tasks (workspace_id, phase_id, title, status, progress) values ($1,$2,'Old task','in_progress',50) returning id", [ws, ph])).rows[0].id;
+      await pool.query("insert into comments (workspace_id, entity, entity_id, body) values ($1,'task',$2,'old comment')", [ws, t]);
+      await pool.query("insert into progress_updates (workspace_id, task_id, title, observed_on, status) values ($1,$2,'Site visit',current_date,'published')", [ws, t]);
+      await pool.query("insert into plans (workspace_id, version, status) values ($1, 1, 'approved')", [ws]);
+    }
+    const done = await MS.convertExisting(pool, { log: () => {} });
+    assert.ok(done.some(x => x.startsWith('DEV-T-1')) && done.some(x => x.startsWith('CPM-T-1')) && !done.some(x => x.startsWith('DEV-T-2')));
+    for (const ws of [act, cpm]) {
+      const tasks = (await pool.query('select * from tasks where workspace_id = $1', [ws])).rows;
+      assert.equal(tasks.length, 56);
+      assert.ok(tasks.every(t => t.progress === 0 && t.status === 'not_started' && !t.start_date));
+      assert.equal((await pool.query("select count(*)::int as n from comments where workspace_id = $1 and entity = 'task'", [ws])).rows[0].n, 0);
+      const up = (await pool.query('select * from progress_updates where workspace_id = $1', [ws])).rows;
+      assert.equal(up.length, 1); assert.equal(up[0].task_id, null);                         // the report and photos stay
+      assert.deepEqual((await pool.query('select status, version from plans where workspace_id = $1', [ws])).rows, [{ status: 'draft', version: 1 }]);
+      assert.ok((await pool.query("select 1 from audit_events where workspace_id = $1 and action = 'master.converted'", [ws])).rowCount);
+    }
+    assert.equal((await pool.query("select title from tasks where workspace_id = $1", [fin])).rows[0].title, 'Old task');   // completed: untouched
+    assert.equal(await MS.convertExisting(pool, { log: () => {} }), null);                                                // runs once
+  } finally { await pool.end(); }
+});

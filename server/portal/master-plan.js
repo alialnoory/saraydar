@@ -5,6 +5,7 @@
 // Gantt chart, a stage pipeline and a procurement tracker. Existing projects keep their old plan until a manager
 // previews and confirms the replacement; the old plan is archived read-only and can be restored.
 const M = require('../lib/master-plan');
+const MS = require('../lib/master-store');
 const { layout, html, raw, pill, csrfField, field, progressField, emptyState, fmtDate, fmtDateTime } = require('./views');
 
 const UUID = /^[0-9a-f-]{36}$/i;
@@ -26,35 +27,10 @@ function mountMasterPlan(r, ctx, P) {
   const { pool, core, NotFound, Forbidden } = ctx;
 
   // ---------- template ----------
-  async function template(db = pool) {
-    let row = (await db.query('select * from master_templates where key = $1', [M.TEMPLATE_KEY])).rows[0];
-    if (!row) row = (await db.query('insert into master_templates (key, version, stages) values ($1, 1, $2) on conflict (key) do update set key = excluded.key returning *', [M.TEMPLATE_KEY, JSON.stringify(M.BASELINE)])).rows[0];
-    return row;
-  }
+  const template = (db = pool) => MS.template(db);
   const masterOf = (wsId, db = pool) => db.query('select * from master_plans where workspace_id = $1', [wsId]).then(x => x.rows[0] || null);
   ctx.masterOf = masterOf;
-
-  // Copy the template into a project. carry: template task key → the old task whose progress and dates it keeps.
-  async function applyTemplate(db, wsId, user, carry = {}) {
-    const tpl = await template(db);
-    let ps = 0;
-    for (const s of tpl.stages) {
-      const ph = (await db.query(`insert into phases (workspace_id, name, sort, weight, suggested_weight, template_key, duration_note, start_week, end_week, after_handover)
-        values ($1,$2,$3,$4,$4,$5,$6,$7,$8,$9) returning id`, [wsId, s.name, ps++, s.weight, s.key, s.duration || null, s.startWeek ?? null, s.endWeek ?? null, !!s.afterHandover])).rows[0].id;
-      let ts = 0;
-      for (const t of s.tasks) {
-        const o = carry[t.key] || {};
-        await db.query(`insert into tasks (workspace_id, phase_id, title, weight, sort, template_key, is_milestone, status, progress, start_date, due_date, actual_start, actual_finish, owner_text, owner_user, notes, verified)
-          values ($1,$2,$3,$4,$5,$6,$7,coalesce($8,'not_started'),coalesce($9,0),$10,$11,$12,$13,$14,$15,$16,coalesce($17,true))`,
-          [wsId, ph, t.title, t.weight, ts++, t.key, !!t.milestone || !!o.is_milestone, o.status === 'cancelled' ? 'not_started' : o.status || null, o.progress ?? null,
-            iso(o.start_date), iso(o.due_date), iso(o.actual_start), iso(o.actual_finish), o.owner_text || null, o.owner_user || null, o.notes || null, o.verified ?? null]);
-      }
-    }
-    await db.query(`insert into master_plans (workspace_id, template_key, template_version, applied_by) values ($1,$2,$3,$4)
-      on conflict (workspace_id) do update set template_key = excluded.template_key, template_version = excluded.template_version, applied_by = excluded.applied_by, applied_at = now()`,
-      [wsId, M.TEMPLATE_KEY, tpl.version, user ? user.id : null]);
-    return tpl;
-  }
+  const applyTemplate = (db, wsId, user, carry = {}) => MS.applyTemplate(db, wsId, user ? user.id : null, carry);
   // new projects in both sections start on the master plan
   ctx.applyMasterOnCreate = async (db, wsId, user) => {
     const tpl = await applyTemplate(db, wsId, user);

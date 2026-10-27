@@ -24,6 +24,7 @@ async function main() {
   await db.ensureAdmin(pool);
   const moved = await require('./lib/abuquwa-import').importAbuquwa(pool);
   if (moved) console.log(`Moved ${moved} Abuquwa tasks into workspace DEV-2026-001`);
+  await require('./lib/master-store').convertExisting(pool);   // one time: existing projects onto the construction master plan
 
   const corsOrigins = (process.env.CORS_ORIGINS || '').split(',').map(s => s.trim().replace(/\/$/, '')).filter(Boolean);
   const { createMailer } = require('./lib/mailer');
