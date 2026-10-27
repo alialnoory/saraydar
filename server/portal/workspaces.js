@@ -55,9 +55,12 @@ function mountWorkspaces(r, ctx) {
     const counts = (await pool.query(
       `select section, count(*) filter (where status in ('active','on_hold'))::int as open, count(*)::int as total,
               count(*) filter (where kind = 'listing' and status in ('active','on_hold'))::int as listings,
-              count(*) filter (where kind = 'request' and status in ('active','on_hold'))::int as requests
+              count(*) filter (where kind = 'request' and status in ('active','on_hold'))::int as requests,
+              count(*) filter (where status = 'on_hold')::int as on_hold
          from workspaces w where ${vis} group by section`, [u.id])).rows;
     const by = Object.fromEntries(counts.map(c => [c.section, c]));
+    const units = (await pool.query(`select count(*)::int as total, count(*) filter (where u.status = 'occupied')::int as occ, count(*) filter (where u.status <> 'unavailable')::int as denom
+        from units u join workspaces w on w.id = u.workspace_id where ${vis} and w.section = 'props' and w.status in ('active','on_hold') and u.archived_at is null`, [u.id])).rows[0];
     const attention = [];
     for (const fn of ctx.attention || []) attention.push(...await fn(u));
     if (core.isSuper(u) && !mailer.configured) attention.push(['Setup', 'warn', 'Email delivery is not configured', 'Invitations, password resets and invoices stay in the Outbox until Outlook email is set up (see the setup guide for the technical team).', '/admin/system']);
@@ -67,16 +70,19 @@ function mountWorkspaces(r, ctx) {
     }
     const hour = Number(new Date().toLocaleString('en-GB', { hour: 'numeric', hour12: false, timeZone: 'Asia/Bahrain' }));
     const greet = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+    // the four sections as cards in the style of the section pages (redesigned 2026-10-27)
     const card = key => {
-      const s = SECTIONS[key], c = by[key] || { open: 0, total: 0, listings: 0, requests: 0 };
+      const s = SECTIONS[key], c = by[key] || { open: 0, total: 0, listings: 0, requests: 0, on_hold: 0 };
       const plural = { dev: 'projects', cpm: 'projects', props: 'properties' }[key];
-      const stats = key === 'sales'
-        ? [['Active listings', c.listings, true, 'Properties for sale'], ['Active requests', c.requests, true, 'Buyers searching']]
-        : [[`Active ${plural}`, c.open, true, ''], [`Total ${plural}`, c.total, false, 'Including completed']];
-      return html`<a class="card section-card" href="/s/${key}" aria-label="Open ${s.name}">
-        <div class="section-head"><span class="section-icon">${icons[key]}</span><h2>${s.name}</h2>
-          <span class="section-go" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></span></div>
-        <dl class="section-stats">${stats.map(([l, v, dot, sub]) => html`<div><dt>${dot ? html`<i class="dot" aria-hidden="true"></i>` : ''}${l}</dt><dd>${v}</dd>${sub ? html`<span class="sub">${sub}</span>` : ''}</div>`)}</dl></a>`;
+      const occ = units.denom ? Math.round(units.occ / units.denom * 100) : null;
+      const stats = key === 'sales' ? [[c.listings, 'Active listings', 'Properties for sale'], [c.requests, 'Active requests', 'Buyers searching'], [c.total, 'All cases', 'Including closed']]
+        : key === 'props' ? [[c.open, 'Active properties', c.on_hold ? `${c.on_hold} on hold` : ''], [units.total, 'Units', 'In active properties'], [occ === null ? '—' : `${occ}%`, 'Occupied', units.denom ? `${units.occ} of ${units.denom}` : '']]
+        : [[c.open, `Active ${plural}`, c.on_hold ? `${c.on_hold} on hold` : ''], [c.total, `Total ${plural}`, 'Including completed'], [c.total - c.open, 'Completed or closed', '']];
+      return html`<a class="ws-tile wt home-card" href="/s/${key}" aria-label="Open ${s.name}">
+        <div class="wt-cover wt-${key} home-strip"><span class="wt-mark" aria-hidden="true">${icons[key]}</span><span class="home-icon" aria-hidden="true">${icons[key]}</span><h2>${s.name}</h2></div>
+        <div class="wt-body"><div class="wt-stats">${stats.map(([v, l, sub]) => html`<div><b>${v}</b><span>${l}</span>${sub ? html`<small>${sub}</small>` : ''}</div>`)}</div>
+          ${key === 'props' && occ !== null ? html`<div class="wt-row"><span>Occupancy</span><div class="wt-meter ok"><span style="width:${occ}%"></span></div></div>` : ''}</div>
+        <div class="wt-foot"><span>Open ${s.name}</span><span class="ws-tile-go" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></span></div></a>`;
     };
     res.send(layout(req, { title: 'Home', body: html`
       <div class="page-head"><div><div class="muted small">Home</div><h1 class="display">${greet}, ${(u.name || '').split(' ')[0] || 'there'}</h1>
@@ -104,8 +110,8 @@ function mountWorkspaces(r, ctx) {
   });
 
   // ---------- section portfolio ----------
-  // one workspace as a card on the section page (the whole card opens it). Redesigned 2026-10-27: a cover
-  // (latest photo, or the section mark), the key figures as large numbers with bars, and the record's completeness.
+  // one workspace as a card on the section page (the whole card opens it). Redesigned 2026-10-27: a coloured strip
+  // with the section mark (no photos, owner request), the key figures as large numbers with bars, and the record's completeness.
   const { formatMoney } = require('../lib/money');
   const I = {
     pin: raw('<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg>'),
@@ -145,7 +151,7 @@ function mountWorkspaces(r, ctx) {
     }
     const pctDone = comp && comp.total ? Math.round(comp.done / comp.total * 100) : null;
     return html`<li><a class="ws-tile wt" href="/w/${w.id}">
-      <div class="wt-cover ${w.cover_id ? 'has-photo' : `wt-${s.key}`}">${w.cover_id ? html`<img src="/files/${w.cover_id}/thumb" alt="" loading="lazy">` : html`<span class="wt-mark" aria-hidden="true">${icons[s.key] || ''}</span><span class="wt-initials" aria-hidden="true">${initials(w.name)}</span>`}
+      <div class="wt-cover wt-${s.key}"><span class="wt-mark" aria-hidden="true">${icons[s.key] || ''}</span><span class="wt-initials" aria-hidden="true">${initials(w.name)}</span>
         <span class="wt-ref">${w.ref}</span><span class="wt-status">${statusPill(w.status)}</span></div>
       <div class="wt-body">
         <b class="ws-tile-name">${w.name}</b>
@@ -174,8 +180,7 @@ function mountWorkspaces(r, ctx) {
     if (q) { vals.push(`%${q.replace(/[%_\\]/g, '\\$&')}%`); where.push(`(w.name ilike $${vals.length} or w.ref ilike $${vals.length} or coalesce(w.location,'') ilike $${vals.length} or coalesce(p.name,'') ilike $${vals.length})`); }
     const from = `from workspaces w left join parties p on p.id = w.party_id left join users mu on mu.id = w.manager_id where ${where.join(' and ')}`;
     const total = (await pool.query(`select count(*)::int as n ${from}`, vals)).rows[0].n;
-    const rows = (await pool.query(`select w.*, p.name as party_name, coalesce(mu.name, mu.email) as manager_name,
-      (select f.id from files f where f.workspace_id = w.id and f.thumb is not null and f.archived_at is null order by (f.entity is null) desc, f.uploaded_at desc limit 1) as cover_id ${from} order by ${sort} limit ${req.exportAll ? 5000 : PER_PAGE} offset ${req.exportAll ? 0 : (page - 1) * PER_PAGE}`, vals)).rows;
+    const rows = (await pool.query(`select w.*, p.name as party_name, coalesce(mu.name, mu.email) as manager_name ${from} order by ${sort} limit ${req.exportAll ? 5000 : PER_PAGE} offset ${req.exportAll ? 0 : (page - 1) * PER_PAGE}`, vals)).rows;
     const extra = ctx.portfolioExtras && ctx.portfolioExtras[s.key] && rows.length ? await ctx.portfolioExtras[s.key](rows.map(x => x.id), req.user) : null;
     const pcols = ctx.portfolioCols && ctx.portfolioCols[s.key];
     const createKinds = [];

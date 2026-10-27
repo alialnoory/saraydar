@@ -514,7 +514,7 @@ function mountExternal(r, ctx) {
       <form class="filters" method="get" role="search"><input name="q" value="${q}" placeholder="Filter by name or reference" aria-label="Filter"><button class="btn" type="submit">Filter</button>${q ? html`<a class="btn" href="/my">Clear</a>` : ''}</form>
       ${groups.length ? groups.map(([l, list]) => html`<section class="panel"><h2 class="h">${l}</h2>
         <ul class="ws-grid">${list.map(w => html`<li><a class="ws-tile wt" href="/p/${w.id}">
-          <div class="wt-cover ${w.cover ? 'has-photo' : `wt-${w.section}`}">${w.cover ? html`<img src="/files/${w.cover}/thumb" alt="" loading="lazy">` : html`<span class="wt-mark" aria-hidden="true">${icons[w.section] || ''}</span><span class="wt-initials" aria-hidden="true">${initialsOf(w.name)}</span>`}
+          <div class="wt-cover wt-${w.section}"><span class="wt-mark" aria-hidden="true">${icons[w.section] || ''}</span><span class="wt-initials" aria-hidden="true">${initialsOf(w.name)}</span>
             <span class="wt-ref">${w.ref}</span><span class="wt-status">${statusPill(w.status)}</span></div>
           <div class="wt-body"><b class="ws-tile-name">${w.name}</b>
             <div class="wt-meta">${w.location ? html`<span>${w.location}</span>` : ''}<span class="wt-stage">${KIND_LABEL[w.kind]}</span></div>
