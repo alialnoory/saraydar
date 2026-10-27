@@ -14,7 +14,7 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const USERNAME_RE = /^[a-z0-9._-]{3,40}$/;
 const bad = m => Object.assign(new Error(m), { status: 400 });
 const txt = (v, n = 200) => { const s = String(v ?? '').trim().slice(0, n); return s || null; };
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024, files: 1, fields: 40 } });
+const upload = require('./choices').withChoices(multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024, files: 1, fields: 40 } }));
 
 // 14 characters, no look-alikes (0/O, 1/l/I), always letters + digits + a symbol.
 function generatePassword() {

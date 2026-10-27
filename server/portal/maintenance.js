@@ -15,7 +15,7 @@ const txt = (v, n = 300) => { const s = String(v ?? '').trim().slice(0, n); retu
 const dateOrNull = v => /^\d{4}-\d{2}-\d{2}$/.test(String(v || '')) ? v : null;
 const todayBH = billing.todayBH;
 const fm = (m, c = 'BHD') => m === null || m === undefined ? '—' : formatMoney(Number(m), c);
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024, files: 12, fields: 40 } });
+const upload = require('./choices').withChoices(multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024, files: 12, fields: 40 } }));
 
 const M_STATUS = { open: 'Open', assigned: 'Assigned', awaiting_approval: 'Awaiting owner approval', approved: 'Approved', in_progress: 'In progress', completed: 'Completed — to verify', verified: 'Verified', closed: 'Closed', cancelled: 'Cancelled', rejected: 'Rejected by owner' };
 const M_TONE = { open: 'warn', assigned: 'warn', awaiting_approval: 'warn', approved: 'info', in_progress: 'info', completed: 'info', verified: 'ok', closed: 'ok', cancelled: 'muted', rejected: 'muted' };

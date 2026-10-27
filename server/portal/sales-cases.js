@@ -25,7 +25,7 @@ const numOrNull = (v, label) => { if (v === undefined || String(v).trim() === ''
 const moneyOrNull = (v, label) => { if (v === undefined || String(v).trim() === '') return null; const m = parseMoney(v, 'BHD'); if (m === null || m < 0) throw bad(`Check ${label}.`); return m; };
 const pctToBp = v => { const s = String(v ?? '').trim(); if (!s) return null; if (!/^\d{1,3}(\.\d{1,2})?$/.test(s) || Number(s) > 100) throw bad('Enter the percentage, for example 2 or 2.5.'); const [w, f = ''] = s.split('.'); return Number(w) * 100 + Number((f + '00').slice(0, 2)); };
 const bpLabel = bp => `${(bp / 100).toLocaleString('en-US', { maximumFractionDigits: 2 })}%`;
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024, files: 20, fields: 40 } });
+const upload = require('./choices').withChoices(multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024, files: 20, fields: 40 } }));
 
 const L_STATUS = { draft: 'Draft', awaiting_verification: 'Awaiting verification', ready: 'Ready for marketing', available: 'Available', under_offer: 'Under offer', reserved: 'Reserved', sold: 'Sold', withdrawn: 'Withdrawn', archived: 'Archived' };
 const L_TONE = { draft: 'muted', awaiting_verification: 'warn', ready: 'info', available: 'ok', under_offer: 'warn', reserved: 'warn', sold: 'ok', withdrawn: 'muted', archived: 'muted' };

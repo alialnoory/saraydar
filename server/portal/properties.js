@@ -26,7 +26,7 @@ const PTYPE = { residential_building: 'Residential building', apartment: 'Apartm
 const HOLDER = { saraydar: 'SarayDar', owner: 'The owner', other: 'Another party' };
 const FREQ = { 1: 'Monthly', 3: 'Quarterly', 6: 'Every 6 months', 12: 'Yearly' };
 const EVENT = { move_in: 'Move-in inspection / handover', move_out: 'Move-out inspection', inspection: 'Inspection', keys: 'Keys', meter: 'Meter reading', notice: 'Notice', amendment: 'Amendment', other: 'Other' };
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024, files: 12, fields: 40 } });
+const upload = require('./choices').withChoices(multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024, files: 12, fields: 40 } }));
 
 function mountProperties(r, ctx) {
   const { pool, core, NotFound, Forbidden } = ctx;

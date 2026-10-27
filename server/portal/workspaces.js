@@ -14,7 +14,7 @@ const { layout, html, raw, statusPill, pill, csrfField, emptyState, field, pager
 
 const PER_PAGE = 20;
 const MAX_FILE = 25 * 1024 * 1024;
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: MAX_FILE, files: 10, fields: 20 } });
+const upload = require('./choices').withChoices(multer({ storage: multer.memoryStorage(), limits: { fileSize: MAX_FILE, files: 10, fields: 20 } }));
 const UUID = /^[0-9a-f-]{36}$/i;
 
 // Identify files by their content, not their name.

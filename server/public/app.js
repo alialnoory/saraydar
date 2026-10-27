@@ -141,6 +141,33 @@ document.addEventListener('change', e => {
   });
 })();
 // Progress picker: slider + quick buttons, with the % shown beside it
+// Progress picker: the % beside the slider follows it; the quick buttons set it
+document.addEventListener('input', e => {
+  const r = e.target.closest && e.target.closest('[data-progress] input[type="range"]'); if (!r) return;
+  const o = r.closest('[data-progress]').querySelector('.pp-val'); if (o) o.textContent = `${r.value}%`;
+});
+document.addEventListener('click', e => {
+  const b = e.target.closest && e.target.closest('[data-pp]'); if (!b) return;
+  const r = b.closest('[data-progress]').querySelector('input[type="range"]');
+  r.value = b.dataset.pp; r.dispatchEvent(new Event('input', { bubbles: true }));
+});
+// Progress update: "what is this about" sets the completion slider to the task's, stage's or project's current %,
+// offers the next open tasks as "work remaining", and shows "also set the task's progress" only for a task.
+function syncAbout(sel, first) {
+  const f = sel.form; if (!f) return;
+  const opt = sel.options[sel.selectedIndex]; if (!opt) return;
+  const kind = opt.dataset.kind || (sel.value.startsWith('task:') ? 'task' : 'project');
+  const box = f.querySelector('[data-task-only]'); if (box) box.hidden = kind !== 'task';
+  const hint = f.querySelector('[data-no-task]'); if (hint) hint.hidden = kind === 'task';
+  const r = f.querySelector('[data-progress] input[type="range"]');
+  if (r && opt.dataset.progress !== undefined) { r.value = opt.dataset.progress; r.dispatchEvent(new Event('input', { bubbles: true })); }
+  const lbl = f.querySelector('.upd-progress [data-progress] > span'); if (lbl) lbl.textContent = kind === 'task' ? 'Progress of this task now' : kind === 'stage' ? 'Completion of this stage (as seen)' : 'Completion of the project (as seen)';
+  const next = f.querySelector('[data-next-target]');
+  if (next && opt.dataset.next !== undefined && (!next.value || next.dataset.auto === '1')) { next.value = opt.dataset.next; next.dataset.auto = '1'; }
+}
+document.addEventListener('change', e => { const s = e.target.closest('select[data-about]'); if (s) syncAbout(s); });
+document.addEventListener('input', e => { if (e.target.matches && e.target.matches('[data-next-target]')) e.target.dataset.auto = '0'; });
+document.querySelectorAll('select[data-about]').forEach(s => syncAbout(s, true));
 // works with a dropdown or tap buttons named "status"
 const statusOf = f => { const el = f.elements.status; return el ? el.value : null; };
 const setStatus = (f, v) => { const el = f.elements.status; if (!el) return; if (el instanceof RadioNodeList) { for (const x of el) x.checked = x.value === v; } else el.value = v; };
