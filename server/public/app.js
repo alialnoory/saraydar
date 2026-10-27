@@ -141,39 +141,21 @@ document.addEventListener('change', e => {
   });
 })();
 // Progress picker: slider + quick buttons, with the % shown beside it
+// works with a dropdown or tap buttons named "status"
+const statusOf = f => { const el = f.elements.status; return el ? el.value : null; };
+const setStatus = (f, v) => { const el = f.elements.status; if (!el) return; if (el instanceof RadioNodeList) { for (const x of el) x.checked = x.value === v; } else el.value = v; };
 document.addEventListener('input', e => {
-  const r = e.target.closest('[data-progress] input[type="range"]'); if (!r) return;
-  const o = r.closest('[data-progress]').querySelector('.pp-val'); if (o) o.textContent = `${r.value}%`;
-});
-document.addEventListener('click', e => {
-  const b = e.target.closest('[data-pp]'); if (!b) return;
-  const r = b.closest('[data-progress]').querySelector('input[type="range"]');
-  r.value = b.dataset.pp; r.dispatchEvent(new Event('input', { bubbles: true }));
-});
-// Progress update: the progress picker shows only when a task is chosen, starting from the task's current %
-function syncAbout(sel) {
-  const box = sel.form && sel.form.querySelector('[data-task-only]'); if (!box) return;
-  const opt = sel.options[sel.selectedIndex];
-  box.hidden = !sel.value.startsWith('task:');
-  const hint = sel.form.querySelector('[data-no-task]'); if (hint) hint.hidden = !box.hidden;
-  const r = box.querySelector('input[type="range"]');
-  if (r && opt && opt.dataset.progress !== undefined) { r.value = opt.dataset.progress; r.dispatchEvent(new Event('input', { bubbles: true })); }
-}
-document.addEventListener('change', e => { const s = e.target.closest('select[data-about]'); if (s) syncAbout(s); });
-document.querySelectorAll('select[data-about]').forEach(syncAbout);
-// Task form: progress and status follow each other (100% = Done, more than 0 = In progress, 0 = Not started)
-document.addEventListener('input', e => {
-  const r = e.target.closest('[data-progress] input[type="range"]'); if (!r || !r.form) return;
-  const st = r.form.querySelector('select[name="status"]'); if (!st) return;
+  const r = e.target.closest('[data-progress] input[type="range"]'); if (!r || !r.form || !r.form.elements.status) return;
   const v = Number(r.value), auto = ['not_started', 'in_progress', 'done'];
-  if (!auto.includes(st.value)) return;
-  st.value = v === 100 ? 'done' : v > 0 ? 'in_progress' : 'not_started';
+  if (!auto.includes(statusOf(r.form))) return;
+  setStatus(r.form, v === 100 ? 'done' : v > 0 ? 'in_progress' : 'not_started');
 });
 document.addEventListener('change', e => {
-  const st = e.target.closest('select[name="status"]'); if (!st || !st.form) return;
-  const r = st.form.querySelector('[data-progress] input[type="range"]'); if (!r) return;
-  if (st.value === 'done' && r.value !== '100') { r.value = 100; r.dispatchEvent(new Event('input', { bubbles: true })); }
-  if (st.value === 'not_started' && r.value !== '0') { r.value = 0; r.dispatchEvent(new Event('input', { bubbles: true })); }
+  if (e.target.name !== 'status' || !e.target.form) return;
+  const f = e.target.form, st = statusOf(f);
+  const r = f.querySelector('[data-progress] input[type="range"]'); if (!r) return;
+  if (st === 'done' && r.value !== '100') { r.value = 100; r.dispatchEvent(new Event('input', { bubbles: true })); }
+  if (st === 'not_started' && r.value !== '0') { r.value = 0; r.dispatchEvent(new Event('input', { bubbles: true })); }
 });
 // Photo uploads on phones and tablets: a "Take photo" button opens the camera directly; each photo taken is added to
 // the files already chosen, and a short list shows what will be uploaded (owner request 2026-10-24).
@@ -329,3 +311,61 @@ document.addEventListener('submit', e => {
   groups.forEach(upd);
   f.addEventListener('input', e => { if (e.target.dataset && e.target.dataset.group) upd(e.target.dataset.group); });
 })();
+
+// Dropdowns with "Other (type it)": show a text box for anything not in the list, and post whichever is in use.
+document.addEventListener('change', e => {
+  const s = e.target.closest && e.target.closest('select[data-other]');
+  if (!s) return;
+  const base = s.dataset.other, box = s.parentElement.querySelector('.other-in');
+  if (!box) return;
+  const other = s.value === '__other';
+  box.hidden = !other; box.name = other ? base : `${base}__typed`; s.name = other ? '' : base;
+  box.required = other && s.required;
+  if (other) box.focus();
+});
+// Quick-pick buttons under a typed field (days, bedrooms, %).
+document.addEventListener('click', e => {
+  const b = e.target.closest && e.target.closest('.pp-chips[data-for] [data-set]');
+  if (!b) return;
+  const inp = document.getElementById(b.closest('.pp-chips').dataset.for);
+  if (!inp) return;
+  inp.value = b.dataset.set;
+  inp.dispatchEvent(new Event('input', { bubbles: true })); inp.dispatchEvent(new Event('change', { bubbles: true }));
+  b.parentElement.querySelectorAll('[data-set]').forEach(x => x.classList.toggle('on', x === b));
+});
+document.querySelectorAll('.pp-chips[data-for]').forEach(c => { const inp = document.getElementById(c.dataset.for); if (inp) c.querySelectorAll('[data-set]').forEach(x => x.classList.toggle('on', x.dataset.set === inp.value)); });
+
+// Procurement: picking an item fills its usual stage, the stage fills the date needed on site, and the latest
+// approval and order dates are shown while typing (needed − lead − buffer; approval = order − approval time).
+document.querySelectorAll('[data-proc-info]').forEach(info => {
+  const f = info.closest('form'); if (!f) return;
+  let data; try { data = JSON.parse(info.dataset.procInfo); } catch { return; }
+  const stage = f.querySelector('[data-proc-stage]'), needed = f.querySelector('[data-proc-needed]'), out = f.querySelector('[data-proc-calc]');
+  const num = n => { const el = f.querySelector(`[name="${n}"]`); const v = el ? Number(el.value) : NaN; return el && el.value !== '' && Number.isFinite(v) ? v : null; };
+  const add = (iso, d) => { const x = new Date(iso + 'T00:00:00Z'); x.setUTCDate(x.getUTCDate() + d); return x.toISOString().slice(0, 10); };
+  const nice = iso => new Date(iso + 'T00:00:00Z').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
+  const today = new Date(Date.now() + 3 * 3600e3).toISOString().slice(0, 10);
+  const calc = () => {
+    if (!out) return;
+    const need = needed && needed.value, lead = num('lead_days');
+    if (!need || lead === null) { out.textContent = 'Enter the date needed on site and the lead time to see the latest approval and order dates.'; return; }
+    const order = add(need, -(lead + (num('buffer_days') || 0))), appr = num('approval_days') === null ? null : add(order, -num('approval_days'));
+    out.innerHTML = '';
+    const line = (label, d) => { const s = document.createElement('div'); s.append(`${label}: `); const b = document.createElement('b'); b.textContent = nice(d); s.append(b); if (d < today) { const w = document.createElement('span'); w.className = 'err'; w.textContent = ' — already past'; s.append(w); } out.append(s); };
+    if (appr) line('Latest approval', appr);
+    line('Latest order', order);
+  };
+  const fillNeeded = () => { if (!stage || !needed || needed.value) return; const s = data.stages[stage.value]; if (s && s.start) { needed.value = s.start; } };
+  f.addEventListener('change', e => {
+    const t = e.target;
+    if (t.matches('[data-other="item"]') && stage && !stage.value) {
+      const key = data.items[t.value];
+      const id = Object.keys(data.stages).find(k => data.stages[k].key === key);
+      if (id) { stage.value = id; fillNeeded(); }
+    }
+    if (t === stage) fillNeeded();
+    calc();
+  });
+  f.addEventListener('input', calc);
+  calc();
+});

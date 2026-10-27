@@ -111,17 +111,60 @@ function layout(req, { title, crumbs = [], heading = null, sub = null, tabs = nu
 
 const emptyState = (title, text, action = '') => html`<div class="empty"><strong>${title}</strong><p>${text}</p>${action}</div>`;
 
-// list: typing suggestions (free text still allowed). type 'checks': tick-boxes for `options` (strings) plus an
-// "Other" box; posted as one newline-separated answer (see choices.combineChecks).
-function field({ name, label, type = 'text', value = '', required = false, hint = '', attrs = '', options = null, full = false, list = null, otherLabel = 'Other (one per line)' }) {
+// Fields are made as easy to fill as possible (owner request 2026-10-28: "drop downs, ticks or any simplified way,
+// across all the system"):
+//  - list: a dropdown of the usual answers plus "Other (type it)", which opens a text box (free text is never lost).
+//  - options with 2–4 short choices: tap buttons instead of a dropdown.
+//  - presets: quick-pick buttons under a typed field (days, bedrooms, %). Some field names get them automatically.
+//  - type 'checks': tick-boxes for `options` (strings) plus an "Other" box; posted as one newline-separated answer.
+const CHX = () => require('./choices');
+const NAME_HINTS = {
+  bedrooms: { presets: [1, 2, 3, 4, 5, 6] }, bedrooms_min: { presets: [1, 2, 3, 4, 5, 6] }, bathrooms: { presets: [1, 2, 3, 4, 5] },
+  floor: { presets: ['Ground', '1', '2', '3', '4', 'Roof'] },
+  approval_days: { presets: [0, 7, 14, 21, 30] }, lead_days: { presets: [14, 30, 45, 60, 90, 120] }, buffer_days: { presets: [0, 7, 14, 21] },
+  defects_months: { presets: [6, 12, 24] }, contingency_pct: { presets: [5, 10, 15] }, fee_pct: { presets: [1, 1.5, 2, 2.5, 3] },
+  due_day: { presets: [1, 5, 10, 15, 25] }, notice_days: { presets: [7, 30, 60, 90] }, duration_months: { presets: [6, 12, 24, 36] },
+  condition: { list: () => CHX().CONDITIONS }, lost_reason: { list: () => CHX().LOST_REASONS }, outcome: { list: () => CHX().VIEWING_OUTCOMES },
+  next_action: { list: () => CHX().NEXT_ACTIONS }, category: { list: () => CHX().BUDGET_CATEGORIES },
+  reason: { list: () => CHX().REASONS }, change_reason: { list: () => ['Client request', 'Correction', 'Price change', 'Market change', 'Agreed with the client', 'Agreed with the owner'] },
+  occupancy: { list: () => ['Vacant', 'Owner-occupied', 'Tenanted', 'Under construction'] }, interest: { list: () => ['Full ownership', 'Share of the property', 'Leasehold rights'] },
+  deposit_holder: { list: () => ['SarayDar (client account)', 'Seller', 'Developer', 'Not applicable'] }, payment_terms: { list: () => ['Cash', 'Bank finance / mortgage', 'Instalments', 'To be agreed'] },
+  rent_period: { list: () => ['month', 'quarter', 'year'] }
+};
+const SHORT = 24;
+function field({ name, label, type = 'text', value = '', required = false, hint = '', attrs = '', options = null, full = false, list = null, otherLabel = 'Other (one per line)', presets = null, buttons = 'auto', sep = null }) {
   const id = `f-${name}`;
   if (type === 'checks') {
-    const have = String(value || '').split(/\r?\n/).map(x => x.trim()).filter(Boolean);
+    // sep ',': a comma-separated answer (property types, areas, features); otherwise one answer per line
+    const have = String(value || '').split(sep === ',' ? /\r?\n|,\s*/ : /\r?\n/).map(x => x.trim()).filter(Boolean);
     const other = have.filter(v => !options.includes(v));
-    return html`<fieldset class="field checks full"><legend>${label}</legend><input type="hidden" name="${name}__checks" value="1">
+    return html`<fieldset class="field checks full"><legend>${label}</legend><input type="hidden" name="${name}__checks" value="1">${sep === ',' ? html`<input type="hidden" name="${name}__sep" value=",">` : ''}
       <div class="check-grid">${options.map(o => html`<label class="check"><input type="checkbox" name="${name}__pick" value="${o}" ${have.includes(o) ? raw('checked') : ''} ${raw(attrs)}> ${o}</label>`)}</div>
       <label class="field" for="${id}"><span class="small muted">${otherLabel}</span><textarea id="${id}" name="${name}__other" rows="2" ${raw(attrs)}>${other.join('\n')}</textarea></label>
       ${hint ? html`<small>${hint}</small>` : ''}</fieldset>`;
+  }
+  const hintOf = NAME_HINTS[String(name).replace(/^v_/, '')];
+  if (hintOf && !options && type !== 'textarea' && type !== 'date') {
+    if (!list && hintOf.list && type === 'text') list = hintOf.list();
+    if (!presets && hintOf.presets) presets = hintOf.presets;
+  }
+  const head = html`<span>${label}${required ? html` <i class="req" aria-hidden="true">*</i>` : ''}</span>`;
+  const plainAttrs = !String(attrs).replace(/\b(maxlength|autocomplete|inputmode|placeholder)="[^"]*"/g, '').trim();
+  // a short choice: tap buttons
+  const segOpts = options ? options.filter(([v, l]) => !(v === '' && /^Choose/.test(String(l)))) : null;
+  if (options && buttons !== false && plainAttrs && segOpts.length >= 2 && segOpts.length <= (buttons === true ? 6 : 4) && segOpts.every(([, l]) => String(l).length <= SHORT)) options = segOpts;
+  if (options && buttons !== false && plainAttrs && options.length >= 2 && options.length <= (buttons === true ? 6 : 4) && options.every(([, l]) => String(l).length <= SHORT)) {
+    return html`<div class="field seg-field${full ? ' full' : ''}" role="radiogroup" aria-label="${label}">${head}<div class="seg">${options.map(([v, l], i) => html`<label class="seg-opt"><input type="radio" name="${name}" value="${v}" ${String(v) === String(value ?? '') ? raw('checked') : ''} ${required && i === 0 ? raw('required') : ''}><span>${l}</span></label>`)}</div>${hint ? html`<small>${hint}</small>` : ''}</div>`;
+  }
+  // usual answers: a dropdown with "Other (type it)"
+  if (list && list.length && type === 'text' && plainAttrs) {
+    const v = value === null || value === undefined ? '' : String(value);
+    const known = list.map(String);
+    const isOther = v !== '' && !known.includes(v);
+    return html`<label class="field${full ? ' full' : ''}" for="${id}">${head}
+      <select id="${id}" name="${isOther ? '' : name}" data-other="${name}" ${required ? raw('required') : ''}><option value="">Choose…</option>${known.map(o => html`<option value="${o}" ${o === v ? raw('selected') : ''}>${o}</option>`)}<option value="__other" ${isOther ? raw('selected') : ''}>Other (type it)…</option></select>
+      <input class="other-in" type="text" name="${isOther ? name : `${name}__typed`}" value="${isOther ? v : ''}" placeholder="Type it here" aria-label="${label}: other" ${isOther ? '' : raw('hidden')} ${raw(attrs)}>
+      ${hint ? html`<small>${hint}</small>` : ''}</label>`;
   }
   const listId = list && list.length ? `dl-${name}-${Math.random().toString(36).slice(2, 7)}` : '';
   if (listId) attrs = `${attrs} list="${listId}" autocomplete="off"`;
@@ -131,7 +174,8 @@ function field({ name, label, type = 'text', value = '', required = false, hint 
     : type === 'textarea'
       ? html`<textarea id="${id}" name="${name}" ${required ? raw('required') : ''} ${raw(attrs)}>${value}</textarea>`
       : html`<input id="${id}" name="${name}" type="${type}" value="${value}" ${required ? raw('required') : ''} ${raw(attrs)}>`;
-  return html`<label class="field${full ? ' full' : ''}" for="${id}"><span>${label}${required ? html` <i class="req" aria-hidden="true">*</i>` : ''}</span>${ctl}${dl}${hint ? html`<small>${hint}</small>` : ''}</label>`;
+  const quick = presets && !options && type !== 'textarea' && !/\bdisabled\b/.test(attrs) ? html`<div class="pp-chips" data-for="${id}">${presets.map(p => html`<button type="button" class="chip" data-set="${p}">${p}</button>`)}</div>` : '';
+  return html`<label class="field${full ? ' full' : ''}" for="${id}">${head}${ctl}${dl}${quick}${hint ? html`<small>${hint}</small>` : ''}</label>`;
 }
 
 // Progress picker: a slider with quick buttons (0, 10, 25, 50, 75, 90, 100 %) instead of typing a number.

@@ -53,6 +53,7 @@ function createPortal({ pool, secret, mailer, env = process.env }) {
   r.use(cookieParser());
   r.use(express.urlencoded({ extended: false, limit: '200kb' }));
   r.use(require('./choices').combineChecks);
+  r.use(require('./choices').combineOther);
 
   // who is signed in
   r.use(async (req, res, next) => {

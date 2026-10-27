@@ -786,3 +786,25 @@ body.pdfview { background: #FFFFFF; margin: 0; color: var(--ink); }
   .jr.mp-pipe li .jr-label, .jr.mp-pipe li.now .jr-label, .jr.mp-pipe li:first-child.now .jr-label, .jr.mp-pipe li:last-child.now .jr-label { display: block; position: static; transform: none; white-space: normal; font-size: 12px; }
   .jr.mp-pipe { margin-bottom: 6px; }
 }
+/* easy fields (owner request 2026-10-28) */
+.pp-chips .chip.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+.seg { display: flex; flex-wrap: wrap; gap: 6px; }
+.seg-opt { position: relative; flex: 1 1 auto; min-width: 0; }
+.seg-opt input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+.seg-opt span { display: flex; align-items: center; justify-content: center; text-align: center; min-height: 44px; padding: 6px 14px; border: 1px solid var(--line-strong); border-radius: 10px; background: var(--surface); font-size: 14.5px; color: var(--ink); cursor: pointer; transition: background .12s, border-color .12s; }
+.seg-opt input:checked + span { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+.seg-opt input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
+.seg-opt:hover span { border-color: var(--accent); }
+.seg-field > span:first-child { display: block; margin-bottom: 6px; }
+.other-in { margin-top: 8px; }
+/* iPhone date boxes kept inside the form width */
+input[type="date"], input[type="datetime-local"], input[type="time"] { -webkit-appearance: none; appearance: none; min-width: 0; max-width: 100%; width: 100%; display: block; min-height: 44px; }
+input[type="date"]::-webkit-date-and-time-value { text-align: left; }
+.proc-calc { grid-column: 1 / -1; padding: 12px 14px; border-radius: 10px; background: var(--accent-tint); border: 1px solid var(--copper); font-size: 14.5px; }
+.proc-calc b { white-space: nowrap; } .proc-calc .err { font-weight: 700; }
+/* tick groups as tappable chips that wrap (shorter on phones) */
+.check-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+.check-grid .check { align-items: center; border: 1px solid var(--line-strong); border-radius: 999px; padding: 7px 14px 7px 10px; background: var(--surface); cursor: pointer; min-height: 40px; }
+.check-grid .check:hover { border-color: var(--accent); }
+.check-grid .check:has(input:checked) { background: var(--accent-tint); border-color: var(--accent); color: var(--accent); font-weight: 600; }
+.check-grid .check input { accent-color: var(--accent); }

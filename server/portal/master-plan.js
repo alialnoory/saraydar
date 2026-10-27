@@ -622,10 +622,17 @@ function mountMasterPlan(r, ctx, P) {
     const phases = (await pool.query('select id, name from phases where workspace_id = $1 and archived_at is null order by sort', [a.ws.id])).rows;
     const edit = core.canContribute(a);
     const names = await require('./choices').knownNames(pool, a.ws.id);
-    const form = (x = {}) => html`${field({ name: 'item', label: 'Material / item', value: x.item || '', required: true })}${field({ name: 'responsible', label: 'Responsible', value: x.responsible || '', list: names })}
-      ${field({ name: 'phase_id', label: 'Stage', value: x.phase_id || '', options: [['', '—'], ...phases.map(p => [p.id, p.name])] })}${field({ name: 'needed_on', label: 'Needed on site', type: 'date', value: iso(x.needed_on) || '' })}
-      ${field({ name: 'approval_days', label: 'Approval time (days)', type: 'number', value: x.approval_days ?? '', attrs: 'min="0"' })}${field({ name: 'lead_days', label: 'Supplier lead time (days)', type: 'number', value: x.lead_days ?? '', attrs: 'min="0"', hint: 'From the supplier; not estimated by the system.' })}
-      ${field({ name: 'buffer_days', label: 'Buffer (days)', type: 'number', value: x.buffer_days ?? '', attrs: 'min="0"' })}${field({ name: 'status', label: 'Status', value: x.status || 'planned', options: Object.entries(PROC_STATUS) })}
+    const CH = require('./choices');
+    const phaseInfo = (await pool.query('select id, template_key, planned_start from phases where workspace_id = $1 and archived_at is null', [a.ws.id])).rows;
+    const smart = JSON.stringify({ items: Object.fromEntries(CH.PROC_ITEMS), stages: Object.fromEntries(phaseInfo.map(p => [p.id, { key: p.template_key, start: iso(p.planned_start) }])) });
+    // every input picks or taps where it can; the latest dates are worked out while filling in
+    const form = (x = {}) => html`<div class="full" hidden data-proc-info="${smart}"></div>
+      ${field({ name: 'item', label: 'Material / item', value: x.item || '', required: true, list: CH.PROC_ITEMS.map(i => i[0]) })}${field({ name: 'responsible', label: 'Responsible', value: x.responsible || '', list: names })}
+      ${field({ name: 'phase_id', label: 'Stage (filled from the item)', value: x.phase_id || '', options: [['', '—'], ...phases.map(p => [p.id, p.name])], attrs: 'data-proc-stage' })}${field({ name: 'needed_on', label: 'Needed on site', type: 'date', value: iso(x.needed_on) || '', attrs: 'data-proc-needed', hint: 'Filled with the stage\'s planned start when it has one.' })}
+      ${field({ name: 'approval_days', label: 'Approval time (days)', type: 'number', value: x.approval_days ?? '', attrs: 'min="0" data-proc-n', presets: [0, 7, 14, 21, 30] })}${field({ name: 'lead_days', label: 'Supplier lead time (days)', type: 'number', value: x.lead_days ?? '', attrs: 'min="0" data-proc-n', presets: [14, 30, 45, 60, 90, 120], hint: 'From the supplier; not estimated by the system.' })}
+      ${field({ name: 'buffer_days', label: 'Buffer (days)', type: 'number', value: x.buffer_days ?? '', attrs: 'min="0" data-proc-n', presets: [0, 7, 14, 21] })}
+      <div class="proc-calc" data-proc-calc aria-live="polite">Enter the date needed on site and the lead time to see the latest approval and order dates.</div>
+      ${field({ name: 'status', label: 'Status', value: x.status || 'planned', options: Object.entries(PROC_STATUS), buttons: true, full: true })}
       ${field({ name: 'notes', label: 'Notes', value: x.notes || '', type: 'textarea', full: true })}`;
     const rows = items.map(x => ({ x, d: M.procurementDates(x, today) }));
     const overdue = rows.filter(r => r.d.late).length;

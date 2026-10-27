@@ -24,10 +24,19 @@ test('tick-box groups', async t => {
     assert.doesNotMatch(out, /value="A" checked/);
     assert.match(out, /<textarea[^>]*name="scope__other"[^>]*>C<\/textarea>/);
   });
-  await t.test('suggestion lists are closed options inside a datalist', () => {
+  await t.test('usual answers are a dropdown with "Other (type it)"; short choices are tap buttons; quick picks', () => {
     const out = String(field({ name: 'location', label: 'Location', list: ['Seef', 'Saar'] }));
-    assert.match(out, /list="dl-location-/);
-    assert.match(out, /<option value="Seef"><\/option>/);
+    assert.match(out, /<select[^>]*name="location"[^>]*data-other="location"/);
+    assert.match(out, /<option value="Seef" >Seef<\/option>/); assert.match(out, /value="__other"/);
+    assert.match(out, /name="location__typed"[^>]*hidden/);
+    const typed = String(field({ name: 'location', label: 'Location', list: ['Seef'], value: 'Hamala' }));
+    assert.match(typed, /name="location" value="Hamala"/);                 // a value outside the list stays as typed text
+    const seg = String(field({ name: 'mode', label: 'Mode', options: [['a', 'Alpha'], ['b', 'Beta']], value: 'b' }));
+    assert.match(seg, /type="radio" name="mode" value="b" checked/);
+    assert.match(String(field({ name: 'bedrooms', label: 'Bedrooms' })), /data-set="4"/);
+    const b = { location: '__other', location__typed: ' Hamala ' };
+    require('../portal/choices').combineOther({ body: b }, null, () => {});
+    assert.deepEqual(b, { location: 'Hamala' });
   });
 });
 
