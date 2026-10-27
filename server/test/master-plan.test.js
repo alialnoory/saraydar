@@ -178,7 +178,7 @@ test('construction master plan', { skip: !URL_ && 'set TEST_DATABASE_URL to run'
     await admin.post(`/w/${A}/master/procurement`, { item: 'Aluminium windows', responsible: 'Procurement', needed_on: '2020-03-01', approval_days: '14', lead_days: '60', buffer_days: '7', status: 'planned' }, `/w/${A}/master/procurement`);
     const p = await admin.get(`/w/${A}/master/procurement`);
     assert.match(p.text, /Aluminium windows/); assert.match(p.text, /Past due/); assert.match(p.text, /past the latest/);
-    assert.doesNotMatch((await admin.get(`/w/${B}/master/procurement`)).text, /Aluminium windows/);
+    assert.match((await admin.get(`/w/${B}/master/procurement`)).text, /No items yet/);
   });
 
   await t.test('view-only members cannot edit; the template is the Super Admin\'s; changes never touch existing projects', async () => {

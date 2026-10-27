@@ -42,7 +42,22 @@ const CONTACT_CHANNELS = ['Phone call', 'WhatsApp', 'Email', 'In person'];
 const LANGUAGES = ['English', 'Arabic'];
 const LEAD_SOURCES = ['Referral', 'Walk-in', 'Website', 'Instagram', 'Property portal', 'WhatsApp', 'Existing client', 'Signboard'];
 const UNIT_TYPES = ['Villa', 'Townhouse', 'Apartment', 'Penthouse', 'Shop', 'Office', 'Warehouse', 'Plot'];
+const FEATURES = ['Swimming pool', 'Garden', 'Sea view', 'Maid room', 'Driver room', 'Lift', 'Covered parking', 'Furnished', 'Corner plot', 'Smart home', 'Majlis'];
+const PURPOSES = ['Own home', 'Investment', 'Holiday home', 'Business use'];
+const TIMING = ['Immediately', 'Within 3 months', 'Within 6 months', 'Within a year', 'No fixed date'];
+const FUNDING = ['Cash', 'Mortgage approved', 'Mortgage in progress', 'Mix of cash and mortgage'];
 const CONDITIONS = ['New', 'Excellent', 'Good', 'Needs renovation', 'Under construction', 'Off-plan'];
+
+// Key materials with long lead times, and the master-plan stage they are usually needed for (template stage key).
+const PROC_ITEMS = [['Steel reinforcement', 'S4'], ['Ready-mix concrete', 'S4'], ['Waterproofing membranes', 'S4'], ['Blocks', 'S6'], ['Electrical cables and conduits', 'S6'],
+  ['Plumbing pipes and fittings', 'S6'], ['AC ducts and copper piping', 'S6'], ['Aluminium windows and glazing', 'S7'], ['Main entrance door', 'S7'], ['Internal doors', 'S7'],
+  ['Floor and wall tiles', 'S7'], ['Marble / stone', 'S7'], ['Gypsum ceilings', 'S7'], ['Kitchen cabinets', 'S7'], ['Wardrobes and joinery', 'S7'], ['Sanitary ware', 'S7'],
+  ['Light fittings and switches', 'S7'], ['AC units', 'S7'], ['Lift', 'S7'], ['Water tank and pumps', 'S8'], ['Solar water heater', 'S7'], ['Electrical distribution boards', 'S6'],
+  ['Boundary wall gates and motor', 'S8'], ['Landscaping and paving', 'S8'], ['CCTV and intercom', 'S7']];
+const LOST_REASONS = ['Price too high', 'Location', 'Bought elsewhere', 'Financing not available', 'No longer looking', 'No response', 'Property sold', 'Changed requirements'];
+const VIEWING_OUTCOMES = ['Interested', 'Second viewing requested', 'Offer expected', 'Not interested', 'Undecided'];
+const NEXT_ACTIONS = ['Call', 'Send WhatsApp', 'Send more options', 'Arrange a viewing', 'Follow up on the offer', 'Send documents', 'Meet in the office'];
+const REASONS = ['Client request', 'Correction', 'Agreed with the owner', 'Agreed with the client', 'Cheque returned', 'Duplicate entry', 'Price change'];
 
 // Today in Bahrain as yyyy-mm-dd, for date fields that are almost always "today".
 const today = () => new Date(Date.now() + 3 * 3600e3).toISOString().slice(0, 10);
@@ -73,11 +88,24 @@ function combineChecks(req, res, next) {
     const base = k.slice(0, -8);
     const picks = [].concat(b[`${base}__pick`] || []).map(String);
     const other = lines(b[`${base}__other`]);
-    b[base] = [...new Set([...picks, ...other])].join('\n');
-    delete b[k]; delete b[`${base}__pick`]; delete b[`${base}__other`];
+    b[base] = [...new Set([...picks, ...other])].join(b[`${base}__sep`] === ',' ? ', ' : '\n');
+    delete b[k]; delete b[`${base}__pick`]; delete b[`${base}__other`]; delete b[`${base}__sep`];
   }
   next();
 }
 
-module.exports = { BH_AREAS, STAGES, BUDGET_CATEGORIES, PAY_METHODS, BH_APPROVALS, COMMON_RISKS, MGMT_SCOPE, MGMT_EXCLUSIONS, PROP_SCOPE, PROP_EXCLUSIONS, MARKETING_CHANNELS,
+// Express middleware: a dropdown with "Other (type it)" posts <name> = "__other" and the typed text in <name>__typed;
+// they are combined so handlers read one value.
+function combineOther(req, res, next) {
+  const b = req.body;
+  if (b && typeof b === 'object') for (const k of Object.keys(b)) {
+    if (!k.endsWith('__typed')) continue;
+    const base = k.slice(0, -7);
+    if (b[base] === '__other') b[base] = String(b[k] || '').trim();
+    delete b[k];
+  }
+  next();
+}
+
+module.exports = { FEATURES, PURPOSES, TIMING, FUNDING, PROC_ITEMS, LOST_REASONS, VIEWING_OUTCOMES, NEXT_ACTIONS, REASONS, combineOther, BH_AREAS, STAGES, BUDGET_CATEGORIES, PAY_METHODS, BH_APPROVALS, COMMON_RISKS, MGMT_SCOPE, MGMT_EXCLUSIONS, PROP_SCOPE, PROP_EXCLUSIONS, MARKETING_CHANNELS,
   SALES_EXPENSE_CATEGORIES, CONTACT_CHANNELS, LANGUAGES, LEAD_SOURCES, UNIT_TYPES, CONDITIONS, today, knownNames, lines, combineChecks };

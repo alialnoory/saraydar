@@ -446,7 +446,12 @@ function mountSalesCases(r, ctx) {
   });
 
   // ---------- acquisition brief ----------
-  const BRIEF = [['purpose', 'Purpose', 'text'], ['types', 'Property types (comma-separated)', 'text'], ['locations', 'Locations (comma-separated)', 'text'], ['budget_min', 'Budget from (BHD)', 'money'], ['budget_max', 'Budget up to (BHD)', 'money'],
+  // how each brief question is answered: ticks, a dropdown of usual answers, or quick picks (owner request 2026-10-28)
+  const BRIEF_INPUT = { purpose: { list: CH.PURPOSES }, types: { type: 'checks', options: [...CH.UNIT_TYPES, 'Land'], sep: ',', otherLabel: 'Other (comma-separated)' },
+    locations: { type: 'checks', options: CH.BH_AREAS, sep: ',', otherLabel: 'Other areas (comma-separated)' }, flexibility_pct: { presets: [0, 5, 10, 15] },
+    features: { type: 'checks', options: CH.FEATURES, sep: ',', otherLabel: 'Other features (comma-separated)' }, condition: { list: CH.CONDITIONS },
+    timing: { list: CH.TIMING }, funding: { list: CH.FUNDING } };
+  const BRIEF = [['purpose', 'Purpose', 'text'], ['types', 'Property types', 'text'], ['locations', 'Locations', 'text'], ['budget_min', 'Budget from (BHD)', 'money'], ['budget_max', 'Budget up to (BHD)', 'money'],
     ['flexibility_pct', 'Budget flexibility (%)', 'num'], ['land_min_m2', 'Land area from (m²)', 'num'], ['land_max_m2', 'Land area to (m²)', 'num'], ['built_min_m2', 'Built-up from (m²)', 'num'], ['built_max_m2', 'Built-up to (m²)', 'num'],
     ['bedrooms_min', 'Bedrooms (at least)', 'num'], ['features', 'Required features', 'text'], ['condition', 'Condition', 'text'], ['yield_note', 'Required yield (only if the client stated one)', 'text'], ['timing', 'Purchase timing', 'text'],
     ['funding', 'Funding (if supplied)', 'text'], ['exclusions', 'Exclusions / deal-breakers (comma-separated)', 'text'], ['decision_makers', 'Decision-makers', 'text']];
@@ -466,7 +471,7 @@ function mountSalesCases(r, ctx) {
       <div class="split"><section class="panel grow2"><h2 class="h">Buyer brief ${b ? `v${b.version}` : ''} ${pill(R_STATUS[rq.status], ['completed'].includes(rq.status) ? 'ok' : rq.status === 'closed_unsuccessful' ? 'muted' : 'info')}</h2>
         ${b ? html`<dl class="details">${BRIEF.map(([k, l]) => show(k, l))}</dl>${b.change_reason ? html`<p class="muted small">Last change: ${b.change_reason}${b.evidence ? ` (${b.evidence})` : ''}</p>` : ''}` : html`<p class="muted">No brief recorded yet.</p>`}
         ${edit ? html`<details class="inline-form" ${b ? '' : raw('open')}><summary>${b ? 'Change the brief (new version)' : 'Record the brief'}</summary><form method="post" action="/w/${a.ws.id}/brief" class="form-grid">${csrfField(req)}
-          ${BRIEF.map(([k, l]) => html`<div class="q">${field({ name: k, label: l, value: briefVal(b, k) })}<label class="check small"><input type="checkbox" name="${k}__unknown" value="1" ${b && b.unknown.includes(k) ? raw('checked') : ''}> Not stated</label></div>`)}
+          ${BRIEF.map(([k, l]) => { const o = BRIEF_INPUT[k] || {}; return html`<div class="q${o.type === 'checks' ? ' full' : ''}">${field({ name: k, label: l, value: briefVal(b, k), ...o })}<label class="check small"><input type="checkbox" name="${k}__unknown" value="1" ${b && b.unknown.includes(k) ? raw('checked') : ''}> Not stated</label></div>`; })}
           ${b ? html`${field({ name: 'change_reason', label: 'Why it changed', required: true })}${field({ name: 'evidence', label: 'Client decision / evidence' })}` : ''}
           <div class="actions full"><button class="btn primary" type="submit">Save brief</button></div><p class="muted small full">Earlier versions are kept. Leave unknown values empty — matching treats them as unknown, not as a match.</p></form></details>` : ''}
       </section>
