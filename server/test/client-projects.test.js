@@ -8,7 +8,7 @@ const { Pool } = require('pg');
 const db = require('../db');
 const { createApp } = require('../app');
 const fees = require('../lib/fees');
-const { client } = require('./helpers');
+const { client, asLegacy } = require('./helpers');
 
 const URL_ = process.env.TEST_DATABASE_URL;
 
@@ -50,7 +50,7 @@ test('client projects', { skip: !URL_ && 'set TEST_DATABASE_URL to run' }, async
     assert.equal(r.status, 302); clientA = r.location.slice(9, 45);
     r = await admin.post('/clients', { kind: 'person', name: 'Hassan Ali' }, '/clients/new'); clientB = r.location.slice(9, 45);
     assert.equal((await admin.post('/clients', { kind: 'person', name: 'al noor holdings' }, '/clients/new')).status, 400);   // duplicate
-    const mk = async (name, party) => (await admin.post('/s/cpm/new', { kind: 'client_project', name, party, location: 'Saar' }, '/s/cpm/new')).location.slice(3, 39);
+    const mk = async (name, party) => { const id = (await admin.post('/s/cpm/new', { kind: 'client_project', name, party, location: 'Saar' }, '/s/cpm/new')).location.slice(3, 39); await asLegacy(pool, id); return id; };
     p1 = await mk('Al Noor Villa', 'Al Noor Holdings'); p2 = await mk('Al Noor Offices', 'Al Noor Holdings'); p3 = await mk('Hassan House', 'Hassan Ali');
     assert.equal((await q1(`select count(distinct party_id)::int as n from workspaces where id in ('${p1}','${p2}','${p3}')`)).n, 2);
     const list = await admin.get('/s/cpm');

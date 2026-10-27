@@ -15,7 +15,7 @@ function mountAdmin(r, ctx) {
   const { pool, core, mailer, env, Forbidden, NotFound } = ctx;
   r.use('/admin', (req, res, next) => core.isSuper(req.user) ? next() : next(new NotFound()));
 
-  const adminTabs = cur => [['Users', '/admin/users', cur === 'users'], ['Roles', '/admin/roles', cur === 'roles'], ['Agreements', '/admin/agreements', false], ['Outbox', '/admin/outbox', cur === 'outbox'], ['Audit log', '/admin/audit', cur === 'audit'], ['System', '/admin/system', cur === 'system']];
+  const adminTabs = cur => [['Users', '/admin/users', cur === 'users'], ['Roles', '/admin/roles', cur === 'roles'], ['Agreements', '/admin/agreements', false], ['Master template', '/admin/master-plan', false], ['Outbox', '/admin/outbox', cur === 'outbox'], ['Audit log', '/admin/audit', cur === 'audit'], ['System', '/admin/system', cur === 'system']];
   const page = (req, cur, title, body) => layout(req, { title, heading: 'Administration', crumbs: [['Home', '/'], ['Administration']], tabs: adminTabs(cur), body });
 
   r.get('/admin', (req, res) => res.redirect('/admin/users'));

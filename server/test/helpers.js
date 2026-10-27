@@ -30,4 +30,14 @@ function client(base) {
   };
 }
 
-module.exports = { client };
+// New projects start on the construction master plan. Tests of the earlier plan flow turn a fresh project back
+// into a pre-master project (as existing projects in production are until a manager adopts the master plan).
+async function asLegacy(pool, ...ids) {
+  for (const id of ids) {
+    await pool.query('delete from tasks where workspace_id = $1', [id]);
+    await pool.query('delete from phases where workspace_id = $1', [id]);
+    await pool.query('delete from master_plans where workspace_id = $1', [id]);
+  }
+}
+
+module.exports = { client, asLegacy };

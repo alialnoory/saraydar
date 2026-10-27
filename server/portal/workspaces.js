@@ -258,6 +258,7 @@ function mountWorkspaces(r, ctx) {
       if (vals.manager && vals.manager !== req.user.id) {
         await db.query("insert into workspace_members (workspace_id, user_id, role, added_by) values ($1,$2,'manager',$3) on conflict do nothing", [w.id, vals.manager, req.user.id]);
       }
+      if (['dev', 'cpm'].includes(s.key) && ctx.applyMasterOnCreate) await ctx.applyMasterOnCreate(db, w.id, req.user);   // new projects start on the construction master plan
       await core.audit(db, { actor: req.user, workspaceId: w.id, action: 'workspace.created', entity: 'workspace', entityId: w.id, summary: `${KIND_LABEL[kind]} ${ref} created: ${vals.name}`, after: { ...vals, ref }, ip: req.ip });
       return w.id;
     });
@@ -292,7 +293,7 @@ function mountWorkspaces(r, ctx) {
         <p>This project's tasks, budget, risks and site log are still in the original Abuquwa tracker. They move into this workspace in Phase 3.</p>
         <dl class="stats inline"><div><dt>Tasks</dt><dd>${n.tasks || 0}</dd></div><div><dt>Budget lines</dt><dd>${n.costs || 0}</dd></div><div><dt>Risks</dt><dd>${n.risks || 0}</dd></div><div><dt>Site log entries</dt><dd>${n.log || 0}</dd></div></dl></section>`;
     }
-    const extras = html`${ctx.completenessPanel ? await ctx.completenessPanel(a) : ''}${ctx.overviewExtras && ctx.overviewExtras[w.section] ? await ctx.overviewExtras[w.section](req, a) : ''}`;
+    const extras = html`${ctx.completenessPanel ? await ctx.completenessPanel(a) : ''}${a.internal && ctx.masterPipelinePanel ? await ctx.masterPipelinePanel(req, a) : ''}${ctx.overviewExtras && ctx.overviewExtras[w.section] ? await ctx.overviewExtras[w.section](req, a) : ''}`;
     const editable = core.canEdit(a);
     const users = editable ? (await pool.query("select id, coalesce(nullif(name,''), email) as label from users where active and kind = 'internal' order by 2")).rows : [];
     res.send(wsLayout(req, a, 'overview', html`${extras}

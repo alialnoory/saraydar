@@ -9,6 +9,7 @@ const COMMON = {
   Setup: ['Answer the guided questions once. The system then prepares the draft plan: phases, tasks, risks, approvals and budget lines.', 'Choose "Construction" as the current stage: earlier phases are marked done and later ones not started.'],
   'Land & Plots': ['Record each plot with its number, title deed, area, dimensions and documents.', 'Plot 05-1234, title deed 123456/2024, 600 m², frontage 20 m, status Owned.'],
   Plan: ['Check the draft plan and approve it as the baseline. Progress is measured against the approved plan.', 'After checking phases and weights, click "Approve plan". Later changes become a new version.'],
+  'Master Plan': ['The construction master plan: stages that open to numbered tasks, weights that add up to 100%, a Gantt chart and the procurement tracker.', 'Stage 4 Groundworks at 60% adds 9 points (15% × 60%) to overall progress.'],
   'Tasks & Schedule': ['Phases, tasks, owners, dates and milestones. Update the status as work moves.', 'Task "Superstructure", owner DEMO Building Contractors, due 30 Jun 2027, 60% done.'],
   'Progress Updates': ['Site progress reports with photos. Publish an update to share it with the client.', '"October 2026: first-floor slab cast", 6 photos, overall progress 45%.'],
   Registers: ['One list each for risks, issues, decisions, permits, stakeholders and more.', 'Risk "Material price increases": likelihood Medium, impact High, owner the project manager.'],
@@ -78,8 +79,8 @@ function tabTip(req, label) {
 
 const KIND_TITLE = { client_project: 'Clients Projects Management', project: 'SarayDar Real Estate Development', property: 'Clients Properties Management', listing: 'Property Sales: selling a property', request: 'Property Acquisition: searching for a buyer' };
 const TAB_ORDER = {
-  client_project: ['Overview', 'Client', 'Agreements', 'Setup', 'Land & Plots', 'Plan', 'Tasks & Schedule', 'Client Budget & Payments', 'Fee Billing', 'Client Approvals', 'Progress Updates', 'Registers', 'Documents', 'Reports', 'Access & Invitations', 'Assistant', 'Activity'],
-  project: ['Overview', 'Setup', 'Land & Plots', 'Plan', 'Tasks & Schedule', 'Budget & Cost', 'Investors & Funding', 'Progress Updates', 'Registers', 'Units & Sales', 'Agreements', 'Documents', 'Reports', 'Access & Invitations', 'Assistant', 'Activity'],
+  client_project: ['Overview', 'Client', 'Agreements', 'Setup', 'Land & Plots', 'Plan', 'Master Plan', 'Client Budget & Payments', 'Fee Billing', 'Client Approvals', 'Progress Updates', 'Registers', 'Documents', 'Reports', 'Access & Invitations', 'Assistant', 'Activity'],
+  project: ['Overview', 'Setup', 'Land & Plots', 'Plan', 'Master Plan', 'Budget & Cost', 'Investors & Funding', 'Progress Updates', 'Registers', 'Units & Sales', 'Agreements', 'Documents', 'Reports', 'Access & Invitations', 'Assistant', 'Activity'],
   property: ['Overview', 'Owner', 'Agreements', 'Property Setup', 'Units', 'Leases & Tenants', 'Rent & Collections', 'Deposits', 'Maintenance', 'Cleaning & Services', 'Expenses', 'Owner Account', 'Fee Billing', 'Unit History', 'Reports', 'Documents', 'Access & Invitations', 'Assistant', 'Activity'],
   listing: ['Overview', 'Mandate', 'Property File', 'Marketing', 'Buyers & Viewings', 'Offers & Deal', 'Fee Billing', 'Expenses', 'Agreements', 'Documents', 'Access & Invitations', 'Assistant', 'Activity'],
   request: ['Overview', 'Mandate', 'Brief', 'Matches & Shortlist', 'Viewings & Offers', 'Fee Billing', 'Expenses', 'Agreements', 'Documents', 'Access & Invitations', 'Assistant', 'Activity']

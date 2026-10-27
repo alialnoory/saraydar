@@ -262,7 +262,7 @@ document.addEventListener('submit', e => {
     const head = t.tHead && t.tHead.rows[t.tHead.rows.length - 1];
     const labels = [];
     if (head) for (const th of head.cells) { const n = th.colSpan || 1; for (let i = 0; i < n; i++) labels.push(th.textContent.trim()); }
-    t.classList.add('stack');
+    t.classList.add('tstack');
     for (const body of t.tBodies) for (const tr of body.rows) {
       let col = 0;
       for (const td of tr.cells) {
@@ -312,4 +312,20 @@ document.addEventListener('submit', e => {
   if (!el) return;
   const s = Math.max(3, Number(el.dataset.autorefresh) || 6);
   setTimeout(() => { location.reload(); }, s * 1000);
+})();
+
+// Master plan weights: show each group's running total while typing (must reach 100%).
+(() => {
+  const f = document.querySelector('form[data-weights]');
+  if (!f) return;
+  const upd = g => {
+    const out = f.querySelector(`[data-sum-of="${g}"]`); if (!out) return;
+    let s = 0; f.querySelectorAll(`input[data-group="${g}"]`).forEach(i => { const v = Number(String(i.value).replace(/[,%\s]/g, '')); if (Number.isFinite(v)) s += v; });
+    s = Math.round(s * 1000) / 1000;
+    out.textContent = `Total ${s}%`;
+    out.classList.toggle('ok', Math.abs(s - 100) <= 0.01); out.classList.toggle('bad', Math.abs(s - 100) > 0.01);
+  };
+  const groups = new Set([...f.querySelectorAll('input[data-group]')].map(i => i.dataset.group));
+  groups.forEach(upd);
+  f.addEventListener('input', e => { if (e.target.dataset && e.target.dataset.group) upd(e.target.dataset.group); });
 })();

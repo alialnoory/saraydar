@@ -7,7 +7,7 @@ const ExcelJS = require('exceljs');
 const db = require('../db');
 const { createApp } = require('../app');
 const pe = require('../lib/page-export');
-const { client } = require('./helpers');
+const { client, asLegacy } = require('./helpers');
 
 const URL_ = process.env.TEST_DATABASE_URL;
 
@@ -44,11 +44,12 @@ test('export and navigation', { skip: !URL_ && 'set TEST_DATABASE_URL to run' },
   const ids = [];
   for (let i = 1; i <= 23; i++) ids.push((await admin.post('/s/dev/new', { kind: 'project', name: `Project ${String(i).padStart(2, '0')}` }, '/s/dev/new')).location.slice(3, 39));
   const ws = ids[0];
+  await asLegacy(pool, ws);
   await admin.post(`/w/${ws}/tasks`, { title: '=cmd|"/c calc"!A0', phase_id: '', owner_text: '', start_date: '', due_date: '' }, `/w/${ws}/tasks`);
   await admin.post(`/w/${ws}/plots`, { ref: '1201', area_m2: '175.1', status: 'owned', purchase_price: '62500' }, `/w/${ws}/plots`);
 
   await t.test('every data page offers PDF and Excel, plus Back / Home', async () => {
-    for (const p of ['/', '/s/dev', `/w/${ws}`, `/w/${ws}/plots`, `/w/${ws}/budget`, `/w/${ws}/tasks`, `/w/${ws}/registers`, `/w/${ws}/access`, '/admin/users', '/admin/audit']) {
+    for (const p of ['/', '/s/dev', `/w/${ws}`, `/w/${ws}/plots`, `/w/${ws}/budget`, `/w/${ws}/tasks`, `/w/${ids[1]}/master`, `/w/${ids[1]}/master/weights`, `/w/${ws}/registers`, `/w/${ws}/access`, '/admin/users', '/admin/audit']) {
       const page = await admin.get(p);
       assert.equal(page.status, 200, p);
       assert.match(page.text, /data-back><svg[^<]*<path[^>]*\/><\/svg>Back<\/a>/, p);

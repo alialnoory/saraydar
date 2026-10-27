@@ -11,6 +11,7 @@ const { progressField, layout, html, raw, pill, statusPill, csrfField, emptyStat
 const { SECTIONS, KIND_LABEL } = require('./core');
 const { parseMoney, formatMoney, toInput, num } = require('../lib/money');
 const progress = require('../lib/progress');
+const MP = require('../lib/master-plan');
 const SETUPS = { dev: require('../lib/setup-dev'), cpm: require('../lib/setup-cpm') };
 // a client project whose budget and payments the client controls: SarayDar keeps no budget, payments or cost control
 const clientBudget = ws => ws.section === 'cpm' && ws.budget_control === 'client';
@@ -32,8 +33,8 @@ const todayBH = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/B
 const fm = (m, c = 'BHD') => m === null || m === undefined ? '—' : formatMoney(m, c);
 const pct = v => v === null || v === undefined ? '—' : `${Math.round(v * 10) / 10}%`;
 const iso = d => d ? (d instanceof Date ? d.toISOString().slice(0, 10) : String(d).slice(0, 10)) : null;
-const TASK_STATUS = { not_started: 'Not started', in_progress: 'In progress', blocked: 'Blocked', done: 'Done', cancelled: 'Cancelled' };
-const TASK_TONE = { not_started: 'muted', in_progress: 'warn', blocked: 'bad', done: 'ok', cancelled: 'muted' };
+const TASK_STATUS = { not_started: 'Not started', in_progress: 'In progress', on_hold: 'On hold', blocked: 'Blocked', done: 'Done', cancelled: 'Cancelled' };
+const TASK_TONE = { not_started: 'muted', in_progress: 'warn', on_hold: 'bad', blocked: 'bad', done: 'ok', cancelled: 'muted' };
 const REG = {
   risk: { label: 'Risks', one: 'risk', statuses: ['open', 'mitigating', 'closed'] },
   issue: { label: 'Issues', one: 'issue', statuses: ['open', 'in_progress', 'resolved'] },
@@ -76,11 +77,11 @@ function mountProjects(r, ctx) {
   const budgetTab = a => a.ws.section === 'cpm' ? 'Client Budget & Payments' : 'Budget & Cost';
   function tabs(a, cur) {
     const id = a.ws.id;
-    if (a.ws.section === 'cpm') return [['Overview', `/w/${id}`], ['Client', `/w/${id}/client`], ['Agreements', `/w/${id}/agreements`], ['Setup', `/w/${id}/setup`], ['Land & Plots', `/w/${id}/plots`], ['Plan', `/w/${id}/plan`], ['Tasks & Schedule', `/w/${id}/tasks`],
+    if (a.ws.section === 'cpm') return [['Overview', `/w/${id}`], ['Client', `/w/${id}/client`], ['Agreements', `/w/${id}/agreements`], ['Setup', `/w/${id}/setup`], ['Land & Plots', `/w/${id}/plots`], ['Plan', `/w/${id}/plan`], ['Master Plan', `/w/${id}/master`],
       ...(a.finance !== false ? [...(clientBudget(a.ws) ? [] : [['Client Budget & Payments', `/w/${id}/budget`]]), ['Fee Billing', `/w/${id}/fees`]] : []), ['Client Approvals', `/w/${id}/approvals`], ['Progress Updates', `/w/${id}/updates`], ['Registers', `/w/${id}/registers`],
       ['Documents', `/w/${id}/documents`], ['Reports', `/w/${id}/reports`], ['Access & Invitations', `/w/${id}/access`], ['Activity', `/w/${id}/activity`]]
       .map(([l, h]) => [l, h, l === cur]);
-    return [['Overview', `/w/${id}`], ['Setup', `/w/${id}/setup`], ['Land & Plots', `/w/${id}/plots`], ['Plan', `/w/${id}/plan`], ['Tasks & Schedule', `/w/${id}/tasks`],
+    return [['Overview', `/w/${id}`], ['Setup', `/w/${id}/setup`], ['Land & Plots', `/w/${id}/plots`], ['Plan', `/w/${id}/plan`], ['Master Plan', `/w/${id}/master`],
       ...(a.finance !== false ? [['Budget & Cost', `/w/${id}/budget`], ['Investors & Funding', `/w/${id}/investors`]] : []), ['Progress Updates', `/w/${id}/updates`], ['Registers', `/w/${id}/registers`],
       ['Units & Sales', `/w/${id}/units`], ['Agreements', `/w/${id}/agreements`], ['Documents', `/w/${id}/documents`], ['Reports', `/w/${id}/reports`], ['Access & Invitations', `/w/${id}/access`], ['Activity', `/w/${id}/activity`]]
       .map(([l, h]) => [l, h, l === cur]);
@@ -109,8 +110,18 @@ function mountProjects(r, ctx) {
   async function metrics(wsId) {
     const [pl, phases, tasks] = await Promise.all([plans(wsId), loadPhases(wsId), loadTasks(wsId)]);
     const today = todayBH();
-    const ov = progress.overall({ phases, tasks, approved: !!pl.approved });
-    const planned = pl.approved ? progress.plannedAt(pl.approved.baseline, today) : { available: false, reason: 'No approved baseline.' };
+    const mp = ctx.masterOf ? await ctx.masterOf(wsId) : null;
+    let ov, planned;
+    if (mp) {
+      // construction master plan: weighted progress as soon as the weights are valid; planned % only from a baseline approved after adoption
+      const c = MP.compute(phases, tasks);
+      ov = c.valid ? { available: true, pct: c.pct, preHandover: c.preHandover, phases: c.stages.map(s => ({ id: s.id, name: s.name, weight: s.weight, tasks: s.tasks, pct: s.pct })), master: true }
+        : { available: false, reason: `Weights incomplete: ${c.issues.join(' ')}`, phases: c.stages.map(s => ({ id: s.id, name: s.name, weight: s.weight, tasks: s.tasks, pct: s.pct })), master: true };
+      planned = pl.approved && new Date(pl.approved.approved_at) >= new Date(mp.applied_at) ? progress.plannedAt(pl.approved.baseline, today) : { available: false, reason: 'No baseline approved for the master plan yet.' };
+    } else {
+      ov = progress.overall({ phases, tasks, approved: !!pl.approved });
+      planned = pl.approved ? progress.plannedAt(pl.approved.baseline, today) : { available: false, reason: 'No approved baseline.' };
+    }
     const open = tasks.filter(t => !['done', 'cancelled'].includes(t.status));
     const overdue = open.filter(t => t.due_date && iso(t.due_date) < today);
     const next = open.filter(t => t.is_milestone).sort((x, y) => (iso(x.due_date) || '9999').localeCompare(iso(y.due_date) || '9999'))[0] || null;
@@ -350,8 +361,10 @@ function mountProjects(r, ctx) {
     const g = setup.generate(d.answers);
     await core.inTx(async db => {
       await db.query('select id from workspaces where id = $1 for update', [a.ws.id]);
+      const onMaster = (await db.query('select 1 from master_plans where workspace_id = $1', [a.ws.id])).rowCount > 0;
       const existing = (await db.query('select count(*)::int as n from tasks where workspace_id = $1 and archived_at is null', [a.ws.id])).rows[0].n;
-      if (existing) throw bad('This workspace already has tasks. Edit them under Tasks & Schedule.');
+      if (existing && !onMaster) throw bad('This workspace already has tasks. Edit them under Master Plan.');
+      if (onMaster) g.phases = [];          // stages and tasks come from the construction master plan; setup adds registers and budget lines
       const v = (await db.query('select coalesce(max(version),0)+1 as v from plans where workspace_id = $1', [a.ws.id])).rows[0].v;
       await db.query("insert into plans (workspace_id, version, status, source, note, created_by) values ($1,$2,'draft','generated','Generated from the setup answers. Suggested items need review.',$3) on conflict do nothing", [a.ws.id, v, req.user.id]);
       let ps = 0;
@@ -373,9 +386,9 @@ function mountProjects(r, ctx) {
       for (const b of g.budget) await db.query("insert into budget_lines (workspace_id, category, description, revised_minor, source, sort) values ($1,$2,$3,$4,$5,$6)", [a.ws.id, b.category, b.description, b.revised_minor, b.revised_minor === null ? 'suggested' : 'entered', b.sort]);
       await db.query("update setup_drafts set status = 'reviewed' where workspace_id = $1", [a.ws.id]);
       await touch(db, a.ws.id);
-      await core.audit(db, { actor: req.user, workspaceId: a.ws.id, action: 'plan.generated', entity: 'plan', entityId: a.ws.id, summary: `Draft plan generated: ${g.phases.length} phases, ${g.phases.reduce((s, p) => s + p.tasks.length, 0)} tasks`, ip: req.ip });
+      await core.audit(db, { actor: req.user, workspaceId: a.ws.id, action: 'plan.generated', entity: 'plan', entityId: a.ws.id, summary: onMaster ? 'Setup applied: registers and budget lines added (stages and tasks come from the master plan)' : `Draft plan generated: ${g.phases.length} phases, ${g.phases.reduce((s, p) => s + p.tasks.length, 0)} tasks`, ip: req.ip });
     });
-    res.redirect(`/w/${a.ws.id}/plan?msg=created`);
+    res.redirect(`/w/${a.ws.id}/${(await pool.query('select 1 from master_plans where workspace_id = $1', [a.ws.id])).rowCount ? 'master' : 'plan'}?msg=created`);
   });
 
   // ---------- plan & baseline ----------
@@ -495,6 +508,7 @@ function mountProjects(r, ctx) {
   // ---------- tasks & schedule ----------
   r.get('/w/:id/tasks', async (req, res) => {
     const a = await access(req);
+    if (ctx.masterOf && await ctx.masterOf(a.ws.id)) return res.redirect(`/w/${a.ws.id}/master`);
     const m = await metrics(a.ws.id);
     const filter = ['open', 'overdue', 'milestones', 'all'].includes(req.query.f) ? req.query.f : 'all';
     const today = m.today;
@@ -506,7 +520,7 @@ function mountProjects(r, ctx) {
     const edit = core.canEdit(a);
     const groups = [...m.phases.map(p => [p, m.tasks.filter(t => t.phase_id === p.id)]), [null, m.tasks.filter(t => !t.phase_id)]].filter(([p, ts]) => p || ts.length);
     const ph = Object.fromEntries(m.ov.phases.map(p => [p.id, p]));
-    res.send(page(req, a, 'Tasks & Schedule', html`
+    res.send(page(req, a, 'Master Plan', html`
       <div class="filters">${[['all', 'All'], ['open', 'Open'], ['overdue', `Overdue (${m.overdue.length})`], ['milestones', 'Milestones']].map(([k, l]) => html`<a class="btn small ${k === filter ? 'primary' : ''}" href="?f=${k}">${l}</a>`)}
         <span class="grow"></span>${!m.tasks.length ? html`<a class="btn" href="/w/${a.ws.id}/setup">Generate from setup</a>` : ''}</div>
       ${groups.length ? groups.map(([p, ts]) => html`<section class="panel">
@@ -578,13 +592,15 @@ function mountProjects(r, ctx) {
       out.start_date = dateOrNull(body.start_date); out.due_date = dateOrNull(body.due_date);
       if (out.start_date && out.due_date && out.due_date < out.start_date) throw bad('The due date is before the start date.');
       out.is_milestone = body.is_milestone === '1';
-      out.weight = body.weight === '' || body.weight === undefined ? null : Number(body.weight);
-      if (out.weight !== null && (!isFinite(out.weight) || out.weight < 0)) throw bad('Weight must be zero or more.');
+      if (body.weight !== undefined) out.weight = body.weight === '' ? null : Number(body.weight);
+      if (out.weight !== null && out.weight !== undefined && (!isFinite(out.weight) || out.weight < 0)) throw bad('Weight must be zero or more.');
       out.notes = txt(body.notes, 4000);
     }
     if (body.status !== undefined) { if (!(body.status in TASK_STATUS)) throw bad('Choose a valid status.'); out.status = body.status; }
     if (body.progress !== undefined && body.progress !== '') { const p = Number(body.progress); if (!Number.isInteger(p) || p < 0 || p > 100) throw bad('Progress must be a whole number from 0 to 100.'); out.progress = p; }
     if (out.status === 'done') out.progress = 100;
+    else if (out.progress === 100 && ['not_started', 'in_progress', undefined].includes(out.status)) out.status = 'done';
+    else if (out.progress > 0 && out.status === 'not_started') out.status = 'in_progress';
     if (body.actual_start !== undefined) out.actual_start = dateOrNull(body.actual_start);
     if (body.actual_finish !== undefined) out.actual_finish = dateOrNull(body.actual_finish);
     return out;
@@ -614,14 +630,15 @@ function mountProjects(r, ctx) {
     const edit = core.canEdit(a), contrib = core.canContribute(a);
     const dis = edit ? '' : 'disabled';
     const others = tasks.filter(x => x.id !== t.id);
-    res.send(page(req, a, 'Tasks & Schedule', html`<p><a href="/w/${a.ws.id}/tasks">‹ All tasks</a></p>
+    const onMaster = ctx.masterOf ? !!(await ctx.masterOf(a.ws.id)) : false;
+    res.send(page(req, a, 'Master Plan', html`<p><a href="/w/${a.ws.id}/${onMaster ? `master?open=${t.phase_id}#task-${t.id}` : 'tasks'}">‹ ${onMaster ? 'Master plan' : 'All tasks'}</a></p>
       <form method="post" action="/w/${a.ws.id}/tasks/${t.id}" class="panel form-grid">${csrfField(req)}
         <h2 class="h full">${t.title}${t.suggested ? html` ${pill('Suggested', 'info')}` : ''}${!t.verified ? html` ${pill('Reported, unverified', 'warn')}` : ''}</h2>
         ${field({ name: 'title', label: 'Title', value: t.title, required: true, attrs: dis, full: true })}
-        ${field({ name: 'phase_id', label: 'Phase', value: t.phase_id || '', options: [['', 'Not in a phase'], ...phases.map(p => [p.id, p.name])], attrs: dis })}
-        ${field({ name: 'parent_id', label: 'Part of task', value: t.parent_id || '', options: [['', '—'], ...others.map(x => [x.id, x.title])], attrs: dis })}
+        ${onMaster ? html`<p class="muted small full">Stage: ${(phases.find(p => p.id === t.phase_id) || {}).name || '—'} · weight ${t.weight === null ? '—' : Number(t.weight) + '%'} of the stage. Stage, order and weights are changed on the <a href="/w/${a.ws.id}/master?open=${t.phase_id}#task-${t.id}">Master Plan</a>.</p>` : html`${field({ name: 'phase_id', label: 'Phase', value: t.phase_id || '', options: [['', 'Not in a phase'], ...phases.map(p => [p.id, p.name])], attrs: dis })}
+        ${field({ name: 'parent_id', label: 'Part of task', value: t.parent_id || '', options: [['', '—'], ...others.map(x => [x.id, x.title])], attrs: dis })}`}
         ${field({ name: 'owner_text', label: 'Owner', value: t.owner_text || '', attrs: dis, list: names })}
-        ${field({ name: 'weight', label: 'Weight within phase', value: t.weight === null ? '' : Number(t.weight), type: 'number', attrs: `min="0" step="any" ${dis}`, hint: 'Empty counts as 1.' })}
+        ${onMaster ? '' : field({ name: 'weight', label: 'Weight within phase', value: t.weight === null ? '' : Number(t.weight), type: 'number', attrs: `min="0" step="any" ${dis}`, hint: 'Empty counts as 1.' })}
         ${field({ name: 'start_date', label: 'Planned start', value: iso(t.start_date) || '', type: 'date', attrs: dis })}
         ${field({ name: 'due_date', label: 'Planned due', value: iso(t.due_date) || '', type: 'date', attrs: dis })}
         ${field({ name: 'status', label: 'Status', value: t.status, options: Object.entries(TASK_STATUS), attrs: contrib ? '' : 'disabled' })}
@@ -651,7 +668,7 @@ function mountProjects(r, ctx) {
       return res.redirect(`/w/${a.ws.id}/tasks?msg=archived`);
     }
     const v = readTask(req.body, edit);
-    if (edit) {
+    if (edit && req.body.phase_id !== undefined) {         // not on the master plan form: stage and weights are managed there
       v.phase_id = req.body.phase_id ? (await own('phases', req.body.phase_id, a.ws.id)).id : null;
       v.parent_id = req.body.parent_id ? (await own('tasks', req.body.parent_id, a.ws.id)).id : null;
       if (v.parent_id === t.id) throw bad('A task cannot be part of itself.');

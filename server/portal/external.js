@@ -20,7 +20,7 @@ const todayBH = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/B
 const UUID = /^[0-9a-f-]{36}$/i;
 const fm = (m, c = 'BHD') => m === null || m === undefined ? '—' : formatMoney(Number(m), c);
 const human = s => s ? String(s).replace(/_/g, ' ').replace(/^./, c => c.toUpperCase()) : '—';
-const TASK = { not_started: 'Not started', in_progress: 'In progress', blocked: 'Delayed', done: 'Done', cancelled: 'Cancelled' };
+const TASK = { not_started: 'Not started', in_progress: 'In progress', on_hold: 'On hold', blocked: 'Delayed', done: 'Done', cancelled: 'Cancelled' };
 const UNIT = { available: 'Available', reserved: 'Reserved', occupied: 'Occupied', maintenance: 'Under maintenance', unavailable: 'Unavailable' };
 const MAINT = { open: 'Reported', assigned: 'Assigned', approved: 'Approved', in_progress: 'In progress', completed: 'Completed', verified: 'Completed and checked', closed: 'Closed', cancelled: 'Cancelled', rejected: 'Not going ahead' };
 const VIEW = { tentative: 'Tentative', confirmed: 'Confirmed', completed: 'Completed', cancelled: 'Cancelled', rescheduled: 'Rescheduled', no_show: 'Did not take place' };
@@ -170,7 +170,7 @@ function mountExternal(r, ctx) {
     const ph = (await pool.query(`select phase_id, count(*)::int as n, count(*) filter (where status = 'done')::int as done, min(start_date) as s, max(due_date) as e
         from tasks where workspace_id = $1 and archived_at is null and status <> 'cancelled' group by phase_id`, [v.ws.id])).rows;
     const by = Object.fromEntries(ph.map(x => [x.phase_id, x]));
-    return html`<section class="panel"><h2 class="h">Phases</h2><div class="table-wrap"><table><thead><tr><th>Phase</th><th>Planned</th><th class="n">Activities done</th></tr></thead><tbody>
+    return html`${ctx.masterPipelinePanel ? await ctx.masterPipelinePanel(req, { ws: v.ws }, { link: false }) : ''}<section class="panel"><h2 class="h">Phases</h2><div class="table-wrap"><table><thead><tr><th>Phase</th><th>Planned</th><th class="n">Activities done</th></tr></thead><tbody>
         ${phases.map(p => { const x = by[p.id] || { n: 0, done: 0 }; return html`<tr><td>${p.name}</td><td class="small">${x.s ? `${fmtDate(x.s)} – ${fmtDate(x.e)}` : '—'}</td><td class="n">${x.done} of ${x.n}</td></tr>`; })}</tbody></table></div>
         <p class="muted small">From the approved plan of ${fmtDate(approved.approved_at)}. Dates are planned dates and may change.</p></section>
       <section class="panel"><h2 class="h">Milestones</h2>${ms.filter(m => m.status !== 'cancelled').length ? html`<div class="table-wrap"><table><thead><tr><th>Milestone / activity</th><th>Planned finish</th><th>Status</th></tr></thead><tbody>

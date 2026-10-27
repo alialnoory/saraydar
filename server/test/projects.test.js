@@ -11,7 +11,7 @@ const sec = require('../lib/security');
 const money = require('../lib/money');
 const progress = require('../lib/progress');
 const { importAbuquwa } = require('../lib/abuquwa-import');
-const { client } = require('./helpers');
+const { client, asLegacy } = require('./helpers');
 
 const URL_ = process.env.TEST_DATABASE_URL;
 const SECRET = 'q'.repeat(40);
@@ -105,6 +105,7 @@ test('development projects', { skip: !URL_ && 'set TEST_DATABASE_URL to run' }, 
   await t.test('guided setup keeps unknowns as unknown and flags conflicts', async () => {
     ws = (await pm.post('/s/dev/new', { kind: 'project', name: 'Hamala Townhouses' }, '/s/dev/new')).location.slice(3, 39);
     other = (await pm.post('/s/dev/new', { kind: 'project', name: 'Other Project' }, '/s/dev/new')).location.slice(3, 39);
+    await asLegacy(pool, ws, other);
     assert.equal((await pm.get(`/w/${ws}/setup`)).location, `/w/${ws}/setup/identity`);
     assert.equal((await pm.post(`/w/${ws}/setup/identity`, { type: 'residential', outcome: 'sell', objective: '', developer: 'SarayDar', owner__unknown: '1', go: 'land' })).location, `/w/${ws}/setup/land?msg=saved`);
     await pm.post(`/w/${ws}/setup/budget`, { total_budget: '500,000', land_cost: '600,000', contingency_pct: '', funding__unknown: '1', go: 'stay' });
