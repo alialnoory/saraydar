@@ -995,7 +995,7 @@ ${req.projectScreen ? '' : html`        <div class="card"><div class="muted smal
         <label class="field check"><input type="checkbox" name="apply_progress" value="1" checked> <span>Also set the task's progress (and status) to this %</span></label>
       </div>
       ${field({ name: 'completed_work', label: 'Work completed', type: 'textarea', full: true, attrs: 'rows="3" placeholder="What was done since the last update"' })}
-      ${field({ name: 'remaining_work', label: 'Work remaining / next', type: 'textarea', full: true, attrs: 'rows="3" data-next-target', hint: 'Filled with the next open tasks; change it as needed.' })}
+      <!-- "Work remaining / next" removed from the form (owner request 2026-10-28); older updates keep theirs -->
       ${field({ name: 'issues', label: 'Issues', type: 'checks', options: CH.SITE_ISSUES, otherLabel: 'Other issues or details (one per line)' })}
       ${field({ name: 'workforce', label: 'Workers on site', type: 'number', attrs: 'min="0" step="1" inputmode="numeric"', presets: [0, 5, 10, 15, 20, 30] })}
       ${field({ name: 'location', label: 'Location / work area', list: CH.WORK_AREAS })}
