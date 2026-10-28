@@ -109,7 +109,7 @@ function mountFees(r, ctx, P) {
     return html`<section class="client-banner"><div><div class="muted small">Client</div><div class="client-name">${client ? html`<a href="/clients/${client.id}">${client.name}</a>` : html`<span class="muted">Not linked yet</span>`}</div></div>
         <div><div class="muted small">Management fee</div><div class="mid">${terms ? html`${fm(num(terms.monthly_fee_minor), terms.currency)} / month` : html`<a href="/w/${a.ws.id}/agreements">Terms not recorded</a>`}</div></div>
         ${feeCell}
-        <div><div class="muted small">Client approvals pending</div><div class="mid"><a href="/w/${a.ws.id}/approvals">${pend}</a></div></div></section>
+        ${req.projectScreen ? '' : html`<div><div class="muted small">Client approvals pending</div><div class="mid"><a href="/w/${a.ws.id}/approvals">${pend}</a></div></div>`}</section>
       ${devOverview ? await devOverview(req, wsAccess) : ''}`;
   };
   ctx.portfolioExtras = ctx.portfolioExtras || {};

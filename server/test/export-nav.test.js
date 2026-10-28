@@ -52,12 +52,13 @@ test('export and navigation', { skip: !URL_ && 'set TEST_DATABASE_URL to run' },
     for (const p of ['/', '/s/dev', `/w/${ws}`, `/w/${ws}/plots`, `/w/${ws}/budget`, `/w/${ws}/tasks`, `/w/${ids[1]}/master`, `/w/${ids[1]}/master/weights`, `/w/${ws}/registers`, `/w/${ws}/access`, '/admin/users', '/admin/audit']) {
       const page = await admin.get(p);
       assert.equal(page.status, 200, p);
-      assert.match(page.text, /data-back><svg[^<]*<path[^>]*\/><\/svg>Back<\/a>/, p);
+      assert.ok(/data-back><svg[^<]*<path[^>]*\/><\/svg>Back<\/a>/.test(page.text) || /class="mback"[^>]*aria-label="Back"/.test(page.text), p);   // record pages: the modern header's back button
       assert.match(page.text, /export=pdf/, p);
       assert.match(page.text, /export=xlsx/, p);
     }
     const plots = await admin.get(`/w/${ws}/plots`);
-    assert.match(plots.text, /class="band-actions"><div class="pagenav"/);     // in the title row of the ribbon
+    assert.match(plots.text, /class="mactions">/);                              // in the record's header (modern screen)
+    assert.match(plots.text, /class="exportmenu"/);                            // one Export button with PDF and Excel
     assert.doesNotMatch(plots.text, /aria-label="Tabs"/);                      // no previous/next tab buttons
     assert.doesNotMatch((await admin.get('/account/password')).text, /export=pdf/);   // nothing to export on a form
   });

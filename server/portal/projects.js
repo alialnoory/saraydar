@@ -173,13 +173,13 @@ function mountProjects(r, ctx) {
     return html`
       ${!draft && !m.tasks.length ? html`<div class="notice">Start with the guided setup: it asks what is known about this project and prepares a draft plan for review. <a href="/w/${id}/setup">Open setup</a></div>` : ''}
       <section class="grid-cards" aria-label="Indicators">
-        <div class="card"><div class="muted small">Overall progress</div>
+${req.projectScreen ? '' : html`        <div class="card"><div class="muted small">Overall progress</div>
           ${m.ov.available ? html`<div class="big">${pct(m.ov.pct)}</div><div class="bar"><span style="width:${Math.min(100, m.ov.pct)}%"></span></div>
             <div class="muted small">${m.planned.available ? `Planned today: ${pct(m.planned.pct)} · variance ${pct(m.ov.pct - m.planned.pct)}` : `Planned: not available — ${m.planned.reason}`}</div>`
             : html`<div class="big muted">Not available</div><div class="muted small">${m.ov.reason} Method: weighted task completion.</div>`}
           <a class="small" href="/w/${id}/plan">How it is calculated</a></div>
         <div class="card"><div class="muted small">Next milestone</div>
-          ${m.next ? html`<div class="mid">${m.next.title}</div><div class="muted small">${m.next.due_date ? `Due ${fmtDate(m.next.due_date)}` : 'Due date not yet determined'}${m.next.owner_text ? ` · ${m.next.owner_text}` : ''}</div>` : html`<div class="mid muted">None open</div>`}</div>
+          ${m.next ? html`<div class="mid">${m.next.title}</div><div class="muted small">${m.next.due_date ? `Due ${fmtDate(m.next.due_date)}` : 'Due date not yet determined'}${m.next.owner_text ? ` · ${m.next.owner_text}` : ''}</div>` : html`<div class="mid muted">None open</div>`}</div>`}
         <div class="card"><div class="muted small">Tasks</div><div class="big">${m.tasks.length}</div>
           <div class="muted small">${(() => { const n = st => m.tasks.filter(t => st.includes(t.status)).length; const hold = n(['on_hold', 'blocked']);
             return `${n(['done'])} done · ${n(['in_progress'])} in progress · ${n(['not_started'])} not started${hold ? ` · ${hold} on hold` : ''} · `; })()}<span class="${m.overdue.length ? 'err' : ''}">${m.overdue.length} overdue</span></div></div>

@@ -87,6 +87,34 @@ function mountMasterPlan(r, ctx, P) {
       <div class="card"><div class="muted small">Stages</div><div class="big">${c.stages.length}</div><div class="muted small">${c.stages.filter(s => s.status === 'done').length} completed · ${c.stages.filter(s => s.status === 'in_progress').length} in progress · ${c.stages.filter(s => s.status === 'on_hold').length} on hold</div></div></section>`;
   }
 
+  // ---------- the modern project screen's figures (client projects; owner request 2026-10-28) ----------
+  ctx.projectScreen = async (req, a) => {
+    const w = a.ws, id = w.id;
+    const { c } = await load(id);
+    const onMaster = !!(await masterOf(id));
+    const m = await P.metrics(id);
+    const pa = await P.access(req);
+    const fmD = d => d ? fmtDate(d) : null;
+    const stats = [];
+    if (pa.finance && !P.clientBudget(w)) {
+      const bs = await P.budgetSummary(id);
+      const fm = v => v === null || v === undefined ? 'Not set' : require('../lib/money').formatMoney(v);
+      stats.push(['Budget', bs.total.revised === null ? 'Not set' : fm(bs.total.revised), `/w/${id}/budget`], ['Paid', fm(bs.total.paid), `/w/${id}/budget`]);
+    } else {
+      stats.push(['Tasks done', `${m.tasks.filter(t => t.status === 'done').length} / ${m.tasks.length}`, `/w/${id}/master`], ['Overdue', String(m.overdue.length), `/w/${id}/master`]);
+    }
+    stats.push(['Next', m.next ? (fmD(m.next.due_date) || 'Not set') : '—', `/w/${id}/master`]);
+    const active = c.stages.filter(s => s.status === 'in_progress').map(s => s.name);
+    const pend = w.section === 'cpm' ? (await pool.query("select count(*)::int as n from client_approvals where workspace_id = $1 and status = 'requested'", [id])).rows[0].n : null;
+    const ups = (await pool.query(`select id, title, status, observed_on, author_label from progress_updates where workspace_id = $1 and archived_at is null order by observed_on desc, created_at desc limit 2`, [id])).rows;
+    return {
+      update: core.canContribute(a) ? `/w/${id}/updates/new` : null,
+      progress: { pct: onMaster ? (c.valid ? c.pct : null) : (m.ov.available ? m.ov.pct : null), phase: active.join(', '), stats },
+      approvals: pend === null ? null : { n: pend, href: `/w/${id}/approvals` },
+      latest: ups.map(u => ({ title: u.title, href: `/w/${id}/updates/${u.id}`, meta: `${u.author_label || 'Staff'} · ${fmD(u.observed_on)}${u.status === 'draft' ? ' · Draft' : ''}` }))
+    };
+  };
+
   // ---------- adoption (existing projects) ----------
   async function adoptionPage(req, a) {
     const { phases, tasks } = await load(a.ws.id);

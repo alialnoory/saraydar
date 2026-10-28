@@ -159,7 +159,7 @@ test('development projects', { skip: !URL_ && 'set TEST_DATABASE_URL to run' }, 
   let taskA, taskB;
   await t.test('tasks: progress follows the documented method; loops are refused; IDs stay inside their workspace', async () => {
     const before = await pm.get(`/w/${ws}`);
-    assert.match(before.text, /Overall progress/);
+    assert.match(before.text, /Construction progress/);                         // the progress card of the modern project screen
     const ts = (await pool.query("select t.id, t.title, p.name from tasks t join phases p on p.id = t.phase_id where t.workspace_id = $1 and p.name = 'Design' order by t.sort", [ws])).rows;
     taskA = ts[0].id; taskB = ts[1].id;
     const form = (title, extra = {}) => ({ title, phase_id: '', parent_id: '', owner_text: 'Consultant', weight: '', start_date: '2026-11-01', due_date: '2026-11-30', status: 'done', progress: '', actual_start: '', actual_finish: '', notes: '', ...extra });

@@ -293,6 +293,7 @@ function mountWorkspaces(r, ctx) {
         <p>This project's tasks, budget, risks and site log are still in the original Abuquwa tracker. They move into this workspace in Phase 3.</p>
         <dl class="stats inline"><div><dt>Tasks</dt><dd>${n.tasks || 0}</dd></div><div><dt>Budget lines</dt><dd>${n.costs || 0}</dd></div><div><dt>Risks</dt><dd>${n.risks || 0}</dd></div><div><dt>Site log entries</dt><dd>${n.log || 0}</dd></div></dl></section>`;
     }
+    if (a.internal && ['client_project', 'project'].includes(w.kind) && ctx.projectScreen) req.projectScreen = await ctx.projectScreen(req, a);
     const extras = html`${ctx.completenessPanel ? await ctx.completenessPanel(a) : ''}${a.internal && ctx.masterPipelinePanel ? await ctx.masterPipelinePanel(req, a) : ''}${ctx.overviewExtras && ctx.overviewExtras[w.section] ? await ctx.overviewExtras[w.section](req, a) : ''}`;
     const editable = core.canEdit(a);
     const users = editable ? (await pool.query("select id, coalesce(nullif(name,''), email) as label from users where active and kind = 'internal' order by 2")).rows : [];
