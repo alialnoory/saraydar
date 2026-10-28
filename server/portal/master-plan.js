@@ -83,7 +83,6 @@ function mountMasterPlan(r, ctx, P) {
   function progressCard(c, weightsHref) {
     if (!c.valid) return html`<div class="notice warn"><b>Progress is not shown because the plan's weights are incomplete.</b> ${c.issues.join(' ')} <a href="${weightsHref}">Fix the weights</a></div>`;
     return html`<section class="grid-cards" aria-label="Progress"><div class="card"><div class="muted small">Overall progress (weighted)</div><div class="big">${pct1(c.pct)}</div><div class="bar"><span style="width:${Math.min(100, c.pct)}%"></span></div></div>
-      ${c.preHandover !== null ? html`<div class="card"><div class="muted small">Construction progress to handover</div><div class="big">${pct1(c.preHandover)}</div><div class="muted small">Excludes defects and closeout, so handover is not confused with final closeout.</div></div>` : ''}
       <div class="card"><div class="muted small">Stages</div><div class="big">${c.stages.length}</div><div class="muted small">${c.stages.filter(s => s.status === 'done').length} completed · ${c.stages.filter(s => s.status === 'in_progress').length} in progress · ${c.stages.filter(s => s.status === 'on_hold').length} on hold</div></div></section>`;
   }
 

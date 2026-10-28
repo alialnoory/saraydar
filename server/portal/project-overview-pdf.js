@@ -78,7 +78,7 @@ function draw({ w, m, c, party, mgr, bs, upd, thumbs, when, who, finance, client
     const gap = 12, tw = (W - 3 * gap) / 4, th = 74;
     const tiles = [];
     tiles.push({ label: 'Overall progress', value: c.valid ? pct(c.pct) : 'Not available', bar: c.valid ? c.pct : null, sub: c.valid ? 'Weighted by the master plan' : 'Plan weights are incomplete' });
-    tiles.push({ label: 'Construction to handover', value: c.preHandover !== null ? pct(c.preHandover) : '—', bar: c.preHandover, sub: 'Excludes defects and closeout' });
+    tiles.push({ label: 'Stages', value: `${c.stages.filter(s => s.status === 'done').length} of ${c.stages.length} completed`, sub: `${c.stages.filter(s => s.status === 'in_progress').length} in progress · ${c.stages.filter(s => s.status === 'on_hold').length} on hold` });   // owner removed "construction to handover" (2026-10-28)
     const n = s => m.tasks.filter(t => s.includes(t.status)).length;
     tiles.push({ label: 'Tasks', value: `${n(['done'])} of ${m.tasks.length} done`, sub: `${n(['in_progress'])} in progress · ${m.overdue.length} overdue${n(['on_hold', 'blocked']) ? ` · ${n(['on_hold', 'blocked'])} on hold` : ''}`, alert: m.overdue.length > 0 });
     if (bs && bs.total) tiles.push({ label: w.section === 'cpm' ? 'Client budget' : 'Budget', value: bs.total.revised === null ? 'Not set' : formatMoney(bs.total.revised), sub: `Committed ${formatMoney(bs.total.committed)} · Paid ${formatMoney(bs.total.paid)}` });
