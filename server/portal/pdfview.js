@@ -1,6 +1,6 @@
 'use strict';
 // In-portal PDF viewer (owner request 2026-10-24). On an iPhone, the portal opened from the home-screen icon shows a
-// PDF with no buttons at all; this page shows the pages with Back, Share / Print and Download.
+// PDF with no buttons at all; this page shows the pages with Back and Share / Print (the share sheet also saves the file).
 const { html, ASSET_V } = require('./views');
 
 function mountPdfView(r) {
@@ -14,9 +14,8 @@ function mountPdfView(r) {
 <title>${name}</title><link rel="stylesheet" href="/static/app.css?v=${ASSET_V}"><link rel="apple-touch-icon" href="/apple-touch-icon.png"><meta name="theme-color" content="#FFFFFF"></head>
 <body class="pdfview"><header class="pv-bar">
   <div class="pv-row">
-    <button type="button" class="pv-btn pv-back" id="pv-back" aria-label="Back"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Back</button>
+    <button type="button" class="pv-btn pv-main" id="pv-back" aria-label="Back"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Back</button>
     <div class="pv-actions">
-      <a class="pv-btn pv-ghost" id="pv-dl" href="${src}" download="${name}"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M12 4v11"/><path d="M7 10l5 5 5-5"/><path d="M5 20h14"/></svg>Download</a>
       <button type="button" class="pv-btn pv-main" id="pv-share"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M12 15V3"/><path d="M7 8l5-5 5 5"/><path d="M5 12v8h14v-8"/></svg>Share / Print</button>
     </div>
   </div>
