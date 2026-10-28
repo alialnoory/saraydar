@@ -155,7 +155,7 @@ function layout(req, { title, crumbs = [], heading = null, sub = null, tabs = nu
         <h1>${heading}</h1>
         <div class="mchips">${chips.map(([ic, t]) => html`<span class="mchip">${ic}${t}</span>`)}${sub && sub.badge ? html`<span class="mchip mstatus">${sub.badge}</span>` : ''}</div></div>
         <div class="mactions">${undoNav ? html`<div class="mseg">${undoNav}</div>` : ''}${exportable ? exportMenu() : ''}${P.update ? html`<a class="mbtn mprimary" href="${P.update}">${PI.plus}Update</a>` : ''}</div></div>
-      ${curTab !== 'Overview' ? html`<nav class="mgroups" aria-label="Sections">${groups.map(([g, ts]) => html`<div class="mgroup"><span class="mglabel">${g}</span>${ts.map(([l, h, on]) => html`<a href="${h}" ${on ? raw('aria-current="page"') : ''}>${l}</a>`)}</div>`)}</nav>` : ''}
+      ${curTab !== 'Overview' ? html`<nav class="mgroups mgroups-cards" aria-label="Sections">${groups.map(([g, ts]) => html`<div class="mgroup${ts.some(t => t[2]) ? ' on' : ''}"><span class="mglabel">${g}</span><div class="mglinks">${ts.map(([l, h, on]) => html`<a href="${h}" ${on ? raw('aria-current="page"') : ''}><span class="mg-ic">${TAB_ICON[l] || PI.dot}</span>${l}</a>`)}</div></div>`)}</nav>` : ''}
     </div>`;
   // every other staff page with a heading gets the same modern header (owner request 2026-10-28: "here also")
   const hero = !!(u && u.kind !== 'external' && !bare && !modern);
