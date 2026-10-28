@@ -402,3 +402,56 @@ document.querySelectorAll('form.filters').forEach(f => {
   f.addEventListener('change', e => { if (e.target.matches('select')) f.submit(); });
   if (!typed) f.querySelectorAll('button[type="submit"]').forEach(b => { b.hidden = true; });
 });
+
+// "What is this update about?" as a visual picker with each stage's and task's completion (owner request 2026-10-28).
+// The original dropdown stays in the form (hidden) and keeps working without scripts.
+(function () {
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const tone = (p, st) => st === 'done' || p >= 100 ? 'done' : st === 'on_hold' || st === 'blocked' ? 'hold' : p > 0 || st === 'in_progress' ? 'now' : 'todo';
+  const LBL = { done: 'Done', now: 'In progress', hold: 'On hold', todo: 'Not started' };
+  const bar = (p, t) => `<span class="tp-bar ${t}"><i style="width:${Math.max(0, Math.min(100, p))}%"></i></span>`;
+  const dot = t => `<span class="tp-dot ${t}" aria-hidden="true">${t === 'done' ? '<svg viewBox="0 0 24 24"><path d="M6 12.5l4 4 8-9"/></svg>' : ''}</span>`;
+  document.querySelectorAll('select[data-picker]').forEach(sel => {
+    const wrap = document.createElement('div'); wrap.className = 'tp';
+    sel.classList.add('tp-native'); sel.tabIndex = -1; sel.setAttribute('aria-hidden', 'true');
+    sel.parentNode.insertBefore(wrap, sel.nextSibling);
+    const rows = [];
+    let html = '';
+    const rowOf = (o, cls) => {
+      const kind = o.dataset.kind || 'task', p = o.dataset.progress === '' || o.dataset.progress === undefined ? null : Number(o.dataset.progress);
+      const t = kind === 'task' ? tone(p || 0, o.dataset.status) : tone(p || 0, p >= 100 ? 'done' : '');
+      rows.push(o);
+      const idx = rows.length - 1;
+      if (kind === 'project') return `<button type="button" class="tp-row tp-project" data-i="${idx}" role="option"><span class="tp-ic">◎</span><span class="tp-name"><b>General site update</b><small>Whole project${p !== null ? ' · overall progress' : ''}</small></span>${p !== null ? `<span class="tp-meter">${bar(p, t)}<b>${p}%</b></span>` : ''}</button>`;
+      if (kind === 'stage') return `<button type="button" class="tp-row tp-stage ${t}" data-i="${idx}" role="option"><span class="tp-num">${esc(o.dataset.num)}</span><span class="tp-name"><b>${esc(o.dataset.name)}</b><small>Whole stage · ${esc(o.dataset.done)} tasks done</small></span><span class="tp-meter">${bar(p || 0, t)}<b>${p || 0}%</b></span></button>`;
+      return `<button type="button" class="tp-row tp-task ${t}" data-i="${idx}" role="option" data-search="${esc((o.dataset.num || '') + ' ' + (o.dataset.name || o.text).toLowerCase())}">${dot(t)}<span class="tp-name"><span class="tp-tnum">${esc(o.dataset.num || '')}</span> ${esc(o.dataset.name || o.text)}<small class="tp-st ${t}">${LBL[t]}</small></span><span class="tp-meter">${bar(p || 0, t)}<b>${p || 0}%</b></span></button>`;
+    };
+    for (const ch of sel.children) {
+      if (ch.tagName === 'OPTION') html += rowOf(ch);
+      else if (ch.tagName === 'OPTGROUP') { html += `<div class="tp-group">${[...ch.children].map(o => rowOf(o)).join('')}</div>`; }
+    }
+    wrap.innerHTML = `<button type="button" class="tp-btn" aria-haspopup="listbox" aria-expanded="false"></button>
+      <div class="tp-panel" hidden><div class="tp-tools"><input type="search" class="tp-q" placeholder="Search tasks…" aria-label="Search tasks"><label class="tp-hide"><input type="checkbox"> Hide completed</label></div><div class="tp-list" role="listbox">${html}</div></div>`;
+    const btn = wrap.querySelector('.tp-btn'), panel = wrap.querySelector('.tp-panel'), q = wrap.querySelector('.tp-q'), hide = wrap.querySelector('.tp-hide input');
+    const paint = () => {
+      const o = sel.options[sel.selectedIndex]; const i = rows.indexOf(o);
+      const r = wrap.querySelector(`.tp-row[data-i="${i}"]`);
+      wrap.querySelectorAll('.tp-row').forEach(x => x.classList.toggle('sel', x === r));
+      btn.innerHTML = (r ? r.innerHTML : esc(o ? o.text : 'Choose…')) + '<span class="tp-chev" aria-hidden="true"></span>';
+      btn.className = 'tp-btn ' + (r ? [...r.classList].filter(c => c !== 'tp-row' && c !== 'sel').join(' ') : '');
+    };
+    const open = v => { panel.hidden = !v; btn.setAttribute('aria-expanded', String(v)); wrap.classList.toggle('open', v); if (v) { const s = wrap.querySelector('.tp-row.sel'); if (s) s.scrollIntoView({ block: 'center' }); if (!matchMedia('(pointer: coarse)').matches) q.focus({ preventScroll: true }); } };
+    const filter = () => {
+      const t = q.value.trim().toLowerCase();
+      wrap.querySelectorAll('.tp-task').forEach(r => { r.hidden = (t && !r.dataset.search.includes(t)) || (hide.checked && r.classList.contains('done')); });
+      wrap.querySelectorAll('.tp-group').forEach(g => { const st = g.querySelector('.tp-stage'); if (st) st.hidden = !!t && !g.querySelector('.tp-task:not([hidden])'); });
+    };
+    btn.addEventListener('click', () => open(panel.hidden));
+    q.addEventListener('input', filter); hide.addEventListener('change', filter);
+    wrap.addEventListener('click', e => { const r = e.target.closest('.tp-row'); if (!r || !panel.contains(r)) return; sel.selectedIndex = [...sel.options].indexOf(rows[+r.dataset.i]); sel.dispatchEvent(new Event('change', { bubbles: true })); paint(); open(false); btn.focus(); });
+    document.addEventListener('click', e => { if (!wrap.contains(e.target)) open(false); });
+    wrap.addEventListener('keydown', e => { if (e.key === 'Escape' && !panel.hidden) { e.preventDefault(); open(false); btn.focus(); } });
+    sel.addEventListener('change', paint);
+    paint();
+  });
+})();
