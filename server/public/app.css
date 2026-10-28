@@ -1044,3 +1044,26 @@ body.modern .panel, body.modern .card, body.modern .client-banner { border-radiu
 .mactions .mhome { border: 1px solid var(--band-line); background: var(--band-2); color: var(--band-ink); text-decoration: none; font-weight: 600; }
 .mactions .mhome:hover { border-color: #D29466; color: #fff; }
 @media (max-width: 640px) { .mactions .mhome { flex: 0 0 auto; padding: 0 14px; } .mactions .mhome span { display: none; } }
+
+/* System Requirements bar: compact, at the top of the overview (owner request 2026-10-28) */
+.journey.jr-compact { padding: 12px 18px 10px; margin-bottom: 16px; }
+.jr-compact .h { font-size: 15px; margin: 0; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.jr-compact .jr-sub { font-weight: 400; font-size: 12.5px; }
+.jr-compact .jr { margin: 8px 0 4px; }
+.jr-compact .jr li::before { top: 10px; height: 2px; }
+.jr-compact .jr-dot { width: 22px; height: 22px; font-size: 11px; border-width: 2px; }
+.jr-compact .jr li.now .jr-dot { box-shadow: 0 0 0 4px var(--accent-tint); }
+.jr-compact .jr a { gap: 3px; }
+.jr-compact .jr-label { font-size: 12px; }
+.jr-compact .jr-next { padding: 8px 12px; margin-top: 6px; }
+.jr-compact .jr-foot { margin: 6px 0 0; }
+.jr-compact .jr-more { margin-top: 6px; }
+.mtop:not(:has(*)) { display: none; }
+@media (max-width: 640px) {
+  .jr-compact .jr { margin-bottom: 8px; }
+  .jr-compact .jr li.now .jr-label { display: none; }   /* the header already names the current stage */
+  .jr-compact .jr li::before { top: 10px; }
+  body.modern .main > .journey { margin-top: -68px; position: relative; z-index: 2; box-shadow: 0 10px 30px rgba(22,17,13,.10); }
+  body.modern .main > .journey ~ .mtop { margin-top: 0; }
+  body.modern:has(.main > .journey) .band .mhead { padding-bottom: 86px; }
+}

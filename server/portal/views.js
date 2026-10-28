@@ -213,7 +213,7 @@ function layout(req, { title, crumbs = [], heading = null, sub = null, tabs = nu
 <title>${title ? `${title} · ` : ''}SarayDar Management System</title>
 <link rel="icon" href="/static/favicon.ico?v=${ASSET_V}" sizes="any"><link rel="icon" type="image/svg+xml" href="/static/icon.svg?v=${ASSET_V}"><link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png?v=${ASSET_V}"><link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png?v=${ASSET_V}"><meta name="apple-mobile-web-app-title" content="SarayDar"><link rel="manifest" href="/static/manifest.webmanifest"><meta name="theme-color" content="#140D0A">
 <link rel="stylesheet" href="/static/app.css?v=${ASSET_V}"><script src="/static/app.js?v=${ASSET_V}" defer></script></head>
-<body class="${modern ? 'modern' : ''} ${u && u.kind !== 'external' && !bare ? 'has-tabbar' : ''}">${header}<main class="wrap main">${heading ? '' : pagenav}${msg ? html`<div class="flash" role="status">${msg}</div>` : ''}${overviewTop()}${tabs ? require('./help').tabTip(req, (tabs.find(t => t[2]) || [])[0]) : ''}${body}</main>${floating}</body></html>`;
+<body class="${modern ? 'modern' : ''} ${u && u.kind !== 'external' && !bare ? 'has-tabbar' : ''}">${header}<main class="wrap main">${heading ? '' : pagenav}${msg ? html`<div class="flash" role="status">${msg}</div>` : ''}${req.topPanel ? raw(String(req.topPanel)) : ''}${overviewTop()}${tabs ? require('./help').tabTip(req, (tabs.find(t => t[2]) || [])[0]) : ''}${body}</main>${floating}</body></html>`;
 }
 
 const emptyState = (title, text, action = '') => html`<div class="empty"><strong>${title}</strong><p>${text}</p>${action}</div>`;

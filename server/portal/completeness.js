@@ -167,9 +167,10 @@ function mountCompleteness(r, ctx) {
     const later = now ? j.stations.slice(j.cur + 1).flatMap(s => s.items.filter(x => !x.done && !x.life)) : [];   // gaps further along, not blocking
     const bar = html`<ol class="jr" style="--n:${j.stations.length}">${j.stations.map((s, i) => html`<li class="${s.done ? 'done' : i === j.cur ? 'now' : 'todo'}"><a href="${s.href}" title="${s.done ? `${s.name}: done` : `${s.name}: ${s.items.filter(x => !x.done).map(x => x.label).join(', ')}`}">
         <span class="jr-dot" aria-hidden="true">${s.done ? '✓' : String(i + 1)}</span><span class="jr-label">${s.name}</span></a></li>`)}</ol>`;
-    if (!now) return html`<section class="panel journey no-export"><div class="row-between"><h2 class="h">All stages complete</h2>${pill(`${j.stations.length} of ${j.stations.length}`, 'ok')}</div>${bar}<p class="muted small">Everything this ${what} should have is recorded.</p></section>`;
-    return html`<section class="panel journey no-export">
-      <div class="row-between"><h2 class="h">Next step</h2><span class="guide-count">Stage ${j.cur + 1} of ${j.stations.length} · ${now.name}</span></div>
+    // titled "System Requirements", compact and placed at the top of the overview (owner request 2026-10-28)
+    if (!now) return html`<section class="panel journey jr-compact no-export"><div class="row-between"><h2 class="h">System Requirements <span class="muted small jr-sub">Everything this ${what} should have is recorded</span></h2>${pill(`${j.stations.length} of ${j.stations.length} complete`, 'ok')}</div>${bar}</section>`;
+    return html`<section class="panel journey jr-compact no-export">
+      <div class="row-between"><h2 class="h">System Requirements</h2><span class="guide-count">Stage ${j.cur + 1} of ${j.stations.length} · ${now.name}</span></div>
       ${bar}
       <a class="jr-next" href="${now.next.href}"><span class="jr-next-k">${now.name}</span><span class="grow"><b>${now.next.todo}</b>${now.next.hint ? html`<span class="muted small"> · ${now.next.hint}</span>` : ''}
         ${now.items.filter(x => !x.done).length > 1 ? html`<span class="muted small jr-also">Also in this stage: ${now.items.filter(x => !x.done && x !== now.next).map(x => x.todo).join(' · ')}</span>` : ''}</span><span class="btn primary small">Do it ›</span></a>
