@@ -1039,3 +1039,8 @@ body.modern .panel, body.modern .card, body.modern .client-banner { border-radiu
   .tp-task { padding-left: 6px; } .tp-tools { flex-wrap: wrap; } .tp-q { flex-basis: 100%; } .tp-hide { font-size: 13px; }
   .tp-name { font-size: 14px; }
 }
+
+/* Home button in the header (owner request 2026-10-28) */
+.mactions .mhome { border: 1px solid var(--band-line); background: var(--band-2); color: var(--band-ink); text-decoration: none; font-weight: 600; }
+.mactions .mhome:hover { border-color: #D29466; color: #fff; }
+@media (max-width: 640px) { .mactions .mhome { flex: 0 0 auto; padding: 0 14px; } .mactions .mhome span { display: none; } }
