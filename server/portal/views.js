@@ -151,7 +151,7 @@ function layout(req, { title, crumbs = [], heading = null, sub = null, tabs = nu
       <div class="mcrumb"><a class="mback" href="${curTab === 'Overview' ? (sectionCrumb ? sectionCrumb[1] : '/') : wsBase}" aria-label="Back">${I.back}</a>
         ${sectionCrumb ? html`<a href="${sectionCrumb[1]}">${sectionCrumb[0]}</a><span aria-hidden="true">/</span>` : ''}${curTab !== 'Overview' ? html`<a href="${wsBase}">${heading}</a><span aria-hidden="true">/</span><span>${curTab}</span>` : html`<span>${heading}</span>`}</div>
       <div class="mtitle"><div class="grow">
-        ${sub && sub.above ? html`<div class="meyebrow">${String(sub.above).toUpperCase()}</div>` : ''}
+        ${sub && sub.above ? html`<div class="meyebrow">${sub.above}</div>` : ''}<span class="pdf-tab" hidden>${curTab}</span>
         <h1>${heading}</h1>
         <div class="mchips">${chips.map(([ic, t]) => html`<span class="mchip">${ic}${t}</span>`)}${sub && sub.badge ? html`<span class="mchip mstatus">${sub.badge}</span>` : ''}</div></div>
         <div class="mactions">${undoNav ? html`<div class="mseg">${undoNav}</div>` : ''}${exportable ? exportMenu() : ''}${P.update ? html`<a class="mbtn mprimary" href="${P.update}">${PI.plus}Update</a>` : ''}</div></div>
@@ -163,21 +163,21 @@ function layout(req, { title, crumbs = [], heading = null, sub = null, tabs = nu
   const heroHead = () => html`<div class="wrap mhead">
       ${crumbLinks.length ? html`<div class="mcrumb"><a class="mback" href="${parent}" aria-label="Back" data-back>${I.back}</a>${crumbs.map((c, i) => html`${i ? html`<span aria-hidden="true">/</span>` : ''}${c[1] ? html`<a href="${c[1]}">${c[0]}</a>` : html`<span>${c[0]}</span>`}`)}</div>` : ''}
       <div class="mtitle"><div class="grow">
-        ${sub && sub.above ? html`<div class="meyebrow">${String(sub.above).toUpperCase()}</div>` : ''}
+        ${sub && sub.above ? html`<div class="meyebrow">${sub.above}</div>` : ''}${tabs ? html`<span class="pdf-tab" hidden>${(tabs.find(t => t[2]) || [])[0] || ''}</span>` : ''}
         <h1>${heading}</h1>
         ${sub && (sub.below || sub.badge) ? html`<div class="mchips">${sub.below ? html`<span class="mmeta">${sub.below}</span>` : ''}${sub.badge ? html`<span class="mchip mstatus">${sub.badge}</span>` : ''}</div>` : ''}</div>
         <div class="mactions">${undoNav ? html`<div class="mseg">${undoNav}</div>` : ''}${exportable ? exportMenu() : ''}${actions ? html`<div class="mpage-actions">${actions}</div>` : ''}</div></div>
       ${tabs ? html`<nav class="mgroups mgroups-flat" aria-label="Sections"><div class="mgroup">${tabs.map(([label, href, on]) => html`<a href="${href}" ${on ? raw('aria-current="page"') : ''}>${label}</a>`)}</div></nav>` : ''}
     </div>`;
   const overviewTop = () => !modern || curTab !== 'Overview' ? '' : html`
-    <div class="mtop">
+    <div class="mtop no-export">
       ${P.progress ? html`<section class="mprog" aria-label="Project progress">
         <div class="mprog-head">${ring(P.progress.pct)}<div class="grow"><span class="mlabel">MASTER PLAN</span><b class="mprog-t">Construction progress</b>
           <span class="muted">${P.progress.phase ? `Current phase: ${P.progress.phase}` : P.progress.pct === null ? 'Plan weights incomplete' : 'No stage in progress yet'}</span></div></div>
         <div class="mstats">${P.progress.stats.map(([l, v, href]) => html`<${href ? 'a' : 'div'} class="mstat" ${href ? raw(`href="${href}"`) : ''}><span>${l}</span><b>${v}</b></${href ? 'a' : 'div'}>`)}</div></section>` : ''}
       ${P.approvals ? html`<a class="mapprove" href="${P.approvals.href}"><span class="mapprove-ic">${PI.check}</span><span class="grow"><b>Client approvals</b><span>${P.approvals.n ? `${P.approvals.n} waiting for a response` : 'Nothing waiting for a response'}</span></span>${I.fwd}</a>` : ''}
     </div>
-    <div class="mtiles" id="sections">${groups.map(([g, ts]) => html`<section class="mtile-group"><h2>${g}</h2><div class="mtile-grid">${ts.map(([l, h]) => html`<a class="mtile" href="${h}"><span class="mtile-ic">${TAB_ICON[l] || PI.dot}</span>${l === 'Client Budget & Payments' ? 'Budget & Payments' : l === 'Access & Invitations' ? 'Access & Invites' : l}</a>`)}</div></section>`)}</div>
+    <div class="mtiles no-export" id="sections">${groups.map(([g, ts]) => html`<section class="mtile-group"><h2>${g}</h2><div class="mtile-grid">${ts.map(([l, h]) => html`<a class="mtile" href="${h}"><span class="mtile-ic">${TAB_ICON[l] || PI.dot}</span>${l === 'Client Budget & Payments' ? 'Budget & Payments' : l === 'Access & Invitations' ? 'Access & Invites' : l}</a>`)}</div></section>`)}</div>
     ${P.latest && P.latest.length ? html`<section class="mlatest"><div class="row-between"><h2>LATEST</h2><a href="${wsBase}/updates">See all</a></div>
       ${P.latest.map((x, i) => html`<a class="mlatest-row" href="${x.href}"><span class="mdot ${i ? '' : 'on'}"></span><span><b>${x.title}</b><small>${x.meta}</small></span></a>`)}</section>` : ''}`;
   const generalBar = u && u.kind !== 'external' && !bare && !modern ? html`<nav class="mtabbar no-export" aria-label="Main"><a href="/" ${req.path === '/' ? raw('aria-current="page"') : ''}>${PI.home}Home</a><a href="/search" ${req.path === '/search' ? raw('aria-current="page"') : ''}>${svgI('<circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/>')}Search</a><a href="/help" ${req.path === '/help' ? raw('aria-current="page"') : ''}>${svgI('<circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 015 .5c0 1.5-2.5 2-2.5 3.5"/><path d="M12 17h.01"/>')}Help</a><a href="/account" ${req.path === '/account' ? raw('aria-current="page"') : ''}>${PI.more}Account</a></nav>` : '';

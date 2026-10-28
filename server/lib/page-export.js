@@ -18,15 +18,23 @@ const safe = v => typeof v === 'string' && /^[=+\-@\t\r]/.test(v) ? `'${v}` : v;
 // Reads the page into ordered blocks: { kind: 'title'|'heading'|'kv'|'table'|'list'|'text', ... }
 function extract(htmlString) {
   const root = parse(htmlString, { blockTextElements: { script: false, style: false, pre: true } });
-  const title = clean((root.querySelector('.band-title h1') || root.querySelector('main h1') || root.querySelector('title') || { text: 'SarayDar' }).text);
-  const eyebrow = clean((root.querySelector('.band-title .eyebrow') || { text: '' }).text);
-  const meta = clean((root.querySelector('.band-title .band-meta') || { text: '' }).text);
-  const crumbs = clean((root.querySelector('.crumbs') || { text: '' }).text).replace(/\s*›\s*/g, ' › ');
-  const tab = clean((root.querySelector('.tabs a[aria-current="page"]') || { text: '' }).text);
+  const pick = (...sels) => { for (const q of sels) { const n = root.querySelector(q); if (n && clean(n.text)) return clean(n.text); } return ''; };
+  const title = pick('.mtitle h1', '.band-title h1', 'main h1', 'title') || 'SarayDar';
+  const eyebrow = pick('.meyebrow', '.band-title .eyebrow');
+  const chipsEl = root.querySelector('.mtitle .mchips');
+  const meta = chipsEl ? chipsEl.childNodes.map(x => clean(x.text)).filter(Boolean).join(' · ') : pick('.band-title .band-meta').replace(/\s{2,}/g, ' · ');
+  const crumbs = (() => { const m = root.querySelector('.mcrumb'); if (m) return m.querySelectorAll('a:not(.mback), span:not([aria-hidden])').map(x => clean(x.text)).filter(Boolean).join(' › '); return clean((root.querySelector('.crumbs') || { text: '' }).text).replace(/\s*›\s*/g, ' › '); })();
+  const tab = pick('.pdf-tab', '.mgroups a[aria-current="page"]', '.tabs a[aria-current="page"]');
   const main = root.querySelector('main');
   const blocks = [];
   if (!main) return { title, eyebrow, meta, crumbs, tab, blocks };
   main.querySelectorAll(DROP).forEach(n => n.remove());
+  const esc = x => x.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  main.querySelectorAll('.mp-pipe li').forEach(li => {
+    const name = clean((li.querySelector('.jr-label') || { text: '' }).text), st = clean((li.querySelector('.sr-only') || { text: '' }).text), v = clean((li.querySelector('.mp-ring b') || { text: '' }).text);
+    li.set_content(esc(`\u27EA${st || '—'}\u27EB ${name} — ${v === '✓' ? '100%' : v}`));
+  });
+  main.querySelectorAll('.pill').forEach(n => { const t = clean(n.text); n.set_content(t ? ` \u27EA${t}\u27EB ` : ''); });
   // sections that only held a form leave just their heading behind: drop them
   main.querySelectorAll('section, .panel').forEach(sec => {
     const hs = sec.querySelectorAll('h1,h2,h3').map(h => clean(h.text)).join(' ');
@@ -81,8 +89,9 @@ function extract(htmlString) {
 }
 
 // "BHD 1,234.500" → 1234.5 with a BHD format; "45%" → 0.45; plain numbers → numbers; everything else stays text.
+const untag = v => String(v ?? '').replace(/\u27EA(.*?)\u27EB/g, ' $1 ').replace(/[ \t]{2,}/g, ' ').trim();
 function typed(v) {
-  const s = String(v ?? '').trim();
+  const s = untag(v);
   let m;
   if ((m = /^(BHD|USD|EUR|SAR|AED|KWD|OMR|GBP) (-?[\d,]+(?:\.\d+)?)$/.exec(s))) return { v: Number(m[2].replace(/,/g, '')), fmt: m[1] === 'BHD' || m[1] === 'KWD' || m[1] === 'OMR' ? `"${m[1]}" #,##0.000` : `"${m[1]}" #,##0.00` };
   if ((m = /^(-?\d+(?:\.\d+)?)%$/.exec(s))) return { v: Number(m[1]) / 100, fmt: '0.0%' };
@@ -108,10 +117,10 @@ async function toXlsx(page, { user, when }) {
   let heading = page.tab || page.title;
   for (const b of page.blocks) {
     if (b.kind === 'heading') { heading = b.text; addRow(sum, [b.text], true); continue; }
-    if (b.kind === 'kv') { for (const [k, v] of b.pairs) addRow(sum, [k, v]); continue; }
-    if (b.kind === 'list') { for (const it of b.items) addRow(sum, ['', it]); continue; }
+    if (b.kind === 'kv') { for (const [k, v] of b.pairs) addRow(sum, [untag(k), untag(v)]); continue; }
+    if (b.kind === 'list') { for (const it of b.items) addRow(sum, ["", untag(it)]); continue; }
     if (b.kind === 'name') { const r = addRow(sum, ['', b.text]); if (r && r.getCell) r.getCell(2).font = { bold: true, size: 13 }; continue; }
-    if (b.kind === 'text') { addRow(sum, ['', b.text]); continue; }
+    if (b.kind === 'text') { addRow(sum, ["", untag(b.text)]); continue; }
     if (b.kind === 'table') {
       const ws = wb.addWorksheet(sheetName(heading));
       addRow(sum, ['Table', `see sheet “${ws.name}”`]);
@@ -124,65 +133,200 @@ async function toXlsx(page, { user, when }) {
   return wholeAmounts(wb).xlsx.writeBuffer();
 }
 
+// The PDF of a page, in the SarayDar report style (owner request 2026-10-28: "all the reports should look modern and
+// professional"): the dark band, a title block, indicator tiles, panels of details, tables with a tinted header,
+// zebra rows, status tags and progress bars, copper section markers, and the dark footer.
+const TONES = {
+  ok: ['#E3EFE6', '#24573A'], warn: ['#F6EBD6', '#7A4F0C'], bad: ['#F6E1DE', '#8F2E26'], info: ['#E2EBF2', '#2C506B'], muted: ['#ECE9E6', '#5F5650']
+};
+const toneOf = t => {
+  const s = String(t).toLowerCase();
+  if (/^(completed?|done|active|approved|paid|signed|published|obtained|verified|delivered|closed|issued|ok|on track|available|reviewed|selected|won|valid|confirmed|record complete)/.test(s)) return 'ok';
+  if (/(overdue|rejected|blocks|late|past due|on hold|cancel|failed|bad|lost|expired|withdrawn|void|fell through|high)/.test(s)) return 'bad';
+  if (/(progress|draft|pending|check|requested|proposed|shared|partly|unverified|suggested|planned|tentative|open|waiting|medium)/.test(s)) return 'warn';
+  if (/(note|info|milestone|new)/.test(s)) return 'info';
+  return 'muted';
+};
+const TAG = /⟪(.*?)⟫/g;
+
 function toPdf(page, { user, when }) {
   return new Promise((resolve, reject) => {
     const wide = page.blocks.some(b => b.kind === 'table' && Math.max(b.head ? b.head.length : 0, ...b.rows.map(r => r.length)) > 6);
     const doc = new PDFDocument({ size: 'A4', layout: wide ? 'landscape' : 'portrait', margin: 40, bufferPages: true, info: { Title: page.title, Author: 'SarayDar Management System' } });
     const chunks = []; doc.on('data', c => chunks.push(c)); doc.on('end', () => resolve(Buffer.concat(chunks))); doc.on('error', reject);
     doc.registerFont('body', path.join(FONT_DIR, 'ibm-plex-sans-latin-400-normal.ttf'));
+    doc.registerFont('medium', path.join(FONT_DIR, 'ibm-plex-sans-latin-500-normal.ttf'));
     doc.registerFont('bold', path.join(FONT_DIR, 'ibm-plex-sans-latin-600-normal.ttf'));
     doc.registerFont('display', path.join(FONT_DIR, 'ibm-plex-sans-latin-600-normal.ttf'));
-    const INK = '#2A1C15', MUTED = '#6E5B50', ACC = '#8E4F2B', LINE = '#E0D2C6';
-    const W = doc.page.width - 80, X = 40, bottom = () => doc.page.height - 50;
-    const ensure = h => { if (doc.y + h > bottom()) doc.addPage(); };
-    const plain = s => String(s).replace(/[^\u0000-ɏ‐-‧‰-⁞€™²³×]/g, '');   // fonts are Latin
-    // the same dark heading as every SarayDar document: the page (type) on the right with the record under it
-    // type = the tab (or the page) exported; under it the record's reference and name
+    const INK = '#2A1C15', MUTED = '#6E5B50', ACC = '#8E4F2B', COPPER = '#D29466', LINE = '#E6D9CD', HEAD = '#F3ECE5', ZEBRA = '#FBF8F5', TILE = '#FBF7F3';
+    const X = 40, W = doc.page.width - 80, bottom = () => doc.page.height - 58;
+    const ensure = h => { if (doc.y + h > bottom()) { doc.addPage(); doc.y = 40; } };
+    const plain = s => String(s ?? '').replace(TAG, ' $1 ').replace(/[^\u0000-ɏ‐-‧‰-⁞€™²³×✓]/g, '').replace(/[ \t]{2,}/g, ' ').trim();
+    const tagsOf = s => { const out = []; String(s ?? '').replace(TAG, (_, t) => { out.push(t); return ''; }); return out; };
+    const noTags = s => plain(String(s ?? '').replace(TAG, ''));
+    const tag = (t, x, y, size = 7.5) => {
+      const [bg, fg] = TONES[toneOf(t)];
+      doc.font('bold').fontSize(size); const w = doc.widthOfString(plain(t)) + 12, h = size + 6;
+      doc.save().roundedRect(x, y, w, h, h / 2).fill(bg).restore();
+      doc.fillColor(fg).text(plain(t), x + 6, y + 2.6, { lineBreak: false });
+      return w;
+    };
+
+    // ---- band and title block ----
     const lastCrumb = String(page.crumbs || '').split(' › ').filter(Boolean).pop();
-    const type = page.tab && page.tab !== page.title ? page.tab : lastCrumb && lastCrumb !== page.title ? lastCrumb : 'Summary';
-    const ref = [page.eyebrow ? page.eyebrow.split(' · ')[0] : '', /^Good (morning|afternoon|evening)/.test(page.title) ? '' : page.title].filter(Boolean).join(' · ');
-    brand.band(doc, { title: plain(type), sub: plain(page.crumbs || ''), right: ref ? [[plain(ref), { bold: true, size: 11 }]] : [], x: X, width: W });
-    doc.y = 116; doc.x = X;
-    doc.font('body').fontSize(8).fillColor(MUTED).text(plain(`${[page.eyebrow, page.meta].filter(Boolean).join(' · ')}${page.eyebrow || page.meta ? '\n' : ''}Exported ${when.toLocaleString('en-GB', { timeZone: 'Asia/Bahrain' })} by ${user}. Contents match what this user could see on the page.`), { width: W });
-    doc.moveDown(0.6);
-    for (const b of page.blocks) {
-      if (b.kind === 'heading') { ensure(40); doc.moveDown(0.4).font('display').fontSize(b.level <= 2 ? 13.5 : 11.5).fillColor(ACC).text(plain(b.text), X, doc.y, { width: W }).moveDown(0.25); continue; }
-      if (b.kind === 'name') { ensure(26); doc.font('bold').fontSize(14).fillColor(INK).text(plain(b.text), X, doc.y, { width: W }).moveDown(0.35); continue; }
-      if (b.kind === 'text') { ensure(20); doc.font('body').fontSize(9).fillColor(MUTED).text(plain(b.text), X, doc.y, { width: W }).moveDown(0.3); continue; }
-      if (b.kind === 'list') { for (const it of b.items) { ensure(16); doc.font('body').fontSize(9).fillColor(INK).text(plain(`•  ${it.replace(/\n/g, ' · ')}`), X, doc.y, { width: W }).moveDown(0.15); } doc.moveDown(0.3); continue; }
-      if (b.kind === 'kv') {
-        for (const [k, v] of b.pairs) {
-          const h = Math.max(doc.font('body').fontSize(9).heightOfString(plain(v) || '—', { width: W * 0.62 }), 12) + 4;
+    const type = page.tab && page.tab !== page.title ? page.tab : lastCrumb && lastCrumb !== page.title ? lastCrumb : /^Good (morning|afternoon|evening)/.test(page.title) ? 'Home' : 'Report';
+    const refNo = page.eyebrow ? page.eyebrow.split(' · ')[0] : '';
+    const home = /^Good (morning|afternoon|evening)/.test(page.title);
+    brand.band(doc, { title: plain(type), sub: plain(page.crumbs || ''), right: home ? [] : [[plain([refNo, page.title].filter(Boolean).join(' · ')), { bold: true, size: 11 }]], x: X, width: W });
+    let y = 122;
+    doc.font('display').fontSize(20).fillColor(INK).text(plain(page.title), X, y, { width: W * 0.72 });
+    y = doc.y + 2;
+    const sub = [page.eyebrow, page.meta].filter(Boolean).map(plain).join('  ·  ');
+    if (sub) { doc.font('body').fontSize(9).fillColor(MUTED).text(sub, X, y, { width: W * 0.72 }); y = doc.y; }
+    doc.font('body').fontSize(7.5).fillColor(MUTED).text(plain(`Exported ${when.toLocaleString('en-GB', { timeZone: 'Asia/Bahrain', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}\nby ${user}`), X + W * 0.72, 126, { width: W * 0.28, align: 'right' });
+    doc.save().moveTo(X, Math.max(y, doc.y) + 10).lineTo(X + W, Math.max(y, doc.y) + 10).lineWidth(0.8).strokeColor(LINE).stroke().restore();
+    doc.y = Math.max(y, doc.y) + 22; doc.x = X;
+
+    // ---- blocks ----
+    for (let bi = 0; bi < page.blocks.length; bi++) {
+      const b = page.blocks[bi];
+      if (b.kind === 'heading') {
+        const nx = page.blocks[bi + 1];
+        if (!nx || (nx.kind === 'heading' && nx.level <= b.level)) continue;   // a heading with nothing under it
+        ensure(46);
+        if (b.level <= 2) {
+          doc.y += 6;
+          const hy = doc.y;
+          doc.save().roundedRect(X, hy + 3, 4, 13, 2).fill(COPPER).restore();
+          doc.font('display').fontSize(13).fillColor(INK).text(plain(b.text), X + 12, hy, { width: W - 12 });
+          doc.y += 6;
+        } else { doc.y += 2; doc.font('bold').fontSize(10).fillColor(ACC).text(plain(b.text).toUpperCase(), X, doc.y, { width: W, characterSpacing: 0.5 }); doc.y += 4; }
+        continue;
+      }
+      if (b.kind === 'name') { ensure(28); doc.font('display').fontSize(15).fillColor(INK).text(plain(b.text), X, doc.y, { width: W }); doc.y += 6; continue; }
+      if (b.kind === 'text') {
+        const ts = tagsOf(b.text), t = noTags(b.text).replace(/^[·•|\-–\s]+|[·•|\-–\s]+$/g, '');
+        if (!ts.length && !t) continue;
+        ensure(18);
+        let tx = X; const ty = doc.y;
+        for (const g of ts) tx += tag(g, tx, ty) + 5;
+        if (t) doc.font('body').fontSize(9).fillColor(MUTED).text(t, tx === X ? X : tx + 2, ty + (ts.length ? 1 : 0), { width: W - (tx - X) - 2 });
+        doc.y = Math.max(doc.y, ty + (ts.length ? 15 : 0)) + 5; continue;
+      }
+      if (b.kind === 'list') {
+        for (const it of b.items) {
+          const ts = tagsOf(it), t = noTags(it).replace(/\n/g, ' · ');
+          const h = Math.max(14, doc.font('body').fontSize(9).heightOfString(t || ' ', { width: W - 16 - ts.length * 70 }) + 4);
           ensure(h);
-          const y = doc.y;
-          doc.font('body').fontSize(9).fillColor(MUTED).text(plain(k), X, y, { width: W * 0.36 });
-          doc.font('body').fontSize(9).fillColor(INK).text(plain(v) || '—', X + W * 0.38, y, { width: W * 0.62 });
-          doc.y = y + h; doc.moveTo(X, doc.y - 2).lineTo(X + W, doc.y - 2).strokeColor('#EDE3DA').stroke();
+          const ly = doc.y;
+          doc.save().circle(X + 4, ly + 6, 2.2).fill(COPPER).restore();
+          let tx = X + 14;
+          for (const g of ts) tx += tag(g, tx, ly) + 5;
+          doc.font('body').fontSize(9).fillColor(INK).text(t, tx + (ts.length ? 2 : 0), ly + (ts.length ? 1.5 : 0), { width: X + W - tx - 2 });
+          doc.y = Math.max(doc.y, ly + h) + 3;
         }
-        doc.moveDown(0.4); continue;
+        doc.y += 6; continue;
+      }
+      if (b.kind === 'kv' && b.single && b.pairs.length >= 2 && b.pairs.length <= 8) {
+        // indicator cards → tiles
+        const max = wide ? 6 : 5, per = b.pairs.length <= max ? b.pairs.length : Math.ceil(b.pairs.length / 2), gap = 10, tw = (W - (per - 1) * gap) / per;
+        for (let i = 0; i < b.pairs.length; i += per) {
+          const row = b.pairs.slice(i, i + per);
+          const kh = Math.max(...row.map(([k]) => doc.font('bold').fontSize(7).heightOfString(plain(k).toUpperCase(), { width: tw - 20, characterSpacing: 0.4 })));
+          const two = kh > 10, th = two ? 64 : 56, off = two ? 8 : 0;
+          ensure(th + 8);
+          const ty = doc.y;
+          row.forEach(([k, v], j) => {
+            const tx = X + j * (tw + gap);
+            doc.save().roundedRect(tx, ty, tw, th, 8).fill(TILE).restore();
+            doc.save().roundedRect(tx, ty, tw, th, 8).lineWidth(0.7).strokeColor(LINE).stroke().restore();
+            doc.font('bold').fontSize(7).fillColor(MUTED).text(plain(k).toUpperCase(), tx + 10, ty + 9, { width: tw - 20, height: two ? 18 : 9, ellipsis: true, characterSpacing: 0.4 });
+            const lines = noTags(v).split('\n').filter(Boolean);
+            doc.font('display').fontSize(13).fillColor(INK).text(lines[0] || '—', tx + 10, ty + 21 + off, { width: tw - 20, height: 17, ellipsis: true });
+            if (lines.length > 1) doc.font('body').fontSize(7.5).fillColor(MUTED).text(lines.slice(1).join(' · '), tx + 10, ty + 39 + off, { width: tw - 20, height: 10, ellipsis: true });
+          });
+          doc.y = ty + th + 10;
+        }
+        continue;
+      }
+      if (b.kind === 'kv') {
+        // details: a light panel of label / value rows
+        const rows = b.pairs.map(([k, v]) => [plain(k), v]);
+        const hOf = v => Math.max(doc.font('body').fontSize(9).heightOfString(noTags(v) || '—', { width: W * 0.6 - 16 }), 11) + 9;
+        let i = 0;
+        while (i < rows.length) {
+          ensure(hOf(rows[i][1]) + 10);
+          let n = 0, hh = 0; const room = bottom() - doc.y - 8;
+          while (i + n < rows.length && hh + hOf(rows[i + n][1]) <= room) { hh += hOf(rows[i + n][1]); n++; }
+          if (!n) { n = 1; hh = hOf(rows[i][1]); }
+          const py = doc.y;
+          doc.save().roundedRect(X, py, W, hh + 8, 8).fill(TILE).restore();
+          doc.save().roundedRect(X, py, W, hh + 8, 8).lineWidth(0.7).strokeColor(LINE).stroke().restore();
+          let ry = py + 4;
+          rows.slice(i, i + n).forEach(([k, v], j) => {
+            const h = hOf(v);
+            if (j) doc.save().moveTo(X + 12, ry).lineTo(X + W - 12, ry).lineWidth(0.5).strokeColor('#EEE4DA').stroke().restore();
+            doc.font('body').fontSize(8.5).fillColor(MUTED).text(k, X + 12, ry + 4.5, { width: W * 0.36 });
+            const ts = tagsOf(v); let vx = X + W * 0.4;
+            for (const g of ts) vx += tag(g, vx, ry + 3.5) + 5;
+            const t = noTags(v);
+            if (t || !ts.length) doc.font('medium').fontSize(9).fillColor(INK).text(t || '—', vx, ry + 4.5, { width: X + W - 12 - vx });
+            ry += h;
+          });
+          doc.y = py + hh + 16; i += n;
+        }
+        continue;
       }
       if (b.kind === 'table') {
         const cols = Math.max(b.head ? b.head.length : 0, ...b.rows.map(r => r.length));
-        const lens = Array.from({ length: cols }, (_, i) => Math.min(40, Math.max(4, ...[(b.head || [])[i] || '', ...b.rows.map(r => r[i] || '')].map(x => String(x).split('\n')[0].length))));
-        const tot = lens.reduce((s, x) => s + x, 0);
+        const head = b.head || [];
+        const isNum = i => b.rows.some(r => /\d/.test(noTags(r[i] || ''))) && b.rows.every(r => !r[i] || /^(BHD |USD |-)?[\d,.]+%?( m²)?$/.test(noTags(r[i])) || /^[—–-]$/.test(noTags(r[i])));
+        const isPct = i => /%|progress|complete/i.test(head[i] || '') && b.rows.some(r => /^\d+(\.\d+)?%?$/.test(noTags(r[i] || '')));
+        const lens = Array.from({ length: cols }, (_, i) => isPct(i) ? 16 : Math.min(40, Math.max(5, Math.max(0, ...String(head[i] || '').split(/\s+/).map(w => w.length)) + 2, ...b.rows.map(r => r[i] || '').map(x => Math.max(...noTags(x).split('\n').map(l => l.length)) + tagsOf(x).reduce((n, g) => n + g.length + 4, 0)))));
+        const tot = lens.reduce((s2, x) => s2 + x, 0);
         const widths = lens.map(l => W * l / tot);
         const fs = cols > 8 ? 7 : 8;
-        const isNum = i => b.rows.length && b.rows.every(r => !r[i] || /^(BHD |USD |-)?[\d,.]+%?( m²)?$/.test(r[i]) || r[i] === '—');
-        const drawRow = (cells, opts = {}) => {
-          const h = Math.max(...cells.map((c, i) => doc.font(opts.bold ? 'bold' : 'body').fontSize(fs).heightOfString(plain(c || ''), { width: widths[i] - 6 }))) + 6;
-          if (doc.y + h > bottom()) { doc.addPage(); if (b.head && !opts.bold) drawRow(b.head, { bold: true, head: true }); }
-          const y = doc.y; let x = X;
-          if (opts.head) doc.rect(X, y - 1, W, h).fill('#F3ECE5');
-          cells.forEach((c, i) => { doc.font(opts.bold ? 'bold' : 'body').fontSize(fs).fillColor(opts.head ? MUTED : INK).text(plain(c || ''), x + 3, y + 2, { width: widths[i] - 6, align: !opts.head && isNum(i) ? 'right' : 'left' }); x += widths[i]; });
-          doc.y = y + h; doc.moveTo(X, doc.y).lineTo(X + W, doc.y).strokeColor(opts.head ? LINE : '#EDE3DA').stroke();
+        const pad = 6;
+        const drawHead = () => {
+          if (!b.head) return;
+          const h = Math.max(...head.map((c, i) => doc.font('bold').fontSize(7).heightOfString(plain(c).toUpperCase(), { width: widths[i] - 2 * pad }))) + 10;
+          const hy = doc.y;
+          doc.save().roundedRect(X, hy, W, h, 6).fill(HEAD).restore();
+          let x = X;
+          head.forEach((c, i) => { doc.font('bold').fontSize(7).fillColor(MUTED).text(plain(c).toUpperCase(), x + pad, hy + 5, { width: widths[i] - 2 * pad, align: isNum(i) && !isPct(i) ? 'right' : 'left', characterSpacing: 0.3 }); x += widths[i]; });
+          doc.y = hy + h;
         };
-        ensure(40);
-        if (b.head) drawRow(b.head, { bold: true, head: true });
-        for (const r of b.rows) drawRow(Array.from({ length: cols }, (_, i) => r[i] || ''));
-        doc.x = X; doc.moveDown(0.6);
+        const cellH = (c, i) => isPct(i) ? 12 : tagsOf(c).length && !noTags(c) ? 12 : doc.font('body').fontSize(fs).heightOfString(noTags(c) || ' ', { width: widths[i] - 2 * pad - tagsOf(c).length * 40 });
+        ensure(48);
+        drawHead();
+        b.rows.forEach((r, ri) => {
+          const cells = Array.from({ length: cols }, (_, i) => r[i] || '');
+          const h = Math.max(...cells.map(cellH)) + 9;
+          if (doc.y + h > bottom()) { doc.addPage(); doc.y = 40; drawHead(); }
+          const ry = doc.y;
+          if (ri % 2) doc.save().rect(X, ry, W, h).fill(ZEBRA).restore();
+          let x = X;
+          cells.forEach((c, i) => {
+            const ts = tagsOf(c), t = noTags(c), cw = widths[i] - 2 * pad;
+            if (isPct(i) && /^\d+(\.\d+)?%?$/.test(t)) {
+              const v = Math.max(0, Math.min(100, parseFloat(t))), bw = Math.max(20, cw - 30);
+              doc.save().roundedRect(x + pad, ry + h / 2 - 2.5, bw, 5, 2.5).fill('#E9DFD6').restore();
+              if (v > 0) doc.save().roundedRect(x + pad, ry + h / 2 - 2.5, Math.max(5, bw * v / 100), 5, 2.5).fill(v >= 100 ? '#2F7D4F' : COPPER).restore();
+              doc.font('bold').fontSize(fs).fillColor(v >= 100 ? '#2F7D4F' : INK).text(`${Math.round(v * 10) / 10}%`, x + pad + bw + 3, ry + h / 2 - fs / 2 - 1, { width: cw - bw - 3, align: 'right', lineBreak: false });
+            } else {
+              let tx = x + pad;
+              for (const g of ts) tx += tag(g, tx, ry + 4, 7) + 4;
+              if (t) doc.font(i === 0 ? 'medium' : 'body').fontSize(fs).fillColor(INK).text(t, tx, ry + 4.5, { width: x + widths[i] - pad - tx, align: !ts.length && isNum(i) ? 'right' : 'left' });
+            }
+            x += widths[i];
+          });
+          doc.save().moveTo(X, ry + h).lineTo(X + W, ry + h).lineWidth(0.5).strokeColor('#EEE4DA').stroke().restore();
+          doc.y = ry + h;
+        });
+        doc.x = X; doc.y += 14;
       }
     }
-    brand.footer(doc, { lines: [plain(`SarayDar Management System · ${page.title}`), plain(`Exported ${when.toLocaleString('en-GB', { timeZone: 'Asia/Bahrain' })} by ${user} · saraydar.com`)] });
+    brand.footer(doc, { lines: [plain(`SarayDar Management System · ${[refNo, page.title].filter(Boolean).join(' · ')}`), plain(`Exported ${when.toLocaleString('en-GB', { timeZone: 'Asia/Bahrain' })} by ${user} · contents match what this user could see · saraydar.com`)] });
     doc.end();
   });
 }

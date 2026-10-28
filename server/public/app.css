@@ -968,3 +968,5 @@ body.modern .panel, body.modern .card, body.modern .client-banner { border-radiu
   .mpage-actions .actions { flex-direction: column; width: 100%; }
   .mpage-actions .actions .btn { width: 100%; justify-content: center; }
 }
+.meyebrow { text-transform: uppercase; }
+
