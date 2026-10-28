@@ -470,3 +470,6 @@ document.querySelectorAll('form[data-split]').forEach(f => {
   };
   f.addEventListener('input', calc); calc();
 });
+
+// phone: bring the current section into view in the sideways section row
+document.querySelectorAll('.mgroups-cards').forEach(n => { const a = n.querySelector('a[aria-current="page"]'); if (a && n.scrollWidth > n.clientWidth) n.scrollLeft = a.offsetLeft - 16; });

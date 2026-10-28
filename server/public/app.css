@@ -1075,3 +1075,12 @@ body.modern .panel, body.modern .card, body.modern .client-banner { border-radiu
 .pct-in i { font-style: normal; color: #6B5A4E; }
 .bad-text { color: #8F2E26; font-weight: 700; }
 .split-panel summary .muted { margin-left: 8px; }
+/* phone: the grouped section bar becomes one compact row that scrolls sideways (owner feedback 2026-10-28) */
+@media (max-width: 640px) {
+  .mgroups.mgroups-cards { display: flex; flex-wrap: nowrap; overflow-x: auto; gap: 8px; padding: 12px 0 2px; margin: 0 -16px; padding-left: 16px; padding-right: 16px; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+  .mgroups.mgroups-cards::-webkit-scrollbar { display: none; }
+  .mgroups-cards .mgroup { flex: 0 0 auto; flex-direction: row; align-items: center; gap: 4px; padding: 4px; border-radius: 14px; }
+  .mgroups-cards .mglabel { display: none; }
+  .mglinks { flex-wrap: nowrap; }
+  .mgroups-cards .mgroup a { white-space: nowrap; padding: 7px 11px 7px 8px; font-size: 13.5px; }
+}
