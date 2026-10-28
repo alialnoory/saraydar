@@ -455,3 +455,18 @@ document.querySelectorAll('form.filters').forEach(f => {
     paint();
   });
 })();
+
+// "Split the client budget": live amounts and total while typing percentages
+document.querySelectorAll('form[data-split]').forEach(f => {
+  const total = Number(f.dataset.total);
+  const fmt = minor => 'BHD ' + Math.round(minor / 1000).toLocaleString('en-US');
+  const calc = () => {
+    let sum = 0;
+    f.querySelectorAll('tbody tr').forEach(tr => { const i = tr.querySelector('input[type=number]'); if (!i) return; const v = Number(i.value) || 0; sum += v; tr.querySelector('[data-amt]').textContent = fmt(Math.round(total * v / 100000) * 1000); });
+    sum = Math.round(sum * 100) / 100;
+    const s = f.querySelector('[data-sum]'); s.textContent = sum + '%'; s.classList.toggle('bad-text', Math.abs(sum - 100) > 0.01);
+    f.querySelector('[data-sum-warn]').hidden = Math.abs(sum - 100) <= 0.01;
+    f.querySelector('button[type=submit]').disabled = Math.abs(sum - 100) > 0.01;
+  };
+  f.addEventListener('input', calc); calc();
+});

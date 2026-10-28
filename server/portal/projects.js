@@ -50,6 +50,16 @@ const REG = {
 const COMMIT_KIND = { contract: 'Contract', order: 'Purchase order', appointment: 'Consultant appointment', variation: 'Approved variation' };
 const DOC_TYPE = { invoice: 'Invoice', payment_application: 'Contractor payment application', consultant_fee: 'Consultant fee', variation: 'Variation' };
 const PAYER = { client: 'Client (direct)', on_behalf: 'SarayDar on the client\'s behalf (exceptional)', other: 'Other party' };
+// suggested split of a client's villa construction budget (owner request 2026-10-28); a starting point to adjust, not a quotation
+const SPLIT_SUGGEST = [
+  [/design|consultant|supervision/i, 6, 'Architect, structural/MEP design and site supervision'],
+  [/permit|government fee/i, 1.5, 'Building permit, municipality and other authority fees'],
+  [/project construction|main contract/i, 82, 'The contractor\'s construction of the villa'],
+  [/variation/i, 0, 'Starts at 0: approved changes are moved here from Contingency'],
+  [/utilit/i, 2.5, 'EWA electricity and water connection, sewerage'],
+  [/contingency/i, 8, 'Reserve for unforeseen items and changes']
+];
+const suggestPct = l => { const m = SPLIT_SUGGEST.find(([re]) => re.test(l.description)); return m ? { pct: m[1], why: m[2] } : null; };
 const humanize = s => String(s || '').replace(/_/g, ' ').replace(/^./, c => c.toUpperCase());
 const upload = require('./choices').withChoices(multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024, files: 12, fields: 30 } }));
 
@@ -745,6 +755,7 @@ ${req.projectScreen ? '' : html`        <div class="card"><div class="muted smal
         ${b.unassigned.committed || b.unassigned.invoiced ? html`<p class="warn-text small">Not assigned to a line: committed ${fm(b.unassigned.committed)}, invoiced ${fm(b.unassigned.invoiced)}.</p>` : ''}
         <details class="small"><summary>How these figures relate</summary><p>Committed = signed contracts and orders. Incurred = approved invoices, plus confirmed payments that had no invoice. Paid = confirmed payments only. Open commitments = committed amounts not yet invoiced or paid. Estimate at completion = incurred + open commitments + forecast uncommitted cost, shown only when the forecast has been entered. A commitment, its invoice and its payment are never added together.</p></details>
       </section>
+      ${edit && cpm ? splitPanel(req, id, b) : ''}
       ${edit ? html`<section class="panel"><h2 class="h">Edit budget lines</h2>
         ${b.rows.map(l => html`<details class="inline-form"><summary>${l.description}</summary><form method="post" action="/w/${id}/budget/lines/${l.id}" class="form-grid">${csrfField(req)}
           ${field({ name: 'category', label: 'Category', value: l.category, required: true, options: catOpts(l.category) })}${field({ name: 'description', label: 'Description', value: l.description, required: true })}
@@ -792,6 +803,61 @@ ${req.projectScreen ? '' : html`        <div class="card"><div class="muted smal
           ${field({ name: 'paid_on', label: 'Paid on', type: 'date', value: CH.today() })}${field({ name: 'method', label: 'Method', options: [['', 'Choose…'], ...CH.PAY_METHODS.map(m => [m, m])] })}${field({ name: 'reference', label: 'Bank / cheque reference' })}${field({ name: 'notes', label: 'Notes' })}
           <div class="actions full"><button class="btn primary" type="submit">Record payment</button></div><p class="muted small full">A recorded payment stays “awaiting confirmation” until Finance confirms it against the bank record. This system does not make bank payments.</p></form></details>` : ''}
       </section>`));
+  });
+
+  // "Split the client budget": percentages of the client's total, suggested and editable, saved into the lines
+  function splitPanel(req, id, b) {
+    const unal = b.rows.find(l => l.category === 'Unallocated');
+    const lines = b.rows.filter(l => l.category !== 'Unallocated');
+    const total = b.rows.reduce((n, l) => n + (l.revised || 0), 0);
+    if (!lines.length || !total) return '';
+    const open = unal && unal.revised > 0;
+    const pctOf = l => { if (open) { const sg = suggestPct(l); return sg ? sg.pct : 0; } return Math.round((l.revised || 0) / total * 1000) / 10; };
+    return html`<section class="panel split-panel" id="split"><details class="inline-form" ${open ? raw('open') : ''}><summary><b>${open ? 'Split the client budget across the lines' : 'Re-split the client budget by percentage'}</b> <span class="muted small">Total ${fm(total)}</span></summary>
+      <form method="post" action="/w/${id}/budget/split" data-split data-total="${total}">${csrfField(req)}
+        ${open ? html`<p class="muted small">Suggested percentages for a private villa in Bahrain, already filled in. Change any of them; the amounts update as you type, and the total must be 100%.</p>` : ''}
+        <div class="table-wrap"><table class="nums split-table"><thead><tr><th>Line</th><th class="n">Share</th><th class="n">Amount</th></tr></thead><tbody>
+          ${lines.map(l => { const sg = suggestPct(l); return html`<tr><td><b>${l.description}</b>${sg ? html`<div class="muted small">${sg.why}</div>` : ''}</td>
+            <td class="n"><span class="pct-in"><input type="number" name="pct_${l.id}" value="${pctOf(l)}" min="0" max="100" step="0.5" inputmode="decimal" aria-label="Share for ${l.description} (%)"><i>%</i></span></td>
+            <td class="n" data-amt>${fm(Math.round(total * pctOf(l) / 100000) * 1000)}</td></tr>`; })}
+          <tr class="total"><td>Total</td><td class="n" data-sum>100%</td><td class="n">${fm(total)}</td></tr>
+        </tbody></table></div>
+        <p class="warn-text small" data-sum-warn hidden>The shares must add up to 100%.</p>
+        <div class="actions"><button class="btn primary" type="submit">Save the split</button></div>
+        <p class="muted small">Amounts are rounded to whole dinars; any rounding difference goes to Contingency.${unal ? ' The “not yet split” line is removed once the whole total is assigned.' : ''} Each line can still be changed on its own below.</p>
+      </form></details></section>`;
+  }
+
+  r.post('/w/:id/budget/split', async (req, res) => {
+    const a = await financeAccess(req, 'edit');
+    if (a.ws.section !== 'cpm') throw bad('Only for client projects.');
+    const b = await budgetSummary(a.ws.id);
+    const unal = b.rows.find(l => l.category === 'Unallocated');
+    const lines = b.rows.filter(l => l.category !== 'Unallocated');
+    const total = b.rows.reduce((n, l) => n + (l.revised || 0), 0);
+    if (!total) throw bad('Set the client\'s total budget first.');
+    const pcts = lines.map(l => { const v = Number(req.body[`pct_${l.id}`] ?? 0); if (!Number.isFinite(v) || v < 0 || v > 100) throw bad('Each share must be between 0 and 100%.'); return v; });
+    if (Math.abs(pcts.reduce((n, v) => n + v, 0) - 100) > 0.01) throw bad('The shares must add up to 100%.');
+    const amts = pcts.map(p => Math.round(total * p / 100000) * 1000);
+    const diff = total - amts.reduce((n, v) => n + v, 0);
+    let ci = lines.findIndex(l => /contingency/i.test(l.description) || l.category === 'Contingency'); if (ci < 0) ci = amts.indexOf(Math.max(...amts));
+    amts[ci] += diff;
+    await core.inTx(async db => {
+      for (let i = 0; i < lines.length; i++) {
+        const l = lines[i];
+        if ((l.revised ?? null) === amts[i]) continue;
+        await db.query('update budget_lines set revised_minor = $2 where id = $1', [l.id, amts[i]]);
+      }
+      if (unal) {
+        const used = (await db.query('select (select count(*) from commitments where budget_line_id = $1) + (select count(*) from cost_invoices where budget_line_id = $1) + (select count(*) from cost_payments where budget_line_id = $1) as n', [unal.id])).rows[0];
+        if (Number(used.n)) await db.query('update budget_lines set revised_minor = 0 where id = $1', [unal.id]);
+        else await db.query('update budget_lines set archived_at = now() where id = $1', [unal.id]);
+      }
+      await core.audit(db, { actor: req.user, workspaceId: a.ws.id, action: 'budget.split', entity: 'budget_line', entityId: a.ws.id, summary: `Client budget of ${formatMoney(total)} split across ${lines.length} lines`,
+        before: Object.fromEntries(b.rows.map(l => [l.description, l.revised])), after: Object.fromEntries(lines.map((l, i) => [l.description, amts[i]])), ip: req.ip });
+      await touch(db, a.ws.id);
+    });
+    res.redirect(`/w/${a.ws.id}/budget?msg=saved`);
   });
 
   const moneyField = (v, label, required = false) => { const m = parseMoney(v, 'BHD'); if (required && (m === null || m <= 0)) throw bad(`Enter ${label}.`); if (m !== null && m < 0) throw bad(`${label} cannot be negative.`); return m; };

@@ -1068,3 +1068,10 @@ body.modern .panel, body.modern .card, body.modern .client-banner { border-radiu
   body.modern:has(.main > .journey) .band .mhead { padding-bottom: 86px; }
 }
 .tp-task .tp-name small.tp-exp { background: #8A5330; color: #fff; }
+/* split the client budget */
+.split-table td { vertical-align: middle; }
+.pct-in { display: inline-flex; align-items: center; gap: 6px; }
+.pct-in input { width: 84px; text-align: right; padding: 8px 10px; border: 1px solid #DCCFC3; border-radius: 10px; font: inherit; }
+.pct-in i { font-style: normal; color: #6B5A4E; }
+.bad-text { color: #8F2E26; font-weight: 700; }
+.split-panel summary .muted { margin-left: 8px; }

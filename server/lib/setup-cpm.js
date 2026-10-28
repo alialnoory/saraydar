@@ -106,7 +106,7 @@ function generate(a) {
   for (const [k, role] of [['client_rep', 'Client representative'], ['consultant', 'Design consultant'], ['contractor', 'Main contractor'], ['pm', 'SarayDar project manager']]) if (val(a, k)) stakeholders.push({ kind: 'stakeholder', title: val(a, k), extra: { role } });
   for (const l of lines(val(a, 'others'))) { const [role, ...rest] = l.split(/\s+[–-]\s+/); stakeholders.push({ kind: 'stakeholder', title: rest.join(' - ') || l, extra: { role: rest.length ? role : '' } }); }
   const total = val(a, 'total_budget');
-  const budget = [['Design & consultants', 'Design and supervision consultants'], ['Government & utilities', 'Permits and government fees'], ['Construction', 'Main contract'],
+  const budget = [['Design & consultants', 'Design and supervision consultants'], ['Government & utilities', 'Permits and government fees'], ['Construction', 'Project construction'],
     ['Construction', 'Approved variations'], ['Government & utilities', 'Utility connections'], ['Contingency', 'Contingency']]
     .map(([category, description], i) => ({ category, description, revised_minor: null, sort: i }));
   // the client's approved total is kept as one unallocated line until it is split; nothing is invented

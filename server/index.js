@@ -25,6 +25,11 @@ async function main() {
   const moved = await require('./lib/abuquwa-import').importAbuquwa(pool);
   if (moved) console.log(`Moved ${moved} Abuquwa tasks into workspace DEV-2026-001`);
   await require('./lib/master-store').convertExisting(pool);   // one time: existing projects onto the construction master plan
+  // one time (owner request 2026-10-28): the client budget line "Main contract" is now called "Project construction"
+  if (!(await pool.query("select 1 from app_state where key = 'budget_line_rename_v1'")).rowCount) {
+    const r = await pool.query("update budget_lines set description = 'Project construction' where description = 'Main contract' and workspace_id in (select id from workspaces where section = 'cpm')");
+    await pool.query("insert into app_state (key, value) values ('budget_line_rename_v1', $1) on conflict (key) do nothing", [`${new Date().toISOString()}: ${r.rowCount} lines`]);
+  }
 
   const corsOrigins = (process.env.CORS_ORIGINS || '').split(',').map(s => s.trim().replace(/\/$/, '')).filter(Boolean);
   const { createMailer } = require('./lib/mailer');
