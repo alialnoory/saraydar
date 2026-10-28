@@ -972,14 +972,20 @@ ${req.projectScreen ? '' : html`        <div class="card"><div class="muted smal
     const live = phases.filter(p => tasks.some(t => t.phase_id === p.id));
     const ordered = live.flatMap(p => tasks.filter(t => t.phase_id === p.id));        // plan order: stage by stage
     const CH = require('./choices');
+    // progress shown in the picker: the stage % from the plan calculation, otherwise the average of its tasks
+    const tp = t => t.status === 'done' ? 100 : t.progress || 0;
+    const ovPh = Object.fromEntries(((m.ov && m.ov.phases) || []).map(x => [x.id, x.pct]));
+    const phPct = p => { const v = ovPh[p.id]; if (v !== null && v !== undefined) return Math.round(v); const ts = tasks.filter(t => t.phase_id === p.id && t.status !== 'cancelled'); return ts.length ? Math.round(ts.reduce((n, t) => n + tp(t), 0) / ts.length) : 0; };
+    const phDone = p => { const ts = tasks.filter(t => t.phase_id === p.id && t.status !== 'cancelled'); return `${ts.filter(t => t.status === 'done').length}/${ts.length}`; };
+    const ovPct = m.ov && m.ov.available && m.ov.pct !== null && m.ov.pct !== undefined ? Math.round(m.ov.pct * 10) / 10 : '';
     res.send(page(req, a, 'Progress Updates', html`<form method="post" action="/w/${a.ws.id}/updates" enctype="multipart/form-data" class="panel form-grid" data-update-form>
       <input type="hidden" name="_csrf" value="${req.csrfToken}"><h2 class="h full">New progress update</h2>
       <label class="field full" for="f-about"><span>What is this update about? <i class="req" aria-hidden="true">*</i></span>
-        <select id="f-about" name="about" data-about>
-          <option value="" data-kind="project" data-next="${open(ordered).slice(0, 3).map(t => t.title).join('\n')}">General site update (whole project)</option>
-          ${live.map((p, i) => html`<optgroup label="${i + 1}. ${p.name}"><option value="phase:${p.id}" data-kind="stage" data-next="${nextOf(p.id)}" ${req.query.phase === p.id ? raw('selected') : ''}>Whole stage: ${p.name}</option>
-            ${tasks.filter(t => t.phase_id === p.id).map((t, j) => html`<option value="task:${t.id}" data-progress="${t.status === 'done' ? 100 : t.progress || 0}" data-kind="task" data-next="${nextOf(p.id, t.sort)}" ${req.query.task === t.id ? raw('selected') : ''}>${i + 1}.${j + 1} ${t.title} (now ${t.status === 'done' ? 100 : t.progress || 0}%)</option>`)}</optgroup>`)}
-          ${tasks.some(t => !t.phase_id) ? html`<optgroup label="Other tasks">${tasks.filter(t => !t.phase_id).map(t => html`<option value="task:${t.id}" data-progress="${t.progress || 0}" data-kind="task">${t.title}</option>`)}</optgroup>` : ''}
+        <select id="f-about" name="about" data-about data-picker>
+          <option value="" data-kind="project" data-progress="${ovPct}" data-next="${open(ordered).slice(0, 3).map(t => t.title).join('\n')}">General site update (whole project)</option>
+          ${live.map((p, i) => html`<optgroup label="${i + 1}. ${p.name}"><option value="phase:${p.id}" data-kind="stage" data-progress="${phPct(p)}" data-done="${phDone(p)}" data-num="${i + 1}" data-name="${p.name}" data-next="${nextOf(p.id)}" ${req.query.phase === p.id ? raw('selected') : ''}>Whole stage: ${p.name}</option>
+            ${tasks.filter(t => t.phase_id === p.id).map((t, j) => html`<option value="task:${t.id}" data-progress="${tp(t)}" data-status="${t.status}" data-num="${i + 1}.${j + 1}" data-name="${t.title}" data-kind="task" data-next="${nextOf(p.id, t.sort)}" ${req.query.task === t.id ? raw('selected') : ''}>${i + 1}.${j + 1} ${t.title} (now ${t.status === 'done' ? 100 : t.progress || 0}%)</option>`)}</optgroup>`)}
+          ${tasks.some(t => !t.phase_id) ? html`<optgroup label="Other tasks">${tasks.filter(t => !t.phase_id).map(t => html`<option value="task:${t.id}" data-progress="${tp(t)}" data-status="${t.status}" data-name="${t.title}" data-kind="task">${t.title}</option>`)}</optgroup>` : ''}
         </select><small>Pick a task to record its progress.</small></label>
       ${field({ name: 'observed_on', label: 'Observation date', type: 'date', required: true, value: todayBH(), presets: null })}
       <p class="full notice info" data-no-task>Progress is recorded on tasks. To move a task's progress, choose the task in “What is this update about?”.</p>
