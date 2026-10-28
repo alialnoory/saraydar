@@ -1067,3 +1067,4 @@ body.modern .panel, body.modern .card, body.modern .client-banner { border-radiu
   body.modern .main > .journey ~ .mtop { margin-top: 0; }
   body.modern:has(.main > .journey) .band .mhead { padding-bottom: 86px; }
 }
+.tp-task .tp-name small.tp-exp { background: #8A5330; color: #fff; }
