@@ -52,12 +52,12 @@ const DOC_TYPE = { invoice: 'Invoice', payment_application: 'Contractor payment 
 const PAYER = { client: 'Client (direct)', on_behalf: 'SarayDar on the client\'s behalf (exceptional)', other: 'Other party' };
 // suggested split of a client's villa construction budget (owner request 2026-10-28); a starting point to adjust, not a quotation
 const SPLIT_SUGGEST = [
-  [/design|consultant|supervision/i, 6, 'Architect, structural/MEP design and site supervision'],
+  [/design|consultant|supervision/i, 3, 'Architect, structural/MEP design and site supervision'],
   [/permit|government fee/i, 1.5, 'Building permit, municipality and other authority fees'],
-  [/project construction|main contract/i, 82, 'The contractor\'s construction of the villa'],
-  [/variation/i, 0, 'Starts at 0: approved changes are moved here from Contingency'],
+  [/project construction|main contract/i, 83, 'The contractor\'s construction of the villa'],
+  [/variation/i, 5, 'Allowance for changes the client approves during construction'],
   [/utilit/i, 2.5, 'EWA electricity and water connection, sewerage'],
-  [/contingency/i, 8, 'Reserve for unforeseen items and changes']
+  [/contingency/i, 5, 'Reserve for unforeseen items']
 ];
 const suggestPct = l => { const m = SPLIT_SUGGEST.find(([re]) => re.test(l.description)); return m ? { pct: m[1], why: m[2] } : null; };
 const humanize = s => String(s || '').replace(/_/g, ' ').replace(/^./, c => c.toUpperCase());
