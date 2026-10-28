@@ -64,7 +64,7 @@ function mountMasterPlan(r, ctx, P) {
       const p = s.pct === null ? null : Math.round(s.pct);
       // a ring that fills with the stage's completion, the % inside it; the status as a small chip under the name
       const inner = html`<span class="mp-ring" style="--p:${p || 0}" role="img" aria-label="${p === null ? 'Progress not available' : `${p}% complete`}"><b>${s.status === 'done' ? '✓' : p === null ? '—' : `${p}%`}</b></span>
-        <span class="jr-label">${s.name}</span><span class="mp-chip mp-chip-${s.status}">${M.STAGE_LABEL[s.status]}</span>`;
+        <span class="jr-label">${s.name}</span><span class="sr-only">${M.STAGE_LABEL[s.status]}</span>`;
       return html`<li class="${cls}">${link ? html`<a href="/w/${a.ws.id}/master?open=${s.id}#stage-${s.id}" title="${s.name}: ${M.STAGE_LABEL[s.status]}${s.pct !== null ? `, ${Math.round(s.pct)}%` : ''}">${inner}</a>` : html`<span class="jr-static">${inner}</span>`}</li>`;
     })}</ol>`;
   }

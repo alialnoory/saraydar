@@ -808,3 +808,9 @@ input[type="date"]::-webkit-date-and-time-value { text-align: left; }
 .check-grid .check:hover { border-color: var(--accent); }
 .check-grid .check:has(input:checked) { background: var(--accent-tint); border-color: var(--accent); color: var(--accent); font-weight: 600; }
 .check-grid .check input { accent-color: var(--accent); }
+/* completed stages are green (owner request 2026-10-28) */
+.mp-pipe li.done .mp-ring { --c: #2F7D4F; }
+.mp-pipe li.done .mp-ring b { background: #2F7D4F; }
+.mp-pipe li.done + li.done::before, .mp-pipe li.done + li.now::before, .mp-pipe li.done + li.hold::before { background: #2F7D4F; }
+.st-done .mp-num { background: #2F7D4F; border-color: #2F7D4F; color: #fff; }
+.mp-pipe .jr-label { min-height: 0; }
