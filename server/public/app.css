@@ -941,3 +941,30 @@ body.modern .panel, body.modern .card, body.modern .client-banner { border-radiu
   /* the bottom bar has Home; the page's own Back / Home buttons are not needed on phones */
   body.has-tabbar .pagenav > .navgroup:first-child { display: none; }
 }
+/* modern header on every staff page */
+.mmeta { font-size: 14px; color: #C2B2A6; align-self: center; }
+.mpage-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.mpage-actions .actions { display: flex; flex-wrap: wrap; gap: 10px; margin: 0; }
+.mactions .mpage-actions .btn { height: 46px; border-radius: 14px; padding: 0 18px; display: inline-flex; align-items: center; font-weight: 600; font-size: 14px; background: var(--band-2); color: var(--band-ink); border: 1px solid var(--band-line); }
+.mactions .mpage-actions .btn.accent, .mactions .mpage-actions .btn.primary { background: #8A5330; border-color: #8A5330; color: #fff; box-shadow: 0 8px 18px rgba(138,83,48,.35); }
+.mgroups-flat .mgroup a { font-size: 14px; }
+@media (max-width: 760px) {
+  .mgroups.mgroups-flat { display: flex; }
+  .mgroups-flat .mgroup { flex-wrap: wrap; }
+  .mpage-actions { width: 100%; order: -1; } .mpage-actions .actions, .mpage-actions .btn { flex: 1; justify-content: center; }
+  .mactions { flex-wrap: wrap; }
+}
+/* filter bars: search on its own line, then the choices in one row; choosing applies at once */
+.filters { gap: 10px; }
+.filters select { border-radius: 12px; min-height: 44px; }
+.filters .searchbox { border-radius: 14px; }
+@media (max-width: 760px) {
+  .filters { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .filters .searchbox, .filters input[type="search"] { grid-column: 1 / -1; }
+  .filters select { width: 100%; min-width: 0; }
+}
+.mactions .mpage-actions .btn { height: auto; min-height: 46px; line-height: 1.25; text-align: center; }
+@media (max-width: 760px) {
+  .mpage-actions .actions { flex-direction: column; width: 100%; }
+  .mpage-actions .actions .btn { width: 100%; justify-content: center; }
+}

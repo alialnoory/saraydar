@@ -395,3 +395,10 @@ document.querySelectorAll('[data-proc-info]').forEach(info => {
   f.addEventListener('input', calc);
   calc();
 });
+
+// Filter bars apply a choice as soon as it is picked; the Apply button is only kept where there are typed fields.
+document.querySelectorAll('form.filters').forEach(f => {
+  const typed = f.querySelector('input:not([type="hidden"]):not([type="search"]), textarea');
+  f.addEventListener('change', e => { if (e.target.matches('select')) f.submit(); });
+  if (!typed) f.querySelectorAll('button[type="submit"]').forEach(b => { b.hidden = true; });
+});

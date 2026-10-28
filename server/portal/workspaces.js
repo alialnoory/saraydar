@@ -84,9 +84,8 @@ function mountWorkspaces(r, ctx) {
           ${key === 'props' && occ !== null ? html`<div class="wt-row"><span>Occupancy</span><div class="wt-meter ok"><span style="width:${occ}%"></span></div></div>` : ''}</div>
         <div class="wt-foot"><span>Open ${s.name}</span><span class="ws-tile-go" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></span></div></a>`;
     };
-    res.send(layout(req, { title: 'Home', body: html`
-      <div class="page-head"><div><div class="muted small">Home</div><h1 class="display">${greet}, ${(u.name || '').split(' ')[0] || 'there'}</h1>
-        <p class="muted">${new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Bahrain' })}</p></div></div>
+    res.send(layout(req, { title: 'Home', heading: `${greet}, ${(u.name || '').split(' ')[0] || 'there'}`,
+      sub: { above: 'Home', below: new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Bahrain' }) }, body: html`
       <section class="grid-cards home-sections" aria-label="Sections">${SECTION_KEYS.map(card)}</section>
       ${core.isSuper(u) ? html`<section class="panel"><h2 class="h">Needs your attention</h2>
           ${attention.length ? html`<ul class="rows">${attention.map(([tag, tone, t, d, href]) => html`<li>${pill(tag, tone)}<div class="grow"><a href="${href}"><b>${t}</b></a><div class="muted small">${d}</div></div></li>`)}</ul>`

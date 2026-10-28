@@ -157,6 +157,18 @@ function layout(req, { title, crumbs = [], heading = null, sub = null, tabs = nu
         <div class="mactions">${undoNav ? html`<div class="mseg">${undoNav}</div>` : ''}${exportable ? exportMenu() : ''}${P.update ? html`<a class="mbtn mprimary" href="${P.update}">${PI.plus}Update</a>` : ''}</div></div>
       ${curTab !== 'Overview' ? html`<nav class="mgroups" aria-label="Sections">${groups.map(([g, ts]) => html`<div class="mgroup"><span class="mglabel">${g}</span>${ts.map(([l, h, on]) => html`<a href="${h}" ${on ? raw('aria-current="page"') : ''}>${l}</a>`)}</div>`)}</nav>` : ''}
     </div>`;
+  // every other staff page with a heading gets the same modern header (owner request 2026-10-28: "here also")
+  const hero = !!(u && u.kind !== 'external' && !bare && !modern);
+  const crumbLinks = crumbs.filter(c => c[1]);
+  const heroHead = () => html`<div class="wrap mhead">
+      ${crumbLinks.length ? html`<div class="mcrumb"><a class="mback" href="${parent}" aria-label="Back" data-back>${I.back}</a>${crumbs.map((c, i) => html`${i ? html`<span aria-hidden="true">/</span>` : ''}${c[1] ? html`<a href="${c[1]}">${c[0]}</a>` : html`<span>${c[0]}</span>`}`)}</div>` : ''}
+      <div class="mtitle"><div class="grow">
+        ${sub && sub.above ? html`<div class="meyebrow">${String(sub.above).toUpperCase()}</div>` : ''}
+        <h1>${heading}</h1>
+        ${sub && (sub.below || sub.badge) ? html`<div class="mchips">${sub.below ? html`<span class="mmeta">${sub.below}</span>` : ''}${sub.badge ? html`<span class="mchip mstatus">${sub.badge}</span>` : ''}</div>` : ''}</div>
+        <div class="mactions">${undoNav ? html`<div class="mseg">${undoNav}</div>` : ''}${exportable ? exportMenu() : ''}${actions ? html`<div class="mpage-actions">${actions}</div>` : ''}</div></div>
+      ${tabs ? html`<nav class="mgroups mgroups-flat" aria-label="Sections"><div class="mgroup">${tabs.map(([label, href, on]) => html`<a href="${href}" ${on ? raw('aria-current="page"') : ''}>${label}</a>`)}</div></nav>` : ''}
+    </div>`;
   const overviewTop = () => !modern || curTab !== 'Overview' ? '' : html`
     <div class="mtop">
       ${P.progress ? html`<section class="mprog" aria-label="Project progress">
@@ -191,7 +203,7 @@ function layout(req, { title, crumbs = [], heading = null, sub = null, tabs = nu
             <form method="post" action="/logout">${csrfField(req)}<button type="submit">Sign out</button></form>
           </div></details>` : ''}
       </div>
-      ${heading && modern ? modernHead() : heading ? html`<div class="wrap band-head">
+      ${heading && modern ? modernHead() : heading && hero ? heroHead() : heading ? html`<div class="wrap band-head">
         <div class="band-top">${crumbs.length ? html`<nav class="crumbs" aria-label="Breadcrumb">${crumbs.map((c, i) => html`${i ? ' › ' : ''}${c[1] ? html`<a href="${c[1]}">${c[0]}</a>` : html`<span>${c[0]}</span>`}`)}</nav>` : html`<span></span>`}${actions ? html`<div class="page-actions">${actions}</div>` : ''}</div>
         <div class="band-title"><div class="grow">${sub && sub.above ? html`<div class="eyebrow">${sub.above}</div>` : ''}<h1>${heading}</h1>${sub && (sub.below || sub.badge) ? html`<div class="band-meta">${sub.below || ''}${sub.badge ? html` <span class="band-badge">${sub.badge}</span>` : ''}</div>` : ''}</div><div class="band-actions">${pagenav}</div></div>
         ${tabs ? html`<nav class="tabs" aria-label="Sections">${tabs.map(([label, href, on]) => html`<a href="${href}" ${on ? raw('aria-current="page"') : ''}>${label}</a>`)}</nav>` : ''}

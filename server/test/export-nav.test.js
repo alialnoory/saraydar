@@ -52,7 +52,7 @@ test('export and navigation', { skip: !URL_ && 'set TEST_DATABASE_URL to run' },
     for (const p of ['/', '/s/dev', `/w/${ws}`, `/w/${ws}/plots`, `/w/${ws}/budget`, `/w/${ws}/tasks`, `/w/${ids[1]}/master`, `/w/${ids[1]}/master/weights`, `/w/${ws}/registers`, `/w/${ws}/access`, '/admin/users', '/admin/audit']) {
       const page = await admin.get(p);
       assert.equal(page.status, 200, p);
-      assert.ok(/data-back><svg[^<]*<path[^>]*\/><\/svg>Back<\/a>/.test(page.text) || /class="mback"[^>]*aria-label="Back"/.test(page.text), p);   // record pages: the modern header's back button
+      if (p !== '/') assert.ok(/data-back><svg[^<]*<path[^>]*\/><\/svg>Back<\/a>/.test(page.text) || /class="mback"[^>]*aria-label="Back"/.test(page.text), p);   // modern header's back button (none on Home)   // record pages: the modern header's back button
       assert.match(page.text, /export=pdf/, p);
       assert.match(page.text, /export=xlsx/, p);
     }
