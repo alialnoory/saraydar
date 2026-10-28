@@ -94,7 +94,8 @@ function mountPeople(r, ctx) {
 
   // ---------- creating logins ----------
   r.post('/admin/users', async (req, res) => {
-    if (!core.isSuper(req.user)) throw new NotFound();
+    if (!core.isSuper(req.user) && req.adminArea !== 'admin.users') throw new NotFound();
+    if (ctx.guardSuper) ctx.guardSuper(req, null);
     const roles = (await staffRoles()).map(x => x[0]);
     const u = await core.inTx(db => createUser(db, core, req.user, req.body, req.ip, roles));
     if (req.body.send_welcome === '1') await welcome(req, u);
@@ -154,8 +155,10 @@ function mountPeople(r, ctx) {
   r.post('/account/photo', upload.single('photo'), async (req, res) => { await savePhoto(req, req.user.id); res.redirect('/account?msg=saved'); });
   r.post('/account/photo/remove', async (req, res) => { await removePhoto(req, req.user.id); res.redirect('/account?msg=saved'); });
   r.post('/admin/users/:uid/photo', upload.single('photo'), async (req, res) => {
-    if (!core.isSuper(req.user) || !UUID.test(req.params.uid)) throw new NotFound();
-    if (!(await pool.query('select 1 from users where id = $1', [req.params.uid])).rowCount) throw new NotFound();
+    if ((!core.isSuper(req.user) && req.adminArea !== 'admin.users') || !UUID.test(req.params.uid)) throw new NotFound();
+    const target = (await pool.query('select system_role from users where id = $1', [req.params.uid])).rows[0];
+    if (!target) throw new NotFound();
+    if (ctx.guardSuper) ctx.guardSuper(req, target);
     if (req.body.remove === '1') { if (!core.checkCsrf(req)) throw new Forbidden(); await removePhoto(req, req.params.uid); }
     else await savePhoto(req, req.params.uid);
     res.redirect(`/admin/users/${req.params.uid}?msg=user_saved`);

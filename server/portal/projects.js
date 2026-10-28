@@ -868,6 +868,7 @@ ${req.projectScreen ? '' : html`        <div class="card"><div class="muted smal
     const category = txt(req.body.category, 80), description = txt(req.body.description, 200);
     if (!category || !description) throw bad('Enter a category and description.');
     const revised = moneyField(req.body.revised, 'the budget');
+    if (revised) if (ctx.authority) await ctx.authority.checkLimit(req, 'budget', revised, 'This budget line');   // authority matrix
     await core.inTx(async db => {
       const s = (await db.query('select coalesce(max(sort),-1)+1 as s from budget_lines where workspace_id = $1', [a.ws.id])).rows[0].s;
       const id = (await db.query('insert into budget_lines (workspace_id, category, description, revised_minor, sort) values ($1,$2,$3,$4,$5) returning id', [a.ws.id, category, description, revised, s])).rows[0].id;
@@ -883,6 +884,7 @@ ${req.projectScreen ? '' : html`        <div class="card"><div class="muted smal
     const category = txt(req.body.category, 80), description = txt(req.body.description, 200);
     if (!category || !description) throw bad('Enter a category and description.');
     const revised = moneyField(req.body.revised, 'the budget'), forecast = moneyField(req.body.forecast, 'the forecast');
+    if ((revised ?? 0) !== (num(l.revised_minor) ?? 0)) if (ctx.authority) await ctx.authority.checkLimit(req, 'budget', (revised ?? 0) - (num(l.revised_minor) ?? 0), 'This budget change');   // authority matrix
     const verified = l.verified || req.body.verify === '1';
     await core.inTx(async db => {
       await db.query('update budget_lines set category = $2, description = $3, revised_minor = $4, forecast_uncommitted_minor = $5, notes = $6, verified = $7 where id = $1', [l.id, category, description, revised, forecast, txt(req.body.notes, 500), verified]);
@@ -897,6 +899,7 @@ ${req.projectScreen ? '' : html`        <div class="card"><div class="muted smal
     const a = await financeAccess(req, 'edit');
     const counterparty = txt(req.body.counterparty, 160); if (!counterparty) throw bad('Enter the contractor or supplier.');
     const value = moneyField(req.body.value, 'the value', true);
+    if (ctx.authority) await ctx.authority.checkLimit(req, req.body.kind === 'variation' ? 'variation' : 'contract', value, req.body.kind === 'variation' ? 'This variation' : 'This commitment');   // authority matrix
     const line = await lineOf(req.body.budget_line_id, a.ws.id);
     await core.inTx(async db => {
       const id = (await db.query('insert into commitments (workspace_id, budget_line_id, counterparty, description, reference, committed_on, value_minor, created_by, kind) values ($1,$2,$3,$4,$5,$6,$7,$8,$9) returning id',
@@ -930,6 +933,7 @@ ${req.projectScreen ? '' : html`        <div class="card"><div class="muted smal
     const i = await own('cost_invoices', req.params.iid, a.ws.id);
     const decision = ['reviewed', 'approved', 'rejected'].includes(req.body.decision) ? req.body.decision : null;
     if (!decision) throw bad('Choose review, approve or reject.');
+    if (decision === 'approved') if (ctx.authority) await ctx.authority.checkLimit(req, 'invoice', num(i.amount_minor), 'This invoice');   // authority matrix
     const from = decision === 'reviewed' ? ['submitted'] : decision === 'approved' && a.ws.section === 'cpm' ? ['reviewed'] : ['submitted', 'reviewed'];
     await core.inTx(async db => {
       const n = decision === 'reviewed'
@@ -972,6 +976,7 @@ ${req.projectScreen ? '' : html`        <div class="card"><div class="muted smal
     const a = await financeAccess(req);
     if (!(core.isSuper(req.user) || await core.can(req.user, 'finance:post'))) throw new Forbidden('Only Finance can confirm payments.');
     const p = await own('cost_payments', req.params.pid, a.ws.id);
+    if (ctx.authority) await ctx.authority.checkLimit(req, 'payment', num(p.amount_minor), 'This payment');   // authority matrix
     const paidOn = dateOrNull(req.body.paid_on); if (!paidOn) throw bad('Enter the date the payment left the bank.');
     await core.inTx(async db => {
       const n = (await db.query("update cost_payments set status = 'confirmed', paid_on = $2, confirmed_by = $3, confirmed_at = now() where id = $1 and status = 'pending'", [p.id, paidOn, req.user.id])).rowCount;

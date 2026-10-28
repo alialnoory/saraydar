@@ -293,7 +293,8 @@ function mountWorkspaces(r, ctx) {
         <dl class="stats inline"><div><dt>Tasks</dt><dd>${n.tasks || 0}</dd></div><div><dt>Budget lines</dt><dd>${n.costs || 0}</dd></div><div><dt>Risks</dt><dd>${n.risks || 0}</dd></div><div><dt>Site log entries</dt><dd>${n.log || 0}</dd></div></dl></section>`;
     }
     if (a.internal && ['client_project', 'project'].includes(w.kind) && ctx.projectScreen) req.projectScreen = await ctx.projectScreen(req, a);
-    req.topPanel = ctx.completenessPanel ? await ctx.completenessPanel(a) : '';   // shown at the top of the overview
+    // System Requirements: for people who may complete the record (authority matrix)
+    req.topPanel = ctx.completenessPanel && (!ctx.authority || await ctx.authority.allowed(req.user, `${w.section}.record`, 'edit')) ? await ctx.completenessPanel(a) : '';
     const extras = html`${a.internal && ctx.masterPipelinePanel ? await ctx.masterPipelinePanel(req, a) : ''}${ctx.overviewExtras && ctx.overviewExtras[w.section] ? await ctx.overviewExtras[w.section](req, a) : ''}`;
     const editable = core.canEdit(a);
     const users = editable ? (await pool.query("select id, coalesce(nullif(name,''), email) as label from users where active and kind = 'internal' order by 2")).rows : [];

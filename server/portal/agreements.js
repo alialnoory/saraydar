@@ -411,7 +411,7 @@ function mountAgreements(r, ctx) {
   });
 
   // ---------- administration: company details, letterhead, templates ----------
-  const adminOnly = (req) => { if (!core.isSuper(req.user)) throw new NotFound(); };
+  const adminOnly = (req) => { if (!core.isSuper(req.user) && req.adminArea !== 'admin.templates') throw new NotFound(); };
   const adminTabs = [['Users', '/admin/users'], ['Roles', '/admin/roles'], ['Agreements', '/admin/agreements'], ['Master template', '/admin/master-plan'], ['Outbox', '/admin/outbox'], ['Audit log', '/admin/audit'], ['System', '/admin/system']];
   const adminPage = (req, body) => layout(req, { title: 'Agreements', heading: 'Administration', crumbs: [['Home', '/'], ['Administration']], tabs: adminTabs.map(([l, h]) => [l, h, l === 'Agreements']), body });
   const SECTION_OPTS = Object.values(SECTIONS).map(s => [s.key, s.name]);

@@ -298,6 +298,7 @@ function mountMaintenance(r, ctx) {
     if (!v.category || !v.description || !v.supplier) throw bad('Enter the category, description and supplier.');
     const on = dateOrNull(b.incurred_on); if (!on) throw bad('Enter the invoice date.');
     const amt = parseMoney(b.amount, 'BHD'); if (!amt || amt <= 0) throw bad('Enter the amount.');
+    if (ctx.authority) await ctx.authority.checkLimit(req, 'expense', amt, 'This expense');   // authority matrix
     try {
       const id = await core.inTx(async db => {
         const id = (await db.query(`insert into prop_expenses (workspace_id, unit_id, maint_id, category, description, supplier, invoice_no, incurred_on, amount_minor, allocation, responsible, paid_by, notes, created_by)

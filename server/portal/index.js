@@ -133,6 +133,7 @@ function createPortal({ pool, secret, mailer, env = process.env }) {
     };
     next();
   });
+  require('./authority').mountAuthority(r, ctx);   // authority matrix: checks every staff request first
   mountAuth(r, ctx);
   mountUndo(r, ctx);
   mountCompleteness(r, ctx);

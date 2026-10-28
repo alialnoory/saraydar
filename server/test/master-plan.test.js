@@ -190,7 +190,7 @@ test('construction master plan', { skip: !URL_ && 'set TEST_DATABASE_URL to run'
     const t = await q1("select id from tasks where workspace_id = $1 and template_key = '5.1'", [A]);
     assert.equal((await v.post(`/w/${A}/master/tasks/${t.id}`, { status: 'done' }, `/w/${A}/master`)).status, 403);
     assert.equal((await v.post(`/w/${A}/master/weights`, {}, `/w/${A}/master/weights`)).status, 403);
-    assert.equal((await v.get('/admin/master-plan')).status, 403);
+    assert.equal((await v.get('/admin/master-plan')).status, 404);   // administration stays out of sight
     // admin saves a new template version: future projects only
     const tplPage = await admin.get('/admin/master-plan');
     assert.match(tplPage.text, /Version <b>1<\/b>/);

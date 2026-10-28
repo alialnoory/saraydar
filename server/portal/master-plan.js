@@ -716,7 +716,7 @@ function mountMasterPlan(r, ctx, P) {
 
   // ---------- Super Admin: the default template ----------
   r.get('/admin/master-plan', async (req, res) => {
-    if (!core.isSuper(req.user)) throw new Forbidden();
+    if (!core.isSuper(req.user) && req.adminArea !== 'admin.templates') throw new Forbidden();
     const tpl = await template();
     const used = (await pool.query('select template_version as v, count(*)::int as n from master_plans group by 1 order by 1', [])).rows;
     const blank = { key: '', name: '', weight: '', duration: '', startWeek: '', endWeek: '', tasks: [] };

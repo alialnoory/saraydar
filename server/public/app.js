@@ -266,7 +266,7 @@ document.addEventListener('submit', e => {
 // Each cell is labelled with its column heading; the layout itself is in app.css (max-width 640px).
 (() => {
   document.querySelectorAll('main table').forEach(t => {
-    if (t.classList.contains('kv') || t.closest('.pv-bar')) return;
+    if (t.classList.contains('kv') || t.closest('.pv-bar') || t.matches('.am-edit, .am-grid')) return;   // the authority matrix has its own phone layout
     const head = t.tHead && t.tHead.rows[t.tHead.rows.length - 1];
     const labels = [];
     if (head) for (const th of head.cells) { const n = th.colSpan || 1; for (let i = 0; i < n; i++) labels.push(th.textContent.trim()); }
@@ -473,3 +473,20 @@ document.querySelectorAll('form[data-split]').forEach(f => {
 
 // phone: bring the current section into view in the sideways section row
 document.querySelectorAll('.mgroups-cards').forEach(n => { const a = n.querySelector('a[aria-current="page"]'); if (a && n.scrollWidth > n.clientWidth) n.scrollLeft = a.offsetLeft - 16; });
+
+// Authority matrix editor: ticking an action also ticks View; row, section and whole-page shortcuts
+document.querySelectorAll('form[data-am]').forEach(f => {
+  const boxes = tr => [...tr.querySelectorAll('input[type=checkbox]')];
+  f.addEventListener('change', e => {
+    const i = e.target; if (!i.matches('input[type=checkbox][name=m]')) return;
+    const tr = i.closest('tr'), view = tr.querySelector('input[value$="|view"]');
+    if (i.checked && i !== view) view.checked = true;
+    if (!i.checked && i === view) boxes(tr).forEach(b => { b.checked = false; });
+  });
+  f.addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    if (b.hasAttribute('data-am-row')) { const bs = boxes(b.closest('tr')); const on = !bs.every(x => x.checked); bs.forEach(x => { x.checked = on; }); }
+    else if (b.dataset.amGroup) { const bs = [...f.querySelectorAll(`tr[data-g="${b.dataset.amGroup}"] input[type=checkbox]`)]; const on = !bs.every(x => x.checked); bs.forEach(x => { x.checked = on; }); }
+    else if (b.dataset.amAll) { f.querySelectorAll('input[type=checkbox][name=m]').forEach(x => { x.checked = b.dataset.amAll === '1'; }); }
+  });
+});

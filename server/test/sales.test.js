@@ -235,7 +235,7 @@ test('property sales and acquisition', { skip: !URL_ && 'set TEST_DATABASE_URL t
     await admin.post('/admin/users', { name: 'Eng', email: 'eng5@example.com', kind: 'internal', system_role: 'engineer', password: 'eng-temp-pass-1' }, '/admin/users');
     const eng = client(base); await login(eng, 'eng5@example.com', 'eng-temp-pass-1');
     await eng.post('/account/password', { current: 'eng-temp-pass-1', password: 'eng-own-pass-1', confirm: 'eng-own-pass-1' }, '/account/password');
-    assert.equal((await eng.get('/sales/buyers')).status, 403);
-    assert.equal((await eng.post('/sales/offers', { listing_ws: land, party_id: b1, price: '1' }, '/')).status, 403);
+    assert.equal((await eng.get('/sales/buyers')).status, 404);        // outside the engineer's authority: out of sight
+    assert.equal((await eng.post('/sales/offers', { listing_ws: land, party_id: b1, price: '1' }, '/')).status, 404);
   });
 });

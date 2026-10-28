@@ -13,12 +13,19 @@ const bad = m => Object.assign(new Error(m), { status: 400 });
 
 function mountAdmin(r, ctx) {
   const { pool, core, mailer, env, Forbidden, NotFound } = ctx;
-  r.use('/admin', (req, res, next) => core.isSuper(req.user) ? next() : next(new NotFound()));
+  // Super Admins, and staff whose role has an administration area in the authority matrix (checked in authority.js)
+  r.use('/admin', (req, res, next) => req.user && !core.isExternal(req.user) && (core.isSuper(req.user) || req.adminArea) ? next() : next(new NotFound()));
+  // people who are not Super Admins never touch a Super Admin account or hand out that role
+  const guardSuper = (req, target) => { if (core.isSuper(req.user)) return; if (target && target.system_role === 'super_admin') throw new Forbidden('Only a Super Admin can change a Super Admin account.'); if (req.body && req.body.system_role === 'super_admin') throw new Forbidden('Only a Super Admin can give the Super Admin role.'); };
+  ctx.guardSuper = guardSuper;
 
-  const adminTabs = cur => [['Users', '/admin/users', cur === 'users'], ['Roles', '/admin/roles', cur === 'roles'], ['Agreements', '/admin/agreements', false], ['Master template', '/admin/master-plan', false], ['Outbox', '/admin/outbox', cur === 'outbox'], ['Audit log', '/admin/audit', cur === 'audit'], ['System', '/admin/system', cur === 'system']];
-  const page = (req, cur, title, body) => layout(req, { title, heading: 'Administration', crumbs: [['Home', '/'], ['Administration']], tabs: adminTabs(cur), body });
+  const adminTabsAll = cur => [['Users', '/admin/users', cur === 'users'], ['Authority matrix', '/admin/roles', cur === 'roles'], ['Agreements', '/admin/agreements', false], ['Master template', '/admin/master-plan', false], ['Outbox', '/admin/outbox', cur === 'outbox'], ['Audit log', '/admin/audit', cur === 'audit'], ['System', '/admin/system', cur === 'system']];
+  const ADMIN_AREA = h => /\/admin\/users/.test(h) ? 'admin.users' : /\/admin\/(agreements|master-plan)/.test(h) ? 'admin.templates' : /\/admin\/roles/.test(h) ? null : 'admin.audit';
+  const adminTabs = (cur, req) => adminTabsAll(cur).filter(t => !req || core.isSuper(req.user) || (ADMIN_AREA(t[1]) && (req.adminAreas || []).includes(ADMIN_AREA(t[1]))));
+  ctx.adminTabs = (req, cur) => adminTabs(cur, req);
+  const page = (req, cur, title, body) => layout(req, { title, heading: 'Administration', crumbs: [['Home', '/'], ['Administration']], tabs: adminTabs(cur, req), body });
 
-  r.get('/admin', (req, res) => res.redirect('/admin/users'));
+  r.get('/admin', (req, res) => res.redirect(core.isSuper(req.user) ? '/admin/users' : (adminTabs('', req)[0] || [0, '/'])[1]));
 
   // ---------- users ----------
   async function roleOptions(kind) {
@@ -93,6 +100,7 @@ function mountAdmin(r, ctx) {
 
   r.post('/admin/users/:id', async (req, res) => {
     const u = await loadUser(req.params.id);
+    guardSuper(req, u);
     const own = u.id === req.user.id;
     const name = String(req.body.name || '').trim().slice(0, 120);
     const username = String(req.body.username || '').trim().toLowerCase() || null;
@@ -122,6 +130,7 @@ function mountAdmin(r, ctx) {
 
   r.post('/admin/users/:id/password', async (req, res) => {
     const u = await loadUser(req.params.id);
+    guardSuper(req, u);
     const pw = String(req.body.password || '');
     if (pw.length < MIN_PW) throw bad(`The temporary password needs at least ${MIN_PW} characters.`);
     await core.inTx(async db => {
@@ -134,6 +143,7 @@ function mountAdmin(r, ctx) {
 
   r.post('/admin/users/:id/mfa-reset', async (req, res) => {
     const u = await loadUser(req.params.id);
+    guardSuper(req, u);
     if (u.id === req.user.id) throw bad('Use Account & security to change your own two-step verification.');
     await core.inTx(async db => {
       await db.query("update users set mfa_enabled = false, mfa_secret = null, mfa_recovery = '[]' where id = $1", [u.id]);
@@ -143,32 +153,7 @@ function mountAdmin(r, ctx) {
     res.redirect(`/admin/users/${u.id}?msg=mfa_reset`);
   });
 
-  // ---------- roles ----------
-  r.get('/admin/roles', async (req, res) => {
-    const roles = (await pool.query("select * from roles where kind = 'internal' and key <> 'super_admin' order by label")).rows;
-    res.send(page(req, 'roles', 'Roles', html`<section class="panel"><h2 class="h">What each staff role can do</h2>
-      <p class="muted">Everyone can open the workspaces they are added to. These switches add section-wide abilities. Super Admin can do everything and cannot be changed.</p>
-      <form method="post" action="/admin/roles">${csrfField(req)}
-        <div class="table-wrap"><table><thead><tr><th>Ability</th>${roles.map(r2 => html`<th class="c">${r2.label}</th>`)}</tr></thead><tbody>
-          ${Object.entries(PERMISSIONS).map(([p, label]) => html`<tr><td>${label}</td>${roles.map(r2 => html`<td class="c"><input type="checkbox" aria-label="${r2.label}: ${label}" name="${r2.key}" value="${p}" ${r2.permissions.includes(p) ? raw('checked') : ''}></td>`)}</tr>`)}
-        </tbody></table></div>
-        <div class="actions"><button class="btn primary" type="submit">Save</button></div></form></section>`));
-  });
-
-  r.post('/admin/roles', async (req, res) => {
-    const roles = (await pool.query("select * from roles where kind = 'internal' and key <> 'super_admin'")).rows;
-    await core.inTx(async db => {
-      for (const role of roles) {
-        let v = req.body[role.key]; v = Array.isArray(v) ? v : v ? [v] : [];
-        const next = v.filter(p => p in PERMISSIONS).sort();
-        const prev = [...role.permissions].sort();
-        if (JSON.stringify(next) === JSON.stringify(prev)) continue;
-        await db.query('update roles set permissions = $2 where key = $1', [role.key, next]);
-        await core.audit(db, { actor: req.user, action: 'role.permissions_changed', entity: 'role', entityId: role.key, summary: `Changed ${role.label} permissions`, before: { permissions: prev }, after: { permissions: next }, ip: req.ip });
-      }
-    });
-    res.redirect('/admin/roles?msg=roles');
-  });
+  // ---------- roles: see authority.js (Authority matrix) ----------
 
   // ---------- outbox ----------
   r.get('/admin/outbox', async (req, res) => {

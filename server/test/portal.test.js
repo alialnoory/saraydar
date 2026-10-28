@@ -251,19 +251,33 @@ test('portal', { skip: !URL_ && 'set TEST_DATABASE_URL to run' }, async t => {
     assert.match(locked.text, /Too many failed attempts/);
   });
 
-  await t.test('role permissions are configurable', async () => {
+  await t.test('authority matrix: adjustable per role, with money limits and added roles', async () => {
     assert.equal((await pm.get('/s/sales/new')).status, 403);
-    const roles = (await pool.query("select key, permissions from roles where kind = 'internal' and key <> 'super_admin'")).rows;
-    const form = { };
-    const body = new URLSearchParams();
-    for (const r of roles) for (const p of r.permissions) body.append(r.key, p);
-    body.append('project_manager', 'create:sales');
-    const page = await admin.get('/admin/roles');
-    body.append('_csrf', admin.csrfFrom(page.text));
-    const res = await fetch(base + '/admin/roles', { method: 'POST', body, redirect: 'manual', headers: { 'content-type': 'application/x-www-form-urlencoded', cookie: [...admin.jar].map(([k, v]) => `${k}=${v}`).join('; ') } });
-    assert.equal(res.headers.get('location'), '/admin/roles?msg=roles');
+    const post = async (path, fields) => {
+      const page = await admin.get('/admin/roles?role=project_manager');
+      const body = new URLSearchParams(); body.append('_csrf', admin.csrfFrom(page.text));
+      for (const [k, v] of fields) body.append(k, v);
+      return fetch(base + path, { method: 'POST', body, redirect: 'manual', headers: { 'content-type': 'application/x-www-form-urlencoded', cookie: [...admin.jar].map(([k, v]) => `${k}=${v}`).join('; ') } });
+    };
+    // keep what the Project Manager has, add creating sales cases
+    const ro = (await pool.query("select matrix, limits from roles where key = 'project_manager'")).rows[0];
+    const ticks = Object.entries(ro.matrix).flatMap(([k, acts]) => acts.map(a => ['m', `${k}|${a}`]));
+    const lims = Object.entries(ro.limits).flatMap(([k, v]) => [[`lim_on_${k}`, '1'], [`lim_${k}`, v === null ? '' : String(v / 1000)]]);
+    let res = await post('/admin/roles/project_manager', [...ticks, ['m', 'sales.record|create'], ...lims]);
+    assert.equal(res.headers.get('location'), '/admin/roles?role=project_manager&msg=saved');
     assert.equal((await pm.get('/s/sales/new')).status, 200);
-    void form;
+    assert.ok((await pool.query("select permissions from roles where key = 'project_manager'")).rows[0].permissions.includes('create:sales'));   // older checks follow the matrix
+    // the overview grid and the role editor render
+    const grid = await admin.get('/admin/roles');
+    assert.match(grid.text, /Authority matrix/); assert.match(grid.text, /Site Supervisor/); assert.match(grid.text, /Administrator/); assert.match(grid.text, /Money limits/);
+    // an added role starts as a copy and can be deleted while nobody has it
+    res = await post('/admin/roles/new', [['label', 'Accountant'], ['copy', 'finance'], ['description', 'Books and receipts']]);
+    assert.match(res.headers.get('location'), /^\/admin\/roles\?role=accountant/);
+    assert.deepEqual((await pool.query("select matrix from roles where key = 'accountant'")).rows[0].matrix, (await pool.query("select matrix from roles where key = 'finance'")).rows[0].matrix);
+    res = await post('/admin/roles/accountant/delete', []);
+    assert.equal(res.headers.get('location'), '/admin/roles?msg=saved');
+    // only Super Admins open the matrix
+    assert.equal((await pm.get('/admin/roles')).status, 404);
   });
 
   await t.test('legacy tracker API keeps working alongside the portal', async () => {

@@ -776,6 +776,7 @@ function mountSalesCrm(r, ctx) {
     const b = req.body; const v = [txt(b.category, 80), txt(b.description, 300), txt(b.supplier, 160)];
     if (v.some(x => !x)) throw bad('Enter the category, description and supplier.');
     const on = dateOrNull(b.cost_date), amt = moneyOrNull(b.amount, 'the amount'); if (!on || !amt) throw bad('Enter the date and amount.');
+    if (ctx.authority) await ctx.authority.checkLimit(req, 'expense', amt, 'This expense');   // authority matrix
     await core.inTx(async db => {
       const id = (await db.query('insert into sales_expenses (workspace_id, category, description, supplier, invoice_no, cost_date, amount_minor, payer, created_by) values ($1,$2,$3,$4,$5,$6,$7,$8,$9) returning id',
         [a.ws.id, ...v, txt(b.invoice_no, 60), on, amt, ['saraydar', 'client_reimbursable', 'client_direct'].includes(b.payer) ? b.payer : 'saraydar', req.user.id])).rows[0].id;

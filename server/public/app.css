@@ -1084,3 +1084,61 @@ body.modern .panel, body.modern .card, body.modern .client-banner { border-radiu
   .mglinks { flex-wrap: nowrap; }
   .mgroups-cards .mgroup a { white-space: nowrap; padding: 7px 11px 7px 8px; font-size: 13.5px; }
 }
+
+/* Authority matrix (Administration) */
+.am-roles { display: flex; flex-wrap: wrap; gap: 10px; margin: 12px 0 18px; }
+.am-role { display: flex; flex-direction: column; gap: 2px; padding: 10px 14px; border: 1px solid #E3D6CA; border-radius: 14px; background: #fff; text-decoration: none; color: #1C1612; min-width: 150px; position: relative; }
+.am-role span { font-size: 12px; color: #7A685B; } .am-role i { position: absolute; top: 8px; right: 10px; font-style: normal; font-size: 10.5px; font-weight: 700; color: #8A5330; }
+.am-role:hover { border-color: #B98A66; } .am-role.on { background: #2A1C15; border-color: #2A1C15; color: #F4EDE6; } .am-role.on span { color: #CDBBAE; }
+.am-add { border-style: dashed; color: #8A5330; }
+.am-roles-tabs { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 4px; } .am-roles-tabs .am-role { flex: 0 0 auto; min-width: 0; }
+.am-wrap { max-height: 72vh; overflow: auto; border: 1px solid #EFE6DD; border-radius: 12px; }
+.am-grid { border-collapse: separate; border-spacing: 0; font-size: 13px; }
+.am-grid thead th { position: sticky; top: 0; background: #2A1C15; color: #F4EDE6; z-index: 2; white-space: nowrap; padding: 10px 12px; }
+.am-grid thead th a { color: #F4EDE6; text-decoration: none; } .am-grid thead th:first-child { left: 0; z-index: 3; }
+.am-grid td:first-child { position: sticky; left: 0; background: #fff; z-index: 1; min-width: 260px; }
+.am-grid td, .am-grid th { border-bottom: 1px solid #F1E9E1; }
+.am-group th { text-align: left; background: #F4EDE6; color: #6B4A33; font-size: 11.5px; letter-spacing: .08em; text-transform: uppercase; padding: 8px 12px; position: sticky; left: 0; }
+.am-cell { font-family: var(--f-mono, ui-monospace, monospace); font-size: 12px; white-space: nowrap; letter-spacing: .04em; }
+.am-cell.full { background: #E8F2EB; color: #24573A; font-weight: 700; } .am-cell.part { background: #FBF3E6; color: #7A4F0C; } .am-cell.none { color: #B9AAA0; }
+.am-fin { display: inline-block; font-size: 10.5px; font-weight: 700; padding: 1px 7px; border-radius: 999px; background: #F6EBD6; color: #7A4F0C; margin-left: 4px; }
+.am-edit { font-size: 13.5px; } .am-edit thead th { white-space: nowrap; }
+.am-edit td:first-child { min-width: 240px; }
+.am-tick { display: inline-flex; cursor: pointer; } .am-tick input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.am-tick span { width: 26px; height: 26px; border-radius: 8px; border: 2px solid #D6C7BA; background: #fff; display: inline-flex; align-items: center; justify-content: center; transition: background .12s, border-color .12s; }
+.am-tick input:checked + span { background: #2F7D4F; border-color: #2F7D4F; }
+.am-tick input:checked + span::after { content: ""; width: 7px; height: 12px; border: solid #fff; border-width: 0 2.5px 2.5px 0; transform: rotate(45deg) translate(-1px, -1px); }
+.am-tick input:focus-visible + span { box-shadow: 0 0 0 3px rgba(138,83,48,.3); }
+.linkbtn { background: none; border: 0; color: #8A5330; font: inherit; font-weight: 600; cursor: pointer; text-decoration: underline; padding: 0; }
+.am-quick { display: flex; gap: 8px; }
+.am-limits { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
+.am-limit { border: 1px solid #E8DDD2; border-radius: 14px; padding: 12px; display: flex; flex-direction: column; gap: 10px; background: #FFFDFB; }
+.am-limit > div:first-child { display: flex; flex-direction: column; gap: 2px; }
+.am-amt { display: flex; align-items: center; gap: 8px; } .am-amt span { font-weight: 600; color: #6B5A4E; }
+.am-amt input { flex: 1; padding: 9px 12px; border: 1px solid #DCCFC3; border-radius: 10px; font: inherit; text-align: right; }
+.am-limit:has(input[value="0"]:checked) .am-amt { opacity: .4; pointer-events: none; }
+@media (max-width: 640px) { .am-edit td:first-child, .am-grid td:first-child { min-width: 170px; } .am-tick span { width: 24px; height: 24px; } }
+.am-limit .seg-field { display: inline-flex; border: 1px solid #DCCFC3; border-radius: 10px; overflow: hidden; align-self: flex-start; }
+.am-limit .seg-field label { cursor: pointer; } .am-limit .seg-field input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.am-limit .seg-field span { display: inline-block; padding: 7px 12px; font-size: 13px; color: #6B5A4E; background: #fff; }
+.am-limit .seg-field input:checked + span { background: #2A1C15; color: #F4EDE6; font-weight: 600; }
+.am-limit .seg-field input:focus-visible + span { box-shadow: inset 0 0 0 2px #B98A66; }
+form[data-am] > section:last-child { position: sticky; bottom: 0; z-index: 5; box-shadow: 0 -8px 24px rgba(22,17,13,.08); }
+@media (max-width: 640px) { body.has-tabbar form[data-am] > section:last-child { bottom: 70px; } }
+.am-phone-note { display: none; }
+@media (max-width: 640px) {
+  .am-phone-note { display: block; } .am-wrap { display: none; }
+  .am-edit, .am-edit tbody { display: block; } .am-edit thead { display: none; }
+  .am-edit tr { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)) auto; align-items: center; gap: 2px; padding: 8px 0; border-bottom: 1px solid #F1E9E1; }
+  .am-edit td { border: 0; padding: 0; }
+  .am-edit td:first-child { grid-column: 1 / -1; min-width: 0; font-weight: 600; padding-bottom: 4px; }
+  .am-edit td[data-l] { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+  .am-l { display: block !important; font-size: 10.5px; color: #7A685B; }
+  .am-edit tr.am-group { display: flex; justify-content: space-between; background: #F4EDE6; padding: 8px 10px; border-radius: 8px; margin-top: 10px; }
+  .am-edit tr.am-group th { position: static; background: none; padding: 0; }
+  .am-roles:not(.am-roles-tabs) .am-role { min-width: calc(50% - 5px); }
+}
+@media (max-width: 640px) { .table-wrap table.am-edit, table.am-edit { min-width: 0; width: 100%; } .am-edit tr { width: 100%; } }
+
+.am-l { display: none; }
+.am-save { padding-top: 12px; padding-bottom: 12px; }

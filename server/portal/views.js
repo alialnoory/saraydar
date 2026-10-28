@@ -89,6 +89,7 @@ function ring(p) {
 }
 
 function layout(req, { title, crumbs = [], heading = null, sub = null, tabs = null, actions = null, body, bare = false, noExport = false }) {
+  if (tabs && req.tabFilter) tabs = tabs.filter(t => t[2] || req.tabFilter(t[1]));   // authority matrix: hide areas the role may not open
   const u = req.user;
   // Page navigation (Back / Home / Next tab) and export buttons, shown on every signed-in page.
   const home = u && u.kind === 'external' ? '/my' : '/';
@@ -199,7 +200,7 @@ function layout(req, { title, crumbs = [], heading = null, sub = null, tabs = nu
           <div class="menu">
             <a href="/account">Account &amp; security</a>
             ${u.kind !== 'external' ? html`<a href="/help">Help &amp; user guide</a>` : ''}
-            ${u.system_role === 'super_admin' ? html`<a href="/admin">Administration</a>` : ''}
+            ${u.system_role === 'super_admin' || (req.adminAreas && req.adminAreas.length) ? html`<a href="/admin">Administration</a>` : ''}
             <form method="post" action="/logout">${csrfField(req)}<button type="submit">Sign out</button></form>
           </div></details>` : ''}
       </div>
