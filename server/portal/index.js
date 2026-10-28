@@ -150,6 +150,7 @@ function createPortal({ pool, secret, mailer, env = process.env }) {
   require('./market-search').mountMarketSearch(r, ctx);
   const P = mountProjects(r, ctx);
   require('./master-plan').mountMasterPlan(r, ctx, P);
+  require('./project-overview-pdf').mountProjectOverviewPdf(r, ctx, P);
   mountProjectExports(r, ctx, P);
   mountInvestors(r, ctx, P);
   mountClients(r, ctx, mountFees(r, ctx, P));
