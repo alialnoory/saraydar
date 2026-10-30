@@ -28,7 +28,7 @@ const COMMON_RISKS = {
     'Slower sales than planned', 'Design changes after approval', 'Utility connection delays']
 };
 
-const MGMT_SCOPE = ['Project management and coordination', 'Design management and review', 'Approvals and permits follow-up', 'Tendering and contractor selection',
+const MGMT_SCOPE = ['Project management and coordination', 'Design management and review', 'Approvals and permits follow-up', 'Contractor quotations and selection',
   'Construction supervision', 'Cost control and payment certification', 'Monthly progress reports', 'Handover, snagging and close-out'];
 const MGMT_EXCLUSIONS = ['Design and engineering services', 'Construction works and materials', 'Government and authority fees', 'Utility connection charges',
   'Legal and notary fees', 'Furniture and equipment'];

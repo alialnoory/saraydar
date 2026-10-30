@@ -14,7 +14,7 @@ const BASELINE = [
     T('1.5', 'Set reporting, communication and decision process', 20)] },
   { key: 'S2', name: 'Design and approvals', weight: 6, duration: '4–8 weeks', startWeek: 1, endWeek: 9, tasks: [
     T('2.1', 'Prepare concept design and confirm client requirements', 20), T('2.2', 'Approve architectural design and outline specifications', 20),
-    T('2.3', 'Coordinate structural, electrical and mechanical drawings', 20), T('2.4', 'Prepare final drawings, budget and tender documents', 15),
+    T('2.3', 'Coordinate structural, electrical and mechanical drawings', 20), T('2.4', 'Prepare final drawings, budget and scope for contractor quotations', 15),
     T('2.5', 'Submit for permits and obtain required approvals', 25)] },
   { key: 'S3', name: 'Contracting and purchasing', weight: 5, duration: '3–6 weeks', startWeek: 6, endWeek: 12, tasks: [
     T('3.1', 'Request and compare contractor quotations', 15), T('3.2', 'Appoint contractor and agree contract, programme and payment terms', 20),
@@ -65,7 +65,7 @@ const RENOVATION = [
   { key: 'R3', name: 'Design and approvals', weight: 8, duration: '4–10 weeks', startWeek: 4, endWeek: 14, tasks: [
     R('3.1', 'Prepare renovation design and confirm client requirements', 20), R('3.2', 'Agree what is kept, repaired or replaced', 15),
     R('3.3', 'Design structural repairs and strengthening', 15), R('3.4', 'Design electrical, plumbing and AC renewal', 15),
-    R('3.5', 'Prepare final drawings, specifications and tender documents', 15), R('3.6', 'Obtain building permit and any heritage approval', 20, true)] },
+    R('3.5', 'Prepare final drawings, specifications and scope for contractor quotations', 15), R('3.6', 'Obtain building permit and any heritage approval', 20, true)] },
   { key: 'R4', name: 'Contracting and purchasing', weight: 5, duration: '3–6 weeks', startWeek: 10, endWeek: 16, tasks: [
     R('4.1', 'Request and compare quotations from contractors with renovation experience', 15), R('4.2', 'Appoint contractor and agree contract, programme and payment terms', 25),
     R('4.3', 'Select and approve materials that match the original', 20), R('4.4', 'Order and track long-lead items (custom joinery, windows, special materials)', 20),

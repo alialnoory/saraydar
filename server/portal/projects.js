@@ -60,6 +60,8 @@ const SPLIT_SUGGEST = [
   [/contingency/i, 3.5, 'Reserve for unforeseen items']
 ];
 const suggestPct = l => { const m = SPLIT_SUGGEST.find(([re]) => re.test(l.description)); return m ? { pct: m[1], why: m[2] } : null; };
+// we work with contractor quotations, not tenders (owner 2026-10-30): the stored status keys stay, the words change
+const REG_WORD = { tendering: 'Requesting quotations', awarded: 'Contractor appointed' };
 const humanize = s => String(s || '').replace(/_/g, ' ').replace(/^./, c => c.toUpperCase());
 const upload = require('./choices').withChoices(multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024, files: 12, fields: 30 } }));
 
@@ -1233,10 +1235,10 @@ ${req.projectScreen ? '' : html`        <div class="card"><div class="muted smal
         ${rows.length ? html`<div class="table-wrap"><table><thead><tr><th>Item</th><th>Owner</th>${isRisk ? html`<th>Likelihood</th><th>Impact</th>` : ''}<th>Due</th><th>Status</th><th></th></tr></thead><tbody>
           ${rows.map(x => html`<tr><td><b>${x.title}</b>${x.suggested ? html` ${pill('Suggested', 'info')}` : ''}${x.extra && x.extra.role ? html`<div class="muted small">${x.extra.role}</div>` : ''}${x.description ? html`<div class="muted small pre-line">${x.description}</div>` : ''}</td>
             <td>${x.owner_text || '—'}</td>${isRisk ? html`<td>${x.likelihood || '—'}</td><td>${x.impact ? pill(x.impact, x.impact === 'High' ? 'bad' : x.impact === 'Medium' ? 'warn' : 'muted') : '—'}</td>` : ''}
-            <td class="small">${fmtDate(x.due_date) || '—'}</td><td>${humanize(x.status)}</td>
+            <td class="small">${fmtDate(x.due_date) || '—'}</td><td>${REG_WORD[x.status] || humanize(x.status)}</td>
             <td>${contrib ? html`<details class="inline-form"><summary class="small">Edit</summary><form method="post" action="/w/${a.ws.id}/registers/${x.id}" class="form-grid">${csrfField(req)}
               ${field({ name: 'title', label: 'Title', value: x.title, required: true })}${field({ name: 'owner_text', label: 'Owner', value: x.owner_text || '', list: names })}
-              ${field({ name: 'status', label: 'Status', value: x.status, options: R.statuses.map(s => [s, humanize(s)]) })}${field({ name: 'due_date', label: 'Due', type: 'date', value: iso(x.due_date) || '' })}
+              ${field({ name: 'status', label: 'Status', value: x.status, options: R.statuses.map(s => [s, REG_WORD[s] || humanize(s)]) })}${field({ name: 'due_date', label: 'Due', type: 'date', value: iso(x.due_date) || '' })}
               ${isRisk ? html`${field({ name: 'likelihood', label: 'Likelihood', value: x.likelihood || '', options: [['', '—'], ['Low', 'Low'], ['Medium', 'Medium'], ['High', 'High']] })}${field({ name: 'impact', label: 'Impact', value: x.impact || '', options: [['', '—'], ['Low', 'Low'], ['Medium', 'Medium'], ['High', 'High']] })}` : ''}
               ${field({ name: 'description', label: kind === 'risk' ? 'Description and mitigation' : 'Details', value: x.description || '', type: 'textarea', full: true })}
               <div class="actions full"><button class="btn small" type="submit">Save</button><button class="btn small" type="submit" name="archive" value="1">Archive</button></div></form></details>` : ''}</td></tr>`)}</tbody></table></div>` : html`<p class="muted">Nothing recorded.</p>`}

@@ -10,7 +10,7 @@ const TEMPLATE = [
   { key: 'feasibility', name: 'Feasibility & land', w: 3, tasks: ['Confirm land title, plot references and dimensions', 'Feasibility study and cost estimate', 'Agree funding arrangement', ['Investment decision', true]] },
   { key: 'design', name: 'Design', w: 7, tasks: ['Appoint design consultant', 'Concept design', 'Detailed design and drawings', 'Cost plan / bill of quantities', ['Design freeze', true]] },
   { key: 'approvals', name: 'Approvals & permits', w: 5, tasks: ['List the approvals required (confirm with the authorities)', 'Submit building permit application', 'Utility connection applications', ['Building permit received', true]] },
-  { key: 'procurement', name: 'Procurement & contracts', w: 5, tasks: ['Prepare tender documents', 'Tender and evaluate bids', 'Award main contract', ['Contractor mobilised', true]] },
+  { key: 'procurement', name: 'Procurement & contracts', w: 5, tasks: ['Prepare the scope for contractor quotations', 'Request and compare contractor quotations', 'Appoint the contractor', ['Contractor mobilised', true]] },
   { key: 'construction', name: 'Construction', w: 70, tasks: ['Site set-up and hoarding', 'Substructure', 'Superstructure', 'Mechanical, electrical and plumbing', 'Finishes', 'External works', ['Practical completion', true]] },
   { key: 'handover', name: 'Handover & close-out', w: 5, tasks: ['Snagging inspections', 'Completion approvals', 'Handover documents and keys', ['Handover complete', true]] },
   { key: 'defects', name: 'Defects liability', w: 2, tasks: ['Track defects during the liability period', 'Final account and retention release'] },
