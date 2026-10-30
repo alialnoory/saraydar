@@ -216,6 +216,7 @@ function mountWorkspaces(r, ctx) {
         ${field({ name: 'location', label: 'Location', value: vals.location || '', attrs: 'maxlength="200"', hint: 'Pick an area from the list or type one. Leave empty if not yet determined.', list: CH.BH_AREAS })}
         ${field({ name: 'manager', label: 'Responsible manager', value: vals.manager || req.user.id, options: [['', 'Not yet assigned'], ...users.map(x => [x.id, x.label])] })}
         ${['dev', 'cpm'].includes(s.key) || (ctx.autoStage && ctx.autoStage(kind)) ? '' : stageField(kind, vals.stage)}
+        ${['dev', 'cpm'].includes(s.key) ? field({ name: 'works', label: 'Type of works', value: vals.works || 'construction', options: [['construction', 'New build'], ['renovation', 'Renovation of an existing house']], hint: 'Sets the stages and tasks of the master plan. It can be changed later on the Master Plan tab.' }) : ''}
         ${s.key === 'cpm' ? budgetControlField(vals.budget_control || 'saraydar') : ''}
         <p class="muted small full">${['dev', 'cpm'].includes(s.key) ? 'After creating it, the guided setup asks the remaining questions. Everything entered here can be edited later.' : 'The guided setup questionnaire for this section is added in a later phase. Everything entered here can be edited later.'}${s.key === 'cpm' ? html` New clients get a basic record; complete their profile under <a href="/clients">Clients</a>.` : ''}</p>
         ${err ? html`<p class="err full" role="alert">${err}</p>` : ''}
@@ -237,7 +238,7 @@ function mountWorkspaces(r, ctx) {
     if (!(await core.can(req.user, `create:${s.key}`))) throw new Forbidden('Your role cannot create items in this section.');
     const c = s.create[kind];
     const vals = { name: String(req.body.name || '').trim().slice(0, 160), party: String(req.body.party || '').trim().slice(0, 160),
-      location: String(req.body.location || '').trim().slice(0, 200), stage: String(req.body.stage || '').trim().slice(0, 80), manager: String(req.body.manager || ''), budget_control: req.body.budget_control === 'client' ? 'client' : 'saraydar' };
+      location: String(req.body.location || '').trim().slice(0, 200), stage: String(req.body.stage || '').trim().slice(0, 80), manager: String(req.body.manager || ''), budget_control: req.body.budget_control === 'client' ? 'client' : 'saraydar', works: req.body.works === 'renovation' ? 'renovation' : 'construction' };
     if (!vals.name) return createForm(req, res, s, kind, 'Enter a name.', vals);
     if (vals.manager && !UUID.test(vals.manager)) vals.manager = '';
     const id = await core.inTx(async db => {
@@ -257,7 +258,7 @@ function mountWorkspaces(r, ctx) {
       if (vals.manager && vals.manager !== req.user.id) {
         await db.query("insert into workspace_members (workspace_id, user_id, role, added_by) values ($1,$2,'manager',$3) on conflict do nothing", [w.id, vals.manager, req.user.id]);
       }
-      if (['dev', 'cpm'].includes(s.key) && ctx.applyMasterOnCreate) await ctx.applyMasterOnCreate(db, w.id, req.user);   // new projects start on the construction master plan
+      if (['dev', 'cpm'].includes(s.key) && ctx.applyMasterOnCreate) await ctx.applyMasterOnCreate(db, w.id, req.user, vals.works);   // new projects start on the construction master plan
       await core.audit(db, { actor: req.user, workspaceId: w.id, action: 'workspace.created', entity: 'workspace', entityId: w.id, summary: `${KIND_LABEL[kind]} ${ref} created: ${vals.name}`, after: { ...vals, ref }, ip: req.ip });
       return w.id;
     });

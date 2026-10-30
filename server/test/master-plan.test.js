@@ -202,6 +202,22 @@ test('construction master plan', { skip: !URL_ && 'set TEST_DATABASE_URL to run'
     const D = wsOf(await admin.post('/s/dev/new', { kind: 'project', name: 'New After Change' }, '/s/dev/new'));
     assert.equal((await live(D))[0].name, 'Project start-up');
   });
+
+  await t.test('renovation: chosen at creation or switched later; the old plan is archived', async () => {
+    const R1 = wsOf(await admin.post('/s/cpm/new', { kind: 'client_project', name: 'Bait Test', works: 'renovation' }, '/s/cpm/new'));
+    const st = await live(R1);
+    assert.equal(st.length, 11);
+    assert.equal(st[1].name, 'Survey and condition assessment');
+    assert.equal((await q1('select template_key from master_plans where workspace_id = $1', [R1])).template_key, 'renovation');
+    const N = wsOf(await admin.post('/s/cpm/new', { kind: 'client_project', name: 'Switch Me' }, '/s/cpm/new'));
+    assert.equal((await live(N)).length, 10);
+    assert.equal((await admin.post(`/w/${N}/master/type`, { template: 'renovation' }, `/w/${N}/master`)).status, 400);   // needs the confirmation
+    await admin.post(`/w/${N}/master/type`, { template: 'renovation', confirm: '1' }, `/w/${N}/master`);
+    assert.equal((await live(N))[4].name, 'Strip-out and temporary works');
+    assert.equal((await q1('select count(*)::int as n from plan_archives where workspace_id = $1', [N])).n, 1);
+    assert.match((await admin.get(`/w/${N}/master`)).text, /Type of works:<\/b> Renovation of an existing house/);
+    assert.match((await admin.get('/admin/master-plan?t=renovation')).text, /Strip-out and temporary works/);
+  });
 });
 
 test('one-time move of existing projects: fresh master plan, old plan deleted', { skip: !URL_ && 'set TEST_DATABASE_URL to run' }, async () => {

@@ -4,15 +4,16 @@
 const M = require('./master-plan');
 const iso = d => d ? (d instanceof Date ? d.toISOString().slice(0, 10) : String(d).slice(0, 10)) : null;
 
-async function template(db) {
-  let row = (await db.query('select * from master_templates where key = $1', [M.TEMPLATE_KEY])).rows[0];
-  if (!row) row = (await db.query('insert into master_templates (key, version, stages) values ($1, 1, $2) on conflict (key) do update set key = excluded.key returning *', [M.TEMPLATE_KEY, JSON.stringify(M.BASELINE)])).rows[0];
+async function template(db, key = M.TEMPLATE_KEY) {
+  if (!M.TEMPLATES[key]) key = M.TEMPLATE_KEY;
+  let row = (await db.query('select * from master_templates where key = $1', [key])).rows[0];
+  if (!row) row = (await db.query('insert into master_templates (key, version, stages) values ($1, 1, $2) on conflict (key) do update set key = excluded.key returning *', [key, JSON.stringify(M.TEMPLATES[key].stages)])).rows[0];
   return row;
 }
 
 // Copy the template into a project. carry: template task key → the old task whose progress and dates it keeps.
-async function applyTemplate(db, wsId, userId, carry = {}) {
-  const tpl = await template(db);
+async function applyTemplate(db, wsId, userId, carry = {}, key = M.TEMPLATE_KEY) {
+  const tpl = await template(db, key);
   let ps = 0;
   for (const s of tpl.stages) {
     const ph = (await db.query(`insert into phases (workspace_id, name, sort, weight, suggested_weight, template_key, duration_note, start_week, end_week, after_handover)
@@ -28,7 +29,7 @@ async function applyTemplate(db, wsId, userId, carry = {}) {
   }
   await db.query(`insert into master_plans (workspace_id, template_key, template_version, applied_by) values ($1,$2,$3,$4)
     on conflict (workspace_id) do update set template_key = excluded.template_key, template_version = excluded.template_version, applied_by = excluded.applied_by, applied_at = now()`,
-    [wsId, M.TEMPLATE_KEY, tpl.version, userId]);
+    [wsId, tpl.key, tpl.version, userId]);
   return tpl;
 }
 

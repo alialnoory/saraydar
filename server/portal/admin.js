@@ -19,7 +19,7 @@ function mountAdmin(r, ctx) {
   const guardSuper = (req, target) => { if (core.isSuper(req.user)) return; if (target && target.system_role === 'super_admin') throw new Forbidden('Only a Super Admin can change a Super Admin account.'); if (req.body && req.body.system_role === 'super_admin') throw new Forbidden('Only a Super Admin can give the Super Admin role.'); };
   ctx.guardSuper = guardSuper;
 
-  const adminTabsAll = cur => [['Users', '/admin/users', cur === 'users'], ['Authority matrix', '/admin/roles', cur === 'roles'], ['Agreements', '/admin/agreements', false], ['Master template', '/admin/master-plan', false], ['Outbox', '/admin/outbox', cur === 'outbox'], ['Audit log', '/admin/audit', cur === 'audit'], ['System', '/admin/system', cur === 'system']];
+  const adminTabsAll = cur => [['Users', '/admin/users', cur === 'users'], ['Authority matrix', '/admin/roles', cur === 'roles'], ['Agreements', '/admin/agreements', false], ['Master templates', '/admin/master-plan', cur === 'master'], ['Outbox', '/admin/outbox', cur === 'outbox'], ['Audit log', '/admin/audit', cur === 'audit'], ['System', '/admin/system', cur === 'system']];
   const ADMIN_AREA = h => /\/admin\/users/.test(h) ? 'admin.users' : /\/admin\/(agreements|master-plan)/.test(h) ? 'admin.templates' : /\/admin\/roles/.test(h) ? null : 'admin.audit';
   const adminTabs = (cur, req) => adminTabsAll(cur).filter(t => !req || core.isSuper(req.user) || (ADMIN_AREA(t[1]) && (req.adminAreas || []).includes(ADMIN_AREA(t[1]))));
   ctx.adminTabs = (req, cur) => adminTabs(cur, req);

@@ -27,14 +27,14 @@ function mountMasterPlan(r, ctx, P) {
   const { pool, core, NotFound, Forbidden } = ctx;
 
   // ---------- template ----------
-  const template = (db = pool) => MS.template(db);
+  const template = (db = pool, key) => MS.template(db, key);
   const masterOf = (wsId, db = pool) => db.query('select * from master_plans where workspace_id = $1', [wsId]).then(x => x.rows[0] || null);
   ctx.masterOf = masterOf;
-  const applyTemplate = (db, wsId, user, carry = {}) => MS.applyTemplate(db, wsId, user ? user.id : null, carry);
+  const applyTemplate = (db, wsId, user, carry = {}, key) => MS.applyTemplate(db, wsId, user ? user.id : null, carry, key);
   // new projects in both sections start on the master plan
-  ctx.applyMasterOnCreate = async (db, wsId, user) => {
-    const tpl = await applyTemplate(db, wsId, user);
-    await core.audit(db, { actor: user, workspaceId: wsId, action: 'master.applied', entity: 'plan', entityId: wsId, summary: `Construction master plan v${tpl.version} added (${tpl.stages.length} stages)` });
+  ctx.applyMasterOnCreate = async (db, wsId, user, key) => {
+    const tpl = await applyTemplate(db, wsId, user, {}, key);
+    await core.audit(db, { actor: user, workspaceId: wsId, action: 'master.applied', entity: 'plan', entityId: wsId, summary: `${(M.TEMPLATES[tpl.key] || M.TEMPLATES.construction).long} master plan v${tpl.version} added (${tpl.stages.length} stages)` });
   };
 
   // ---------- loading and computing ----------
@@ -193,6 +193,28 @@ function mountMasterPlan(r, ctx, P) {
     res.redirect(`${W(a)}?msg=saved`);
   });
 
+  // ---------- change the type of works (new build ↔ renovation), owner request 2026-10-30 ----------
+  r.post('/w/:id/master/type', async (req, res) => {
+    const a = await access(req, 'manage');
+    if (req.body.confirm !== '1') throw bad('Tick the box to confirm the change.');
+    const key = M.TEMPLATES[req.body.template] ? req.body.template : null; if (!key) throw bad('Choose the type of works.');
+    const master = await masterOf(a.ws.id); if (!master) throw new NotFound();
+    if (master.template_key === key) return res.redirect(W(a));
+    await core.inTx(async db => {
+      await db.query('select id from workspaces where id = $1 for update', [a.ws.id]);
+      const { id: archiveId } = await archiveCurrent(db, a, req.user, `Replaced by the ${M.TEMPLATES[key].long.toLowerCase()} plan`);
+      const keep = (await db.query('select anchor_start, defects_months from master_plans where workspace_id = $1', [a.ws.id])).rows[0] || {};
+      await db.query('delete from master_plans where workspace_id = $1', [a.ws.id]);
+      const tpl = await applyTemplate(db, a.ws.id, req.user, {}, key);
+      await db.query('update master_plans set anchor_start = $2, defects_months = $3 where workspace_id = $1', [a.ws.id, keep.anchor_start || null, keep.defects_months || null]);
+      const v = (await db.query('select coalesce(max(version),0)+1 as v from plans where workspace_id = $1', [a.ws.id])).rows[0].v;
+      await db.query("insert into plans (workspace_id, version, status, source, note, created_by) values ($1,$2,'draft','generated',$3,$4)", [a.ws.id, v, `${M.TEMPLATES[key].long} plan applied. Set the start date, review dates and weights, then approve a new baseline.`, req.user.id]);
+      await P.touch(db, a.ws.id);
+      await core.audit(db, { actor: req.user, workspaceId: a.ws.id, action: 'master.type_changed', entity: 'plan_archive', entityId: archiveId, summary: `Type of works changed to ${M.TEMPLATES[key].long} (${tpl.stages.length} stages); the previous plan is archived`, ip: req.ip });
+    });
+    res.redirect(`${W(a)}?msg=saved#schedule`);
+  });
+
   // ---------- history: archives and restore ----------
   r.get('/w/:id/master/history', async (req, res) => {
     const a = await access(req);
@@ -329,6 +351,13 @@ function mountMasterPlan(r, ctx, P) {
           ${field({ name: 'position', label: 'Position', value: String(phases.length), options: [...phases.map((p, i) => [String(i), `Before ${i + 1}. ${p.name}`]), [String(phases.length), 'At the end']] })}
           <fieldset class="full"><legend class="small">The other stages' weights</legend><label class="check"><input type="radio" name="mode" value="scale" checked> Share the rest proportionally (preview first)</label><label class="check"><input type="radio" name="mode" value="manual"> I will set them myself under Weights</label></fieldset>
           <div class="actions full"><button class="btn primary" type="submit">Continue</button></div></form></details></section>
+        <section class="panel" id="works-type"><details class="inline-form" ${req.query.type ? raw('open') : ''}><summary><b>Type of works:</b> ${(M.TEMPLATES[master.template_key] || M.TEMPLATES.construction).long}</summary>
+          ${core.isSuper(req.user) || a.role === 'manager' ? html`<form method="post" action="${W_}/type" class="form-grid">${csrfField(req)}
+            ${field({ name: 'template', label: 'Change the plan to', value: master.template_key === 'renovation' ? 'construction' : 'renovation', options: Object.entries(M.TEMPLATES).filter(([k]) => k !== master.template_key).map(([k, t]) => [k, t.long]) })}
+            <label class="field check full"><input type="checkbox" name="confirm" value="1" required> <span>Replace this project's stages and tasks with the chosen plan. The current plan is archived and can be restored from History.</span></label>
+            <div class="actions full"><button class="btn" type="submit">Change the plan</button></div>
+            <p class="muted small full">Tasks with the same number keep their status, %, dates, responsible person and notes only if they are the same work; otherwise they start at 0%. Then set the start date below and approve a new baseline on the Plan tab.</p></form>`
+          : html`<p class="muted small">Only the project manager can change the type of works.</p>`}</details></section>
         <section class="panel" id="schedule"><details class="inline-form" ${req.query.schedule ? raw('open') : ''}><summary><b>Illustrative schedule from a start date</b></summary>
           <form method="post" action="${W_}/schedule" class="form-grid">${csrfField(req)}
           ${field({ name: 'anchor', label: 'Project start date', type: 'date', value: iso(master.anchor_start) || '', required: true })}${field({ name: 'defects_months', label: 'Defects period (months)', type: 'number', value: master.defects_months || M.DEFAULT_DEFECTS_MONTHS, attrs: 'min="1" max="60"' })}
@@ -717,8 +746,9 @@ function mountMasterPlan(r, ctx, P) {
   // ---------- Super Admin: the default template ----------
   r.get('/admin/master-plan', async (req, res) => {
     if (!core.isSuper(req.user) && req.adminArea !== 'admin.templates') throw new Forbidden();
-    const tpl = await template();
-    const used = (await pool.query('select template_version as v, count(*)::int as n from master_plans group by 1 order by 1', [])).rows;
+    const key = M.TEMPLATES[req.query.t] ? req.query.t : M.TEMPLATE_KEY;
+    const tpl = await template(pool, key);
+    const used = (await pool.query('select template_version as v, count(*)::int as n from master_plans where template_key = $1 group by 1 order by 1', [key])).rows;
     const blank = { key: '', name: '', weight: '', duration: '', startWeek: '', endWeek: '', tasks: [] };
     const stageForm = (s, i) => html`<fieldset class="panel form-grid"><legend><b>Stage ${i + 1}</b></legend><input type="hidden" name="key_${i}" value="${s.key || ''}">
       ${field({ name: `name_${i}`, label: 'Stage name', value: s.name, hint: i >= tpl.stages.length ? 'Fill in to add a stage.' : 'Empty the name to remove the stage.' })}${field({ name: `weight_${i}`, label: 'Stage weight (%)', value: s.weight, attrs: 'inputmode="decimal"' })}
@@ -726,17 +756,19 @@ function mountMasterPlan(r, ctx, P) {
       <label class="field check"><input type="checkbox" name="after_${i}" value="1" ${s.afterHandover ? raw('checked') : ''}> <span>Starts after handover (defects period)</span></label>
       ${field({ name: `tasks_${i}`, label: 'Tasks: one per line as “title | weight” (add “| milestone” for a milestone)', type: 'textarea', full: true, value: s.tasks.map(t => `${t.title} | ${t.weight}${t.milestone ? ' | milestone' : ''}`).join('\n'), attrs: 'rows="7"' })}</fieldset>`;
     res.send(layout(req, { title: 'Construction master template', heading: 'Admin', crumbs: [['Home', '/'], ['Admin', '/admin'], ['Master template']],
-      tabs: [['Users', '/admin/users'], ['Roles', '/admin/roles'], ['Agreements', '/admin/agreements'], ['Master template', '/admin/master-plan', true], ['Outbox', '/admin/outbox'], ['Audit log', '/admin/audit'], ['System', '/admin/system']].map(([l, h, c]) => [l, h, !!c]), body: html`<h2 class="h">Construction master template</h2>
+      tabs: ctx.adminTabs ? ctx.adminTabs(req, 'master') : null, body: html`<h2 class="h">Master plan templates</h2>
       <section class="panel"><p>Version <b>${tpl.version}</b>, used by both SarayDar Real Estate Development and Clients Projects Management for <b>new</b> projects. Saving creates a new version; existing projects keep their own plans and are never changed.</p>
         <p class="small muted">${used.length ? `Projects on the master plan: ${used.map(u => `${u.n} on v${u.v}`).join(', ')}.` : 'No project uses it yet.'} Weights and durations are suggested defaults, not a standard, a contract payment schedule or a cost estimate.</p></section>
-      <form method="post" class="stack">${csrfField(req)}${[...tpl.stages, blank].map(stageForm)}
+      <nav class="subtabs" aria-label="Templates">${Object.entries(M.TEMPLATES).map(([k, t]) => html`<a href="/admin/master-plan?t=${k}" class="${k === key ? 'on' : ''}" ${k === key ? raw('aria-current="page"') : ''}>${t.long}</a>`)}</nav>
+      <form method="post" class="stack">${csrfField(req)}<input type="hidden" name="t" value="${key}">${[...tpl.stages, blank].map(stageForm)}
         <div class="actions"><button class="btn primary" type="submit">Save as version ${tpl.version + 1}</button><button class="btn" type="submit" name="reset" value="1" data-confirm="Replace the template with the original baseline as a new version?">Reset to the original baseline</button></div></form>` }));
   });
   r.post('/admin/master-plan', async (req, res) => {
-    if (!core.isSuper(req.user)) throw new Forbidden();
-    const tpl = await template();
+    if (!core.isSuper(req.user) && req.adminArea !== 'admin.templates') throw new Forbidden();
+    const key = M.TEMPLATES[req.body.t] ? req.body.t : M.TEMPLATE_KEY;
+    const tpl = await template(pool, key);
     let stages;
-    if (req.body.reset === '1') stages = M.BASELINE;
+    if (req.body.reset === '1') stages = M.TEMPLATES[key].stages;
     else {
       stages = [];
       for (let i = 0; i <= tpl.stages.length; i++) {
@@ -753,10 +785,10 @@ function mountMasterPlan(r, ctx, P) {
       if (errs.length) throw bad(`Not saved. ${errs.join(' ')}`);
     }
     await core.inTx(async db => {
-      await db.query('update master_templates set stages = $2, version = version + 1, updated_by = $3, updated_at = now() where key = $1', [M.TEMPLATE_KEY, JSON.stringify(stages), req.user.id]);
+      await db.query('update master_templates set stages = $2, version = version + 1, updated_by = $3, updated_at = now() where key = $1', [key, JSON.stringify(stages), req.user.id]);
       await core.audit(db, { actor: req.user, workspaceId: null, action: 'master.template_updated', entity: 'master_template', entityId: null, summary: `Construction master template saved as version ${tpl.version + 1} (${stages.length} stages)${req.body.reset === '1' ? ' — reset to the original baseline' : ''}`, ip: req.ip });
     });
-    res.redirect('/admin/master-plan?msg=saved');
+    res.redirect(`/admin/master-plan?t=${key}&msg=saved`);
   });
 }
 

@@ -49,7 +49,60 @@ const BASELINE = [
     T('10.1', 'Record defects reported during the agreed liability period', 25), T('10.2', 'Coordinate repairs and verify completion', 45),
     T('10.3', 'Complete final inspection and acceptance', 20), T('10.4', 'Close accounts and archive project records', 10)] }
 ];
+// Renovation of an existing (often old) house (owner request 2026-10-30, Bait Almanama): survey and condition first,
+// keep-or-replace decisions, strip-out, structural repairs, services renewal, restoration and finishes. Weeks are
+// indicative for a typical 2-storey house renovation of about 9–11 months.
+const R = (key, title, weight, milestone) => ({ key, title, weight, ...(milestone ? { milestone: true } : {}) });
+const RENOVATION = [
+  { key: 'R1', name: 'Project setup', weight: 4, duration: '1–2 weeks', startWeek: 0, endWeek: 2, tasks: [
+    R('1.1', 'Define renovation scope, client requirements and intended use', 20), R('1.2', 'Set budget, funding and target completion date', 20),
+    R('1.3', 'Appoint project manager and agree responsibilities', 20), R('1.4', 'Review title deed, existing drawings and any heritage listing', 20),
+    R('1.5', 'Set reporting, communication and decision process', 20)] },
+  { key: 'R2', name: 'Survey and condition assessment', weight: 6, duration: '2–4 weeks', startWeek: 1, endWeek: 5, tasks: [
+    R('2.1', 'Carry out a measured survey of the existing house', 15), R('2.2', 'Assess structural condition of walls, roof, floors and foundations', 25),
+    R('2.3', 'Inspect damp, salt damage, termites and roof leaks', 20), R('2.4', 'Inspect existing electrical, plumbing and drainage', 15),
+    R('2.5', 'Test for hazardous materials (e.g. asbestos) where suspected', 10), R('2.6', 'Record and photograph features to keep (doors, windows, ceilings, gypsum work)', 15)] },
+  { key: 'R3', name: 'Design and approvals', weight: 8, duration: '4–10 weeks', startWeek: 4, endWeek: 14, tasks: [
+    R('3.1', 'Prepare renovation design and confirm client requirements', 20), R('3.2', 'Agree what is kept, repaired or replaced', 15),
+    R('3.3', 'Design structural repairs and strengthening', 15), R('3.4', 'Design electrical, plumbing and AC renewal', 15),
+    R('3.5', 'Prepare final drawings, specifications and tender documents', 15), R('3.6', 'Obtain building permit and any heritage approval', 20, true)] },
+  { key: 'R4', name: 'Contracting and purchasing', weight: 5, duration: '3–6 weeks', startWeek: 10, endWeek: 16, tasks: [
+    R('4.1', 'Request and compare quotations from contractors with renovation experience', 15), R('4.2', 'Appoint contractor and agree contract, programme and payment terms', 25),
+    R('4.3', 'Select and approve materials that match the original', 20), R('4.4', 'Order and track long-lead items (custom joinery, windows, special materials)', 20),
+    R('4.5', 'Hand over the site, protect features to keep and mobilise', 20, true)] },
+  { key: 'R5', name: 'Strip-out and temporary works', weight: 8, duration: '3–5 weeks', startWeek: 15, endWeek: 19, tasks: [
+    R('5.1', 'Protect, label and set aside features to keep', 20), R('5.2', 'Install temporary props, shoring and site protection', 20),
+    R('5.3', 'Remove finishes, services and fittings that are not kept', 25), R('5.4', 'Remove debris and any hazardous materials safely', 20),
+    R('5.5', 'Inspect the exposed structure and update the repair scope', 15)] },
+  { key: 'R6', name: 'Structural repairs', weight: 20, duration: '8–12 weeks', startWeek: 18, endWeek: 29, tasks: [
+    R('6.1', 'Repair or strengthen foundations where needed', 15), R('6.2', 'Repair cracked or weak walls and remove salt- and damp-damaged material', 25),
+    R('6.3', 'Repair or replace roof and floor structure', 25), R('6.4', 'Treat rising damp and install damp-proofing', 15),
+    R('6.5', 'Carry out termite treatment', 5), R('6.6', 'Inspect and approve completed structural repairs', 15)] },
+  { key: 'R7', name: 'Services renewal', weight: 15, duration: '6–9 weeks', startWeek: 25, endWeek: 34, tasks: [
+    R('7.1', 'Install new electrical wiring, distribution board and earthing', 30), R('7.2', 'Install new water supply and drainage pipework', 25),
+    R('7.3', 'Install AC routes, piping and equipment bases', 20), R('7.4', 'Install data, phone and security cabling', 10),
+    R('7.5', 'Inspect and test concealed services before covering', 15)] },
+  { key: 'R8', name: 'Finishes and restoration', weight: 22, duration: '10–14 weeks', startWeek: 31, endWeek: 45, tasks: [
+    R('8.1', 'Complete plaster and render (compatible with the original walls)', 10), R('8.2', 'Apply and test roof and wet-area waterproofing', 10),
+    R('8.3', 'Restore or replace doors, windows and traditional joinery', 20), R('8.4', 'Install floor and wall finishes', 15),
+    R('8.5', 'Restore ceilings and decorative features', 15), R('8.6', 'Install kitchen, bathrooms, sanitary ware and fixtures', 15),
+    R('8.7', 'Complete painting', 10), R('8.8', 'Carry out finishing inspections and corrections', 5)] },
+  { key: 'R9', name: 'External works and utilities', weight: 5, duration: '3–5 weeks', startWeek: 40, endWeek: 45, tasks: [
+    R('9.1', 'Repair facade, parapets and external walls', 30), R('9.2', 'Complete courtyard, paving and boundary works', 30),
+    R('9.3', 'Upgrade utility connections (electricity, water, sewerage)', 30), R('9.4', 'Clean the exterior and remove site facilities', 10)] },
+  { key: 'R10', name: 'Testing and handover', weight: 6, duration: '2–4 weeks', startWeek: 44, endWeek: 48, tasks: [
+    R('10.1', 'Test and commission electrical, plumbing and AC systems', 20), R('10.2', 'Complete required inspections and completion approvals', 20),
+    R('10.3', 'Inspect the house and issue a snag list', 20), R('10.4', 'Rectify snags and re-inspect', 20),
+    R('10.5', 'Deliver as-built records, manuals, warranties and keys', 10), R('10.6', 'Sign handover and acceptance record', 10, true)] },
+  { key: 'R11', name: 'Defects and closeout', weight: 1, duration: 'Contractual defects period (e.g. 12 months)', afterHandover: true, tasks: [
+    R('11.1', 'Record defects reported during the agreed liability period', 25), R('11.2', 'Coordinate repairs and verify completion', 45),
+    R('11.3', 'Complete final inspection and acceptance', 20), R('11.4', 'Close accounts and archive project records', 10)] }
+];
 const TEMPLATE_KEY = 'construction';
+const TEMPLATES = {
+  construction: { label: 'New build', long: 'New build (villa construction)', stages: BASELINE },
+  renovation: { label: 'Renovation', long: 'Renovation of an existing house', stages: RENOVATION }
+};
 const DEFAULT_DEFECTS_MONTHS = 12;
 
 const EPS = 0.01;                  // weights are stored with 3 decimals; a sum within 0.01 of 100 is accepted
@@ -213,5 +266,5 @@ function procurementDates(x, today) {
   return { order, approval, late };
 }
 
-module.exports = { BASELINE, TEMPLATE_KEY, DEFAULT_DEFECTS_MONTHS, validateTemplate, compute, stageStatus, reconcile, taskPct, scaleTo, withNew, matchTasks, similarity,
+module.exports = { BASELINE, RENOVATION, TEMPLATES, TEMPLATE_KEY, DEFAULT_DEFECTS_MONTHS, validateTemplate, compute, stageStatus, reconcile, taskPct, scaleTo, withNew, matchTasks, similarity,
   illustrative, procurementDates, addDays, TASK_LABEL, STAGE_LABEL, r3 };
