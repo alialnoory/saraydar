@@ -96,6 +96,7 @@ function defaults(role) {
     case 'site_supervisor': return { matrix: { ...fill(nonFin(keysOf('dev', 'cpm')).filter(k => !/\.(access|agreements)$/.test(k)), ['view']), 'dev.updates': ['view', 'create', 'edit'], 'cpm.updates': ['view', 'create', 'edit'],
       'dev.registers': ['view', 'create'], 'cpm.registers': ['view', 'create'], 'dev.docs': ['view', 'create'], 'cpm.docs': ['view', 'create'], 'props.record': ['view'], 'props.maint': ['view', 'create', 'edit'] }, limits: {} };
     case 'administrator': return { matrix: { ...fill(nonFin(notAdmin()), ops), ...fill([...FINANCE], ['view', 'export']), 'admin.users': ['view', 'create', 'edit'], 'admin.templates': ['view', 'edit'], 'admin.audit': ['view'] }, limits: {} };
+    case 'chairman': return { matrix: { ...fill(notAdmin(), ['view', 'export']), 'admin.audit': ['view'] }, limits: {} };
     case 'viewer': return { matrix: fill(nonFin(notAdmin()).filter(k => k !== 'gen.assistant'), ['view', 'export']), limits: {} };
     case 'brokerage_agent': return { matrix: { ...fill(nonFin(keysOf('sales')), ALL), 'gen.clients': ['view', 'create', 'edit'], 'gen.assistant': ['view', 'create'] }, limits: {} };
     case 'sales_manager': return { matrix: { ...fill(keysOf('sales'), ALL), ...fill(keysOf('props'), ['view', 'export']), 'gen.clients': ['view', 'create', 'edit', 'delete'], 'gen.assistant': ['view', 'create'] },
@@ -125,6 +126,7 @@ function mountAuthority(r, ctx) {
     for (const ro of roles) {
       if (ro.key === 'super_admin') continue;
       ROLE_LABELS[ro.key] = ro.label;
+      if (ro.see_all) core.seeAllRoles.add(ro.key);
       if (ro.matrix) continue;
       const d = defaults(ro.key);
       await pool.query('update roles set matrix = $2, limits = $3, permissions = $4 where key = $1 and matrix is null', [ro.key, JSON.stringify(d.matrix), JSON.stringify(d.limits), legacyFrom(d.matrix, d.limits)]);
@@ -226,7 +228,7 @@ function mountAuthority(r, ctx) {
     res.send(pctx(req, 'Authority matrix', html`
       <section class="panel"><div class="row-between"><h2 class="h">Authority matrix</h2><span class="muted small">V view · C create · E edit · A approve · D delete / cancel · X export</span></div>
         <p class="muted">What each staff role may do in each area, and how much money it may approve. Super Admin can do everything. People also need to be added to a project, property or case to open it. Choose a role to change it.</p>
-        <div class="am-roles">${roles.map(ro => html`<a class="am-role" href="/admin/roles?role=${ro.key}"><b>${ro.label}</b><span>${n[ro.key] || 0} ${n[ro.key] === 1 ? 'person' : 'people'}</span>${!ro.builtin ? html`<i>Added</i>` : ''}</a>`)}
+        <div class="am-roles">${roles.map(ro => html`<a class="am-role" href="/admin/roles?role=${ro.key}"><b>${ro.label}</b><span>${n[ro.key] || 0} ${n[ro.key] === 1 ? 'person' : 'people'}${ro.see_all ? ' · sees all records' : ''}</span>${!ro.builtin ? html`<i>Added</i>` : ''}</a>`)}
           <a class="am-role am-add" href="#add-role"><b>+ Add a role</b><span>e.g. Accountant, Leasing Officer</span></a></div>
         <p class="am-phone-note muted small">On a phone, open a role above to see and change what it can do.</p>
         <div class="table-wrap am-wrap"><table class="am-grid"><thead><tr><th>Area</th>${roles.map(ro => html`<th class="c"><a href="/admin/roles?role=${ro.key}">${ro.label}</a></th>`)}</tr></thead><tbody>
@@ -257,6 +259,9 @@ function mountAuthority(r, ctx) {
               <td class="c"><button type="button" class="linkbtn small" data-am-row>All</button></td></tr>`)}`)}
         </tbody></table></div>
         <p class="muted small">Ticking Create, Edit, Approve, Delete or Export also ticks View. Approving money is limited by the amounts below.</p></section>
+      <section class="panel"><h2 class="h">Which records</h2>
+        <div class="seg-field am-scope"><label><input type="radio" name="see_all" value="0" ${!ro.see_all ? raw('checked') : ''}><span>Only records they are added to</span></label><label><input type="radio" name="see_all" value="1" ${ro.see_all ? raw('checked') : ''}><span>All records in the system</span></label></div>
+        <p class="muted small">“All records” lets people with this role open every project, property and sales case their ticks above allow, without being added to each one. Changing a record they are not added to stays view-only.</p></section>
       <section class="panel"><h2 class="h">Money limits</h2>
         <p class="muted">The most one approval may be worth. Leave the amount empty for no limit; choose “Not allowed” to block it. Above the limit, someone with a higher limit (or a Super Admin) has to do it.</p>
         <div class="am-limits">${LIMITS.map(([k, l, per]) => html`<div class="am-limit"><div><b>${l}</b><span class="muted small">${per}</span></div>
@@ -278,10 +283,11 @@ function mountAuthority(r, ctx) {
     const src = (await pool.query("select * from roles where key = $1 and kind = 'internal' and key <> 'super_admin'", [req.body.copy])).rows[0];
     const matrix = src && src.matrix ? src.matrix : {}, limits = src && src.limits ? src.limits : {};
     await core.inTx(async db => {
-      await db.query("insert into roles (key, label, kind, permissions, builtin, matrix, limits, description) values ($1,$2,'internal',$3,false,$4,$5,$6)", [key, label, legacyFrom(matrix, limits), JSON.stringify(matrix), JSON.stringify(limits), String(req.body.description || '').trim().slice(0, 200) || null]);
+      await db.query("insert into roles (key, label, kind, permissions, builtin, matrix, limits, description, see_all) values ($1,$2,'internal',$3,false,$4,$5,$6,$7)", [key, label, legacyFrom(matrix, limits), JSON.stringify(matrix), JSON.stringify(limits), String(req.body.description || '').trim().slice(0, 200) || null, !!(src && src.see_all)]);
       await core.audit(db, { actor: req.user, action: 'role.added', entity: 'role', entityId: key, summary: `Added the role ${label}${src ? ` (started from ${src.label})` : ''}`, after: { matrix, limits }, ip: req.ip });
     });
     ROLE_LABELS[key] = label;
+    if (src && src.see_all) core.seeAllRoles.add(key);
     res.redirect(`/admin/roles?role=${key}&msg=saved`);
   });
 
@@ -301,12 +307,14 @@ function mountAuthority(r, ctx) {
       const m = parseMoney(v, 'BHD'); if (m === null || m < 0) throw bad('Enter the limits as amounts in BHD, e.g. 5,000.');
       limits[k] = m;
     }
+    const seeAll = req.body.see_all === '1';
     const label = String(req.body.label || '').trim().slice(0, 60) || ro.label, description = String(req.body.description || '').trim().slice(0, 200) || null;
     const clean2 = clean(matrix);
     await core.inTx(async db => {
-      await db.query('update roles set matrix = $2, limits = $3, permissions = $4, label = $5, description = $6 where key = $1', [ro.key, JSON.stringify(clean2), JSON.stringify(limits), legacyFrom(clean2, limits), label, description]);
-      await core.audit(db, { actor: req.user, action: 'role.authority_changed', entity: 'role', entityId: ro.key, summary: `Changed the authority of ${label}`, before: { matrix: ro.matrix, limits: ro.limits, label: ro.label }, after: { matrix: clean2, limits, label }, ip: req.ip });
+      await db.query('update roles set matrix = $2, limits = $3, permissions = $4, label = $5, description = $6, see_all = $7 where key = $1', [ro.key, JSON.stringify(clean2), JSON.stringify(limits), legacyFrom(clean2, limits), label, description, seeAll]);
+      await core.audit(db, { actor: req.user, action: 'role.authority_changed', entity: 'role', entityId: ro.key, summary: `Changed the authority of ${label}`, before: { matrix: ro.matrix, limits: ro.limits, label: ro.label, see_all: ro.see_all }, after: { matrix: clean2, limits, label, see_all: seeAll }, ip: req.ip });
     });
+    if (seeAll) core.seeAllRoles.add(ro.key); else core.seeAllRoles.delete(ro.key);
     ROLE_LABELS[ro.key] = label;
     res.redirect(`/admin/roles?role=${ro.key}&msg=saved`);
   });

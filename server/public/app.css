@@ -1142,3 +1142,7 @@ form[data-am] > section:last-child { position: sticky; bottom: 0; z-index: 5; bo
 
 .am-l { display: none; }
 .am-save { padding-top: 12px; padding-bottom: 12px; }
+.am-scope { display: inline-flex; flex-wrap: wrap; border: 1px solid #DCCFC3; border-radius: 12px; overflow: hidden; margin: 6px 0 8px; }
+.am-scope label { cursor: pointer; } .am-scope input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.am-scope span { display: inline-block; padding: 9px 14px; font-size: 14px; color: #6B5A4E; background: #fff; }
+.am-scope input:checked + span { background: #2A1C15; color: #F4EDE6; font-weight: 600; }

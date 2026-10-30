@@ -79,6 +79,9 @@ function createCore({ pool }) {
     return user._perms;
   }
   const isSuper = u => !!u && u.system_role === 'super_admin' && u.kind === 'internal';
+  // roles that see every record (authority matrix "Which records": all), kept in step by authority.js
+  const seeAllRoles = new Set();
+  const seesAll = u => !!u && u.kind === 'internal' && seeAllRoles.has(u.system_role);
   const isExternal = u => !!u && u.kind === 'external';
   async function can(user, perm) {
     if (!user || isExternal(user)) return false;
@@ -94,6 +97,7 @@ function createCore({ pool }) {
     if (isSuper(user)) return { ws, role: 'manager', internal: true };
     const m = (await pool.query(
       'select role, grants from workspace_members where workspace_id = $1 and user_id = $2 and revoked_at is null', [wsId, user.id])).rows[0];
+    if (!m && seesAll(user)) return { ws, role: 'viewer', grants: {}, internal: true };   // sees every record; what it may do comes from the authority matrix
     if (!m) return null;
     const internal = !isExternal(user) && m.role in INTERNAL_MEMBER_ROLES;
     if (isExternal(user) && !(m.role in EXTERNAL_MEMBER_ROLES)) return null;
@@ -104,7 +108,7 @@ function createCore({ pool }) {
   const canManageAccess = (user, a) => isSuper(user) || (!!a && a.internal && a.role === 'manager');
 
   // SQL fragment restricting workspaces to what the user may see. $1 must be the user id.
-  const visibleWhere = user => isSuper(user)
+  const visibleWhere = user => isSuper(user) || seesAll(user)
     ? '($1::uuid is not null)'
     : `exists (select 1 from workspace_members m where m.workspace_id = w.id and m.user_id = $1 and m.revoked_at is null)`;
 
@@ -144,7 +148,7 @@ function createCore({ pool }) {
 
   return {
     audit, inTx, nextNumber, loadPermissions, isSuper, isExternal, can, workspaceAccess, canEdit, canContribute, canManageAccess,
-    visibleWhere, createSession, loadSession, endSession, endAllSessions
+    visibleWhere, seeAllRoles, seesAll, createSession, loadSession, endSession, endAllSessions
   };
 }
 
