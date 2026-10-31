@@ -177,11 +177,11 @@ ${SIGN('Buyer')}`
       billing_timing: { label: 'When the monthly fee is invoiced', type: 'text', default: 'in arrears, after the end of each month' }, payment_days: { label: 'Payment due within (days)', type: 'number' }, approvers: { label: 'Project Owner approvers', type: 'textarea' } },
     body: `# Project Management Services Agreement
 
-${PARTIES('Project Owner')}
+${PARTIES('{{party.capacity}}')}
 
 ## Project
 
-The Project Owner owns and funds the project {{workspace.name}} ({{workspace.ref}}) at {{workspace.location}}. SarayDar manages its execution on the Project Owner's behalf. SarayDar is not the developer, funder or construction contractor unless separately agreed in writing.
+The {{party.capacity}} owns and funds the project {{workspace.name}} ({{workspace.ref}}) at {{workspace.location}}. SarayDar manages its execution on the {{party.capacity}}'s behalf. SarayDar is not the developer, funder or construction contractor unless separately agreed in writing.
 
 ## Services
 
@@ -193,7 +193,7 @@ Not included in SarayDar's services:
 
 ## Fees
 
-The Project Owner will pay SarayDar a monthly management fee of {{monthly_fee_amount}}, invoiced {{billing_timing}} and payable within {{payment_days}} days of the invoice. The Project Owner's construction budget, contractor payments and consultant fees are the Project Owner's own costs and are not part of SarayDar's fee.
+The {{party.capacity}} will pay SarayDar a monthly management fee of {{monthly_fee_amount}}, invoiced {{billing_timing}} and payable within {{payment_days}} days of the invoice. The {{party.capacity}}'s construction budget, contractor payments and consultant fees are the {{party.capacity}}'s own costs and are not part of SarayDar's fee.
 
 ## Project budget and payments
 
@@ -203,9 +203,9 @@ The Project Owner will pay SarayDar a monthly management fee of {{monthly_fee_am
 
 This Agreement starts on {{start_date}} for {{duration_months}} months, unless extended in writing.
 
-## Project Owner approvals
+## {{party.capacity}} approvals
 
-The following people may approve budgets, appointments, materials, variations and payments for the Project Owner: {{approvers}}. SarayDar will record approvals received and will not commit the Project Owner to costs without them.
+The following people may approve budgets, appointments, materials, variations and payments for the {{party.capacity}}: {{approvers}}. SarayDar will record approvals received and will not commit the {{party.capacity}} to costs without them.
 
 ## Termination
 
@@ -213,7 +213,7 @@ Either party may terminate on {{notices_days}} days' written notice. Fees are pa
 
 ${GENERAL}
 
-${SIGN('Project Owner')}`
+${SIGN('{{party.capacity}}')}`
   },
   {
     key: 'lease_residential', name: 'Residential Lease Agreement', sections: ['props'], category: 'Lease', counterparty: 'Tenant',

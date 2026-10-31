@@ -119,7 +119,7 @@ function mountAgreements(r, ctx) {
     const fields = A.fieldsFor(tpl);
     const values = (await withTerms(a.ws.id, fields, g ? g.values : {})).values;
     const party = g && g.party_id ? (await pool.query('select * from parties where id = $1', [g.party_id])).rows[0] : null;
-    const parties = (await pool.query('select id, name, kind, salutation, id_number, address, phone, email, representative, representative_title, representative_cpr from parties where archived_at is null order by name limit 1000')).rows;
+    const parties = (await pool.query('select id, name, kind, salutation, capacity, id_number, address, phone, email, representative, representative_title, representative_cpr from parties where archived_at is null order by name limit 1000')).rows;
     const co = await company();
     const coMissing = ['legal_name', 'cr_number', 'address', 'signatory_name'].filter(k => !co[k]);
     const dflt = f => f.default === 'today' ? today() : f.default;
@@ -134,6 +134,7 @@ function mountAgreements(r, ctx) {
         <section class="panel form-grid" style="width:100%"><h2 class="h full">${tpl.counterparty}</h2>
           ${field({ name: 'party_id', label: `Existing ${tpl.counterparty.toLowerCase()}`, value: party ? party.id : '', options: [['', `New ${tpl.counterparty.toLowerCase()}`], ...parties.map(p => [p.id, p.name])], attrs: 'data-party-select', full: true })}
           ${field({ name: 'party_kind', label: 'Type', value: party ? party.kind : 'person', options: [['person', 'Individual'], ['company', 'Company']] })}
+          ${tpl.counterparty === 'Project Owner' ? field({ name: 'p_capacity', label: 'Client title in the project', value: party ? party.capacity || 'Project Owner' : 'Project Owner', list: require('./choices').CLIENT_CAPACITIES, attrs: 'data-party-field="capacity"', hint: 'Printed as the defined term, e.g. (the “Project Owner”).' }) : ''}
           ${field({ name: 'p_salutation', label: 'Title (individuals)', value: party ? party.salutation || '' : '', options: [['', 'None'], ...['Mr.', 'Mrs.', 'Ms.', 'Dr.', 'Eng.'].map(x => [x, x])], attrs: 'data-party-field="salutation"', hint: 'Printed before the name. Companies always get “M/s.”' })}
           ${PARTY_FIELDS.map(([k, l, req2]) => field({ name: `p_${k}`, label: l, type: k === 'phone' ? 'tel' : k === 'email' ? 'email' : 'text', value: party ? party[k] || '' : '', attrs: `data-party-field="${k}" maxlength="200"`, hint: req2 ? 'Required to generate the document.' : '' }))}
           <script type="application/json" id="party-data">${raw(JSON.stringify(Object.fromEntries(parties.map(p => [p.id, p]))).replace(/</g, '\\u003c'))}</script>
@@ -157,19 +158,20 @@ function mountAgreements(r, ctx) {
   async function saveParty(db, req, tplCounterparty, existingId) {
     const p = Object.fromEntries(PARTY_FIELDS.map(([k]) => [k, txt(req.body[`p_${k}`], 200)]));
     const kind = req.body.party_kind === 'company' ? 'company' : 'person';
+    const cap = txt(req.body.p_capacity, 60);
     const sal = kind === 'person' && ['Mr.', 'Mrs.', 'Ms.', 'Dr.', 'Eng.'].includes(req.body.p_salutation) ? req.body.p_salutation : null;
     let id = UUID.test(String(req.body.party_id || '')) ? req.body.party_id : existingId || null;
     if (id) {
       const cur = (await db.query('select * from parties where id = $1', [id])).rows[0];
       if (!cur) throw bad('That party no longer exists.');
-      if (p.name) await db.query('update parties set name = $2, kind = $3, id_number = $4, address = $5, phone = $6, email = $7, representative = $8, representative_title = $9, representative_cpr = $10, salutation = $11 where id = $1',
-        [id, p.name, kind, p.id_number, p.address, p.phone, p.email, p.representative, p.representative_title, p.representative_cpr, sal]);
+      if (p.name) await db.query('update parties set name = $2, kind = $3, id_number = $4, address = $5, phone = $6, email = $7, representative = $8, representative_title = $9, representative_cpr = $10, salutation = $11, capacity = coalesce($12, capacity) where id = $1',
+        [id, p.name, kind, p.id_number, p.address, p.phone, p.email, p.representative, p.representative_title, p.representative_cpr, sal, cap]);
       return id;
     }
     if (!p.name) return null;
     const role = { 'project owner': 'client' }[tplCounterparty.toLowerCase()] || tplCounterparty.toLowerCase();   // a Project Owner is a client in the client register
-    return (await db.query('insert into parties (name, kind, id_number, address, phone, email, representative, representative_title, representative_cpr, roles, created_by, salutation) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) returning id',
-      [p.name, kind, p.id_number, p.address, p.phone, p.email, p.representative, p.representative_title, p.representative_cpr, [role], req.user.id, sal])).rows[0].id;
+    return (await db.query('insert into parties (name, kind, id_number, address, phone, email, representative, representative_title, representative_cpr, roles, created_by, salutation, capacity) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) returning id',
+      [p.name, kind, p.id_number, p.address, p.phone, p.email, p.representative, p.representative_title, p.representative_cpr, [role], req.user.id, sal, cap])).rows[0].id;
   }
 
   r.post('/w/:id/agreements', async (req, res) => {

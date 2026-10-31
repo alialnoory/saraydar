@@ -74,7 +74,8 @@ function approversOf(p = {}) {
 const MSLASH = n => n && !/^m\/s\.?\s/i.test(n) ? `M/s. ${n}` : n;
 const titled = p => !p.name ? p.name : p.kind === 'company' ? MSLASH(p.name) : p.salutation && !new RegExp(`^${p.salutation.replace('.', '\\.')}\\s`, 'i').test(p.name) ? `${p.salutation} ${p.name}` : p.name;
 const oneLine = a => a ? String(a).replace(/\r/g, '').split('\n').map(l => l.trim().replace(/[,;]+$/, '')).filter(Boolean).join(', ').replace(/\s{2,}/g, ' ') : a;
-function builtins({ company = {}, ws = {}, party = {}, agreement = {}, counterparty = 'Client' }) {
+function builtins({ company = {}, ws = {}, party = {}, agreement = {}, counterparty: cp0 = 'Client' }) {
+  const counterparty = cp0 === 'Project Owner' && party.capacity ? party.capacity : cp0;      // the client's title in the project (owner request 2026-10-31)
   // the other party is "represented by" whoever signs for them: the representative recorded on their profile,
   // otherwise their main contact (an individual with neither signs for themselves)
   const repName = party.signs_personally ? '' : party.representative || (party.contact_person && party.contact_person !== party.name ? party.contact_person : '');
@@ -91,6 +92,7 @@ function builtins({ company = {}, ws = {}, party = {}, agreement = {}, counterpa
       : `SarayDar will manage and control the project budget on the ${counterparty}'s behalf: it will track commitments, review invoices and payment applications, and process payments to contractors, suppliers, consultants and other third parties only within the approved budget and with the ${counterparty}'s approval. The funds remain the ${counterparty}'s.`,
     'party.name': titled(party), 'party.id_number': party.id_number, 'party.id_label': party.kind === 'company' ? 'CR No.' : 'CPR No.', 'party.address': oneLine(party.address), 'party.phone': party.phone, 'party.email': party.email,
     'party.representative': party.representative, 'party.representative_title': party.representative_title,
+    'party.capacity': party.capacity || counterparty,
     'party.represented_by': party.name ? rep : '', 'party.represented_line': party.name && repName ? `\nRepresented by ${repName}${repCpr ? ` (CPR No. ${repCpr})` : ''}${repTitle ? `, ${repTitle}` : ''}` : '', 'party.signatory': repName || party.name, 'party.signatory_title': repName ? repTitle || `${counterparty}'s Representative` : '',    // someone signing for the party without a recorded title
     'agreement.ref': agreement.ref, 'agreement.title': agreement.title, 'agreement.date': fmtDate(new Date().toISOString().slice(0, 10))
   };
