@@ -109,4 +109,26 @@ test('authority matrix', { skip: !URL_ && 'set TEST_DATABASE_URL to run' }, asyn
     assert.match(ua.text, /Changed the authority of Project Manager/);
     void admId;
   });
+
+  await t.test('Chairman: sees every record, including finance, without being added; changes nothing', async () => {
+    const [ch] = await mk('chair@example.com', 'chairman');
+    assert.equal((await ch.get(`/w/${ws}`)).status, 200);                 // not added to the project
+    assert.equal((await ch.get(`/w/${ws}/budget`)).status, 200);
+    assert.equal((await ch.get(`/w/${ws}/fees`)).status, 200);
+    assert.match((await ch.get('/s/cpm')).text, /Matrix Villa/);
+    assert.equal((await ch.get(`/w/${ws}/budget?export=xlsx`)).status, 200);
+    assert.equal((await ch.post(`/w/${ws}/budget/lines`, { category: 'Other', description: 'X', revised: '1' }, `/w/${ws}/budget`)).status, 403);
+    assert.equal((await ch.post(`/w/${ws}/updates`, { observed_on: '2026-10-30' }, `/w/${ws}/updates`)).status, 403);
+    assert.equal((await ch.get('/admin/users')).status, 404);
+    // the switch is per role: a Viewer sees only what they are added to, until "All records" is chosen
+    const [vw] = await mk('viewer@example.com', 'viewer');
+    assert.equal((await vw.get(`/w/${ws}`)).status, 404);
+    const ro = (await pool.query("select matrix from roles where key = 'viewer'")).rows[0];
+    await save('viewer', ro.matrix, {});
+    const page = await admin.get('/admin/roles?role=viewer');
+    const body = new URLSearchParams(); body.append('_csrf', admin.csrfFrom(page.text)); body.append('see_all', '1');
+    for (const [k, acts] of Object.entries(ro.matrix)) for (const a of acts) body.append('m', `${k}|${a}`);
+    await fetch(`${base}/admin/roles/viewer`, { method: 'POST', body, redirect: 'manual', headers: { 'content-type': 'application/x-www-form-urlencoded', cookie: [...admin.jar].map(([k, v]) => `${k}=${v}`).join('; ') } });
+    assert.equal((await vw.get(`/w/${ws}`)).status, 200);
+  });
 });
