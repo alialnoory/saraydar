@@ -14,7 +14,7 @@ const COMMON = {
 const PARTIES = cp => `This Agreement is made on {{agreement_date}} (reference {{agreement.ref}}) between:
 
 1. **{{company.legal_name}}** ("SarayDar")
-Commercial Registration No. {{company.cr_number}}
+CR No. {{company.cr_number}}
 {{company.address}}
 Represented by {{company.signatory_name}}, {{company.signatory_title}}
 
