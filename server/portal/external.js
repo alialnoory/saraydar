@@ -183,7 +183,7 @@ function mountExternal(r, ctx) {
         (select json_agg(json_build_object('id', f.id, 'name', f.original_name, 'mime', f.mime) order by f.uploaded_at) from files f where f.entity = 'client_approval' and f.entity_id = c.id::text and f.tag = 'request' and f.archived_at is null) as docs
       from client_approvals c where c.workspace_id = $1 and c.client_visible order by (c.status = 'requested') desc, c.requested_on desc`, [v.ws.id])).rows;
     const pending = rows.filter(x => x.status === 'requested'), done = rows.filter(x => x.status !== 'requested');
-    const docs = x => x.docs && x.docs.length ? html`<ul class="rows">${x.docs.map(d => html`<li><a href="/files/${d.id}" target="_blank" rel="noopener">${d.name}</a></li>`)}</ul>` : '';
+    const docs = x => require('./views').docPreviews(x.docs || []);
     const card = x => html`<section class="panel" id="a-${x.id}"><div class="row-between"><h2 class="h">${x.title}</h2>${pill('Waiting for your answer', 'warn')}</div>
         <p class="muted small">${human(x.subject)}${x.linked_ref ? ` · ${x.linked_ref}` : ''} · requested ${fmtDate(x.requested_on)}</p>
         ${x.client_note ? html`<p class="pre-line">${x.client_note}</p>` : ''}${docs(x)}

@@ -1153,3 +1153,14 @@ form[data-am] > section:last-child { position: sticky; bottom: 0; z-index: 5; bo
 .am-scope label { cursor: pointer; } .am-scope input { position: absolute; opacity: 0; width: 1px; height: 1px; }
 .am-scope span { display: inline-block; padding: 9px 14px; font-size: 14px; color: #6B5A4E; background: #fff; }
 .am-scope input:checked + span { background: #2A1C15; color: #F4EDE6; font-weight: 600; }
+/* documents and photos with an approval request (owner request 2026-10-31) */
+.dp { display: flex; flex-direction: column; gap: 10px; margin: 10px 0; }
+.dp-photos { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px; }
+.dp-photos img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 12px; display: block; background: #EFE7DF; border: 1px solid #E6D9CD; }
+.dp-photos a:hover img { outline: 2px solid #C47A3E; outline-offset: 1px; }
+.dp-files { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.dp-files li { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border: 1px solid #E6D9CD; border-radius: 12px; background: #FFFDFB; }
+.dp-files .grow { min-width: 0; overflow-wrap: anywhere; font-size: 13.5px; }
+.dp-ic { flex-shrink: 0; width: 38px; height: 38px; border-radius: 10px; background: #F6E1DE; color: #8F2E26; font-size: 10.5px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; }
+.dp-cell .dp-photos { grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)); } .dp-cell .dp-files .grow { font-size: 12.5px; } .dp-cell .dp-ic { width: 30px; height: 30px; }
+.dp-label { font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #8E4F2B; margin-top: 4px; }

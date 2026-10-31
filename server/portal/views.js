@@ -240,6 +240,19 @@ const NAME_HINTS = {
   rent_period: { list: () => ['month', 'quarter', 'year'] }
 };
 const SHORT = 24;
+// Documents and photos sent with an approval request, shown so they can be looked at before answering
+// (owner request 2026-10-31): photos as thumbnails that open full size, PDFs in the portal's viewer, other files to download.
+function docPreviews(list = []) {
+  if (!list || !list.length) return '';
+  const img = list.filter(d => /^image\//.test(d.mime || '')), pdf = list.filter(d => d.mime === 'application/pdf'), other = list.filter(d => !img.includes(d) && !pdf.includes(d));
+  const view = d => `/view?src=${encodeURIComponent(`/files/${d.id}/~/${encodeURIComponent(d.name)}`)}`;
+  return html`<div class="dp">
+    ${img.length ? html`<div class="dp-photos">${img.map(d => html`<a href="/files/${d.id}" target="_blank" rel="noopener" title="${d.name}"><img src="/files/${d.id}/thumb" alt="${d.name}" loading="lazy" onerror="this.onerror=null;this.src='/files/${d.id}'"></a>`)}</div>` : ''}
+    ${pdf.length || other.length ? html`<ul class="dp-files">${pdf.map(d => html`<li><span class="dp-ic">PDF</span><span class="grow">${d.name}</span><a class="btn small primary" href="${view(d)}">Preview</a></li>`)}
+      ${other.map(d => html`<li><span class="dp-ic">${(String(d.name).split('.').pop() || 'FILE').slice(0, 4).toUpperCase()}</span><span class="grow">${d.name}</span><a class="btn small" href="/files/${d.id}">Download</a></li>`)}</ul>` : ''}
+  </div>`;
+}
+
 function field({ name, label, type = 'text', value = '', required = false, hint = '', attrs = '', options = null, full = false, list = null, otherLabel = 'Other (one per line)', presets = null, buttons = 'auto', sep = null }) {
   const id = `f-${name}`;
   if (type === 'checks') {
@@ -325,4 +338,4 @@ function personCard(o) {
     <div class="wt-foot"><span>${o.foot || ''}</span><span class="ws-tile-go" aria-hidden="true">${CI.go}</span></div></a></li>`;
 }
 
-module.exports = { personCard, initialsOf, ASSET_V, avatar, layout, html, raw, pill, statusPill, csrfField, emptyState, field, progressField, pager, icons, fmtDate, fmtDateTime, fmtSize, ROLE_LABELS, MESSAGES };
+module.exports = { docPreviews, personCard, initialsOf, ASSET_V, avatar, layout, html, raw, pill, statusPill, csrfField, emptyState, field, progressField, pager, icons, fmtDate, fmtDateTime, fmtSize, ROLE_LABELS, MESSAGES };
