@@ -305,8 +305,8 @@ function mountAgreements(r, ctx) {
     if (tpl.kind === 'docx') docxBuf = A.fillDocx(tpl.docx, map);
     else {
       text = A.fill(tpl.body, map);
-      const { signs, record } = await signsFor({ text, sd_signed_at: sdSign ? now : null, sd_signed_by: req.user.id }, co);
-      pdf = await A.renderPdf({ text, ref: g.ref, company: co, notice: false, signs, record });   // no "starter draft" line in the document (owner request 2026-10-31); the form still says so on screen
+      const { signs } = await signsFor({ text, sd_signed_at: sdSign ? now : null, sd_signed_by: req.user.id }, co);
+      pdf = await A.renderPdf({ text, ref: g.ref, company: co, notice: false, signs })   // no Signature record page in the document (owner request 2026-10-31); the details stay in the system;   // no "starter draft" line in the document (owner request 2026-10-31); the form still says so on screen
       docxBuf = await A.renderDocx({ text, ref: g.ref, company: co, notice: false, signs });
     }
     return core.inTx(async db => {
@@ -472,7 +472,7 @@ function mountAgreements(r, ctx) {
           <input type="hidden" name="signature" data-sig-out></div>
         <label class="check full"><input type="checkbox" name="consent" value="1" required> <span>I have read this agreement and I sign it electronically. My drawn signature has the same effect as my handwritten signature.</span></label>
         <div class="actions full"><button class="btn primary" type="submit" data-sig-submit>Sign the agreement</button>${back ? html`<a class="btn" href="${back}">Not now</a>` : ''}</div>
-        <p class="muted small full">The signed PDF records your name, the date and time, and the address you signed from, on a Signature record page.</p>
+        <p class="muted small full">Your name, the date and time, and the address you sign from are recorded by SarayDar with the signed agreement.</p>
       </form></section>`;
   }
   async function saveSignature(req, { ws, g, v, party, via }) {
@@ -486,8 +486,8 @@ function mountAgreements(r, ctx) {
     const sig = await SIG.fromDataUrl(req.body.signature); if (!sig) throw bad('Please draw your signature in the box.');
     const co = await company(), now = new Date();
     const v2 = { ...v, client_sig: sig, client_signed_name: name, client_signed_at: now, client_signed_ip: String(req.ip || '').slice(0, 60), client_signed_by: req.user.id, client_signed_via: via, party_term: (v.values && v.values._term) || 'client' };
-    const { signs, record } = await signsFor(v2, co);
-    const pdf = await A.renderPdf({ text: v.text, ref: g.ref, company: co, notice: false, signs, record });
+    const { signs } = await signsFor(v2, co);
+    const pdf = await A.renderPdf({ text: v.text, ref: g.ref, company: co, notice: false, signs })   // no Signature record page in the document (owner request 2026-10-31); the details stay in the system;
     const docxBuf = await A.renderDocx({ text: v.text, ref: g.ref, company: co, notice: false, signs });
     await core.inTx(async db => {
       const n = (await db.query(`update agreement_versions set pdf = $2, docx = $3, client_sig = $4, client_signed_name = $5, client_signed_at = $6, client_signed_ip = $7, client_signed_by = $8, client_signed_via = $9
