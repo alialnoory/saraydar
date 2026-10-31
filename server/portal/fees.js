@@ -27,7 +27,7 @@ const iso = v => v ? fees.isoOf(v) : null;
 const bhDay = ts => ts ? new Date(ts).toLocaleDateString('en-CA', { timeZone: 'Asia/Bahrain' }) : null;   // timestamp → Bahrain calendar day
 const fm = (m, c = 'BHD') => m === null || m === undefined ? '—' : formatMoney(m, c);
 const METHODS = ['Bank transfer', 'Cheque', 'Cash', 'Card', 'BenefitPay', 'Other'];
-const SUBJECTS = { budget: 'Budget', appointment: 'Appointment', material: 'Material / sample', variation: 'Variation', payment: 'Payment', design: 'Design', other: 'Other' };
+const SUBJECTS = { budget: 'Budget', appointment: 'Appointment', material: 'Material / sample', variation: 'Variation', payment: 'Payment', design: 'Design', agreement: 'Agreement', other: 'Other' };
 const APPROVAL_TONE = { requested: 'warn', approved: 'ok', rejected: 'bad', withdrawn: 'muted' };
 const INV_TONE = { draft: 'muted', issued: 'info', void: 'bad' };
 const upload = require('./choices').withChoices(multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024, files: 6, fields: 30 } }));
@@ -243,6 +243,53 @@ function mountFees(r, ctx, P) {
     return termsHtml;
   };
 
+  // after reviewing the agreement, send it to the client for approval from the same place (owner request 2026-10-31):
+  // an approval request with the PDF attached appears in the client's portal, where they preview it and approve or reject
+  async function sendForApproval(req, a, g, edit) {
+    const v = g.versions[0];
+    const last = (await pool.query("select id, status, requested_on, decided_on, approver_name, client_comment, linked_ref from client_approvals where workspace_id = $1 and subject = 'agreement' and linked_ref like $2 order by created_at desc limit 1", [a.ws.id, `${g.ref} v%`])).rows[0];
+    const lastV = last ? Number(String(last.linked_ref).split(' v').pop()) : null;
+    const viewers = (await pool.query("select count(*)::int as n from workspace_members m join users u on u.id = m.user_id where m.workspace_id = $1 and m.revoked_at is null and m.role = 'client_viewer' and u.active", [a.ws.id])).rows[0].n;
+    const state = !last ? '' : last.status === 'requested' ? html`${pill(`Version ${lastV} sent for approval ${fmtDate(last.requested_on)} · waiting`, 'warn')}`
+      : last.status === 'approved' ? html`${pill(`Version ${lastV} approved${last.approver_name ? ` by ${last.approver_name}` : ''} ${fmtDate(last.decided_on)}`, 'ok')}`
+      : last.status === 'rejected' ? html`${pill(`Version ${lastV} rejected ${fmtDate(last.decided_on)}`, 'bad')}${last.client_comment ? html` <span class="small">“${last.client_comment}”</span>` : ''}` : html`${pill(`Version ${lastV} request withdrawn`, 'muted')}`;
+    const pending = last && last.status === 'requested' && lastV === v.version;
+    return html`<div class="send-approval">
+      <div class="row-between"><h3 class="h3">Client approval</h3><span>${state}${last ? html` <a class="small" href="/w/${a.ws.id}/approvals#a-${last.id}">Open</a>` : ''}</span></div>
+      ${edit && !pending ? html`<form method="post" action="/w/${a.ws.id}/client/agreement/send" class="form-grid">${csrfField(req)}<input type="hidden" name="version" value="${v.version}">
+        ${field({ name: 'client_note', label: 'Message to the client (optional)', type: 'textarea', full: true, value: 'Please review the agreement and approve it, or reject it with your comments.', attrs: 'rows="2" maxlength="2000"' })}
+        <div class="actions full"><button class="btn primary" type="submit">Send version ${v.version} to the client for approval</button>
+          <span class="muted small">${viewers ? `The client gets an email and sees it under Approvals in their portal, with the PDF to preview.` : 'No client portal access yet: the request is recorded on Client Approvals, and you can record the client’s answer there. Invite the client under Access & Invitations to let them answer themselves.'}</span></div></form>`
+      : pending ? html`<p class="muted small">Waiting for the client's answer. Generating a new version and sending it replaces this request.</p>` : ''}
+    </div>`;
+  }
+
+  r.post('/w/:id/client/agreement/send', async (req, res) => {
+    const a = cpmOnly(await access(req, 'edit'));
+    const g = await ctx.mgmtAgreement.current(a.ws.id, a.ws.section);
+    if (!g || !g.versions.length) throw bad('Generate the agreement first.');
+    if (['signed', 'cancelled'].includes(g.status)) throw bad(`${g.ref} is ${g.status}.`);
+    const n = Number(req.body.version) || g.versions[0].version;
+    const ver = (await pool.query('select version, pdf from agreement_versions where agreement_id = $1 and version = $2', [g.id, n])).rows[0];
+    if (!ver || !ver.pdf) throw bad('That version has no PDF.');
+    const party = a.ws.party_id ? (await pool.query('select name from parties where id = $1', [a.ws.party_id])).rows[0] : null;
+    const title = `${g.title || 'Agreement'} (${g.ref}, version ${n})`, note = txt(req.body.client_note, 2000);
+    const name = DL.fileName([g.ref, a.ws.name, `v${n}`], 'pdf');
+    const file = { name, mime: 'application/pdf', size: ver.pdf.length, sha: require('crypto').createHash('sha256').update(ver.pdf).digest('hex'), data: ver.pdf, thumb: null, width: null, height: null };
+    const id = await core.inTx(async db => {
+      // an earlier request for this agreement that is still open is withdrawn: only the latest version is asked
+      await db.query("update client_approvals set status = 'withdrawn', decided_on = $3, decided_by = $4, decided_at = now(), notes = concat_ws(' · ', notes, 'Replaced by a newer version') where workspace_id = $1 and subject = 'agreement' and linked_ref like $2 and status = 'requested'", [a.ws.id, `${g.ref} v%`, todayBH(), req.user.id]);
+      const id = (await db.query("insert into client_approvals (workspace_id, subject, title, linked_ref, requested_on, requested_from, client_note, client_visible, created_by) values ($1,'agreement',$2,$3,$4,$5,$6,true,$7) returning id",
+        [a.ws.id, title, `${g.ref} v${n}`, todayBH(), party ? party.name : null, note, req.user.id])).rows[0].id;
+      await uploads.insert(db, { workspaceId: a.ws.id, entity: 'client_approval', entityId: id, files: [file], userId: req.user.id, tag: 'request', observedOn: todayBH() });
+      await core.audit(db, { actor: req.user, workspaceId: a.ws.id, action: 'approval.requested', entity: 'client_approval', entityId: id, summary: `Agreement ${g.ref} version ${n} sent to the client for approval`, ip: req.ip });
+      await touch(db, a.ws.id);
+      return id;
+    });
+    const told = await tellClientViewers(req, a, id, title, note);
+    res.redirect(`/w/${a.ws.id}/agreements?msg=${told ? 'sent' : 'added'}#agreement`);
+  });
+
   // the whole agreement, generated from the terms above plus the standard clauses of the management template
   async function agreementPanel(req, a, terms, edit) {
     const g = await ctx.mgmtAgreement.current(a.ws.id, a.ws.section);
@@ -259,6 +306,7 @@ function mountFees(r, ctx, P) {
         ${edit && hasTerms && a.ws.party_id && !missing.length ? html`<form method="post" action="/w/${id}/client/agreement" class="inline">${csrfField(req)}<button class="btn primary" type="submit">${locked ? 'Prepare a new agreement from these terms' : g && g.versions.length ? 'Generate again from the terms' : 'Generate the agreement'}</button></form>` : ''}
         ${g ? html`<a class="btn" href="/w/${id}/agreements/${g.id}">Issue for signature / upload the signed copy</a>` : ''}
       </div>
+      ${a.ws.section === 'cpm' && g && g.versions.length && !locked ? await sendForApproval(req, a, g, edit) : ''}
       ${!hasTerms ? html`<p class="muted small">Record the terms first.</p>` : !a.ws.party_id ? html`<p class="muted small">Link the ${a.ws.section === 'props' ? 'owner' : 'client'} first.</p>` : ''}
       ${locked ? html`<p class="muted small">${g.ref} is ${g.status}; it stays exactly as signed. Generating again starts a new agreement (for example an amendment) with a new reference.</p>` : ''}
     </section>`;
@@ -960,6 +1008,21 @@ function mountFees(r, ctx, P) {
         ${field({ name: 'notes', label: 'Internal notes (not shown to the client)', full: true })}<div class="actions full"><button class="btn primary" type="submit">Send request</button></div></form></section>` : ''}`));
   });
 
+  // the client viewers of a project are told an approval is waiting for them in the portal
+  async function tellClientViewers(req, a, id, title, note) {
+    let told = 0;
+    const viewers = (await pool.query(`select u.email, coalesce(nullif(u.name,''), u.email) as name from workspace_members m join users u on u.id = m.user_id
+      where m.workspace_id = $1 and m.revoked_at is null and m.role = 'client_viewer' and u.active and u.email is not null`, [a.ws.id])).rows;
+    const base = (ctx.env.APP_URL || `${req.protocol}://${req.get('host')}`).replace(/\/$/, '');
+    for (const v of viewers) {
+      await ctx.mailer.send({ to: v.email, kind: 'approval_request', workspaceId: a.ws.id, refKind: 'client_approval', refId: id,
+        subject: `Approval requested: ${title} — ${a.ws.name}`,
+        text: `Dear ${v.name},\n\nSarayDar asks for your approval on ${a.ws.name}:\n\n${title}${note ? `\n\n${note}` : ''}\n\nPlease review it and approve or reject it in the portal:\n${base}/p/${a.ws.id}/approvals\n\nSarayDar` });
+      told++;
+    }
+    return told;
+  }
+
   r.post('/w/:id/approvals', upload.array('files', 6), async (req, res) => {
     if (!core.checkCsrf(req)) throw new Forbidden('Your form expired. Reload the page and try again.');
     const a = cpmOnly(await access(req, 'contribute'));
@@ -977,19 +1040,7 @@ function mountFees(r, ctx, P) {
       await touch(db, a.ws.id);
       return id;
     });
-    // the client viewers of this project are told an approval is waiting for them in the portal
-    let told = 0;
-    if (visible) {
-      const viewers = (await pool.query(`select u.email, coalesce(nullif(u.name,''), u.email) as name from workspace_members m join users u on u.id = m.user_id
-        where m.workspace_id = $1 and m.revoked_at is null and m.role = 'client_viewer' and u.active and u.email is not null`, [a.ws.id])).rows;
-      const base = (ctx.env.APP_URL || `${req.protocol}://${req.get('host')}`).replace(/\/$/, '');
-      for (const v of viewers) {
-        await ctx.mailer.send({ to: v.email, kind: 'approval_request', workspaceId: a.ws.id, refKind: 'client_approval', refId: id,
-          subject: `Approval requested: ${title} — ${a.ws.name}`,
-          text: `Dear ${v.name},\n\nSarayDar asks for your approval on ${a.ws.name}:\n\n${title}${txt(req.body.client_note, 2000) ? `\n\n${txt(req.body.client_note, 2000)}` : ''}\n\nPlease review it and approve or reject it in the portal:\n${base}/p/${a.ws.id}/approvals\n\nSarayDar` });
-        told++;
-      }
-    }
+    const told = visible ? await tellClientViewers(req, a, id, title, txt(req.body.client_note, 2000)) : 0;
     res.redirect(`/w/${a.ws.id}/approvals?msg=${told ? 'sent' : 'added'}`);
   });
 

@@ -1171,3 +1171,7 @@ form[data-am] > section:last-child { position: sticky; bottom: 0; z-index: 5; bo
   .band { padding-top: env(titlebar-area-height, 0px); -webkit-app-region: drag; app-region: drag; }
   .band a, .band button, .band input, .band select, .band summary, .band label, .band form, .band details, .band .menu { -webkit-app-region: no-drag; app-region: no-drag; }
 }
+/* send the agreement for client approval (owner request 2026-10-31) */
+.send-approval { margin-top: 16px; padding: 14px 16px; border: 1px solid #E6D9CD; border-radius: 14px; background: #FBF7F3; }
+.send-approval .h3 { margin: 0; }
+.send-approval form { margin-top: 10px; }
