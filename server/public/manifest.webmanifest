@@ -4,6 +4,7 @@
   "start_url": "/launch",
   "scope": "/",
   "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone"],
   "background_color": "#F3ECE5",
   "theme_color": "#140D0A",
   "icons": [

@@ -1164,3 +1164,10 @@ form[data-am] > section:last-child { position: sticky; bottom: 0; z-index: 5; bo
 .dp-ic { flex-shrink: 0; width: 38px; height: 38px; border-radius: 10px; background: #F6E1DE; color: #8F2E26; font-size: 10.5px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; }
 .dp-cell .dp-photos { grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)); } .dp-cell .dp-files .grow { font-size: 12.5px; } .dp-cell .dp-ic { width: 30px; height: 30px; }
 .dp-label { font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #8E4F2B; margin-top: 4px; }
+
+/* Installed app on a computer (owner request 2026-10-31): the window's title strip folds into the dark header, so only
+   the minimise / maximise / close buttons stay in the corner. The header can be dragged to move the window. */
+@media (display-mode: window-controls-overlay) {
+  .band { padding-top: env(titlebar-area-height, 0px); -webkit-app-region: drag; app-region: drag; }
+  .band a, .band button, .band input, .band select, .band summary, .band label, .band form, .band details, .band .menu { -webkit-app-region: no-drag; app-region: no-drag; }
+}
