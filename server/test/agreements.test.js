@@ -102,7 +102,8 @@ test('agreements', { skip: !URL_ && 'set TEST_DATABASE_URL to run' }, async t =>
     assert.equal(pb.subarray(0, 5).toString(), '%PDF-');
     const w = await pm.raw('GET', `/w/${prop}/agreements/${agr}/v/1.docx`);
     const text = docText(Buffer.from(await w.res.arrayBuffer()));
-    for (const s of ['Residential Lease Agreement', 'Huda Ahmed', '880101234', 'BHD 250', '1 November 2026', 'Juffair Building 112', 'SarayDar Real Estate W.L.L.', 'STARTER DRAFT']) assert.ok(text.includes(s), s);
+    for (const s of ['Residential Lease Agreement', 'Huda Ahmed', '880101234', 'BHD 250', '1 November 2026', 'Juffair Building 112', 'SarayDar Real Estate W.L.L.']) assert.ok(text.includes(s), s);
+    assert.ok(!text.includes('STARTER DRAFT'));                  // the draft notice stays on screen, not in the document
     assert.ok(text.includes('__________'));                      // optional blanks left for hand completion, never invented
     assert.equal((await pm.raw('GET', `/w/${other}/agreements/${agr}/v/1.pdf`)).status, 404);   // another workspace's URL
   });

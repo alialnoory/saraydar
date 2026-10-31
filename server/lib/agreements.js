@@ -85,7 +85,7 @@ function builtins({ company = {}, ws = {}, party = {}, agreement = {}, counterpa
   return {
     'company.legal_name': MSLASH(company.legal_name || company.trade_name), 'company.trade_name': company.trade_name, 'company.cr_number': company.cr_number,
     'company.address': oneLine(company.address), 'company.phone': company.phone, 'company.email': company.email,
-    'company.signatory_name': company.signatory_name, 'company.signatory_title': company.signatory_title,
+    'company.signatory_name': company.signatory_name && company.signatory_salutation && !company.signatory_name.startsWith(company.signatory_salutation) ? `${company.signatory_salutation} ${company.signatory_name}` : company.signatory_name, 'company.signatory_title': company.signatory_title,
     'workspace.name': ws.name, 'workspace.ref': ws.ref, 'workspace.location': ws.location,
     'workspace.budget_control_text': ws.budget_control === 'client'
       ? `The ${counterparty} controls the project budget and pays contractors, suppliers, consultants and all other third parties directly. SarayDar has no responsibility for the budget, those payments or their control, and does not approve, process or certify them.`
@@ -93,7 +93,7 @@ function builtins({ company = {}, ws = {}, party = {}, agreement = {}, counterpa
     'party.name': titled(party), 'party.id_number': party.id_number, 'party.id_label': party.kind === 'company' ? 'CR No.' : 'CPR No.', 'party.address': oneLine(party.address), 'party.phone': party.phone, 'party.email': party.email,
     'party.representative': party.representative, 'party.representative_title': party.representative_title,
     'party.capacity': party.capacity || counterparty,
-    'party.represented_by': party.name ? rep : '', 'party.represented_line': party.name && repName ? `\nRepresented by ${repName}${repCpr ? ` (CPR No. ${repCpr})` : ''}${repTitle ? `, ${repTitle}` : ''}` : '', 'party.signatory': repName || party.name, 'party.signatory_title': repName ? repTitle || `${counterparty}'s Representative` : '',    // someone signing for the party without a recorded title
+    'party.represented_by': party.name ? rep : '', 'party.represented_line': party.name && repName ? `\nRepresented by ${repName}${repCpr ? ` (CPR No. ${repCpr})` : ''}${repTitle ? `, ${repTitle}` : ''}` : '', 'party.signatory': repName || titled(party), 'party.signatory_title': repName ? repTitle || `${counterparty}'s Representative` : '',    // someone signing for the party without a recorded title
     'agreement.ref': agreement.ref, 'agreement.title': agreement.title, 'agreement.date': fmtDate(new Date().toISOString().slice(0, 10))
   };
 }

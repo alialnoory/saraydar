@@ -277,8 +277,8 @@ function mountAgreements(r, ctx) {
     if (tpl.kind === 'docx') docxBuf = A.fillDocx(tpl.docx, map);
     else {
       const text = A.fill(tpl.body, map);
-      pdf = await A.renderPdf({ text, ref: g.ref, company: co, notice: tpl.starter });
-      docxBuf = await A.renderDocx({ text, ref: g.ref, company: co, notice: tpl.starter });
+      pdf = await A.renderPdf({ text, ref: g.ref, company: co, notice: false });   // no "starter draft" line in the document (owner request 2026-10-31); the form still says so on screen
+      docxBuf = await A.renderDocx({ text, ref: g.ref, company: co, notice: false });
     }
     return core.inTx(async db => {
       await db.query('select id from agreements where id = $1 for update', [g.id]);
@@ -429,8 +429,8 @@ function mountAgreements(r, ctx) {
       <div class="split">
         <section class="panel grow1"><h2 class="h">Company details used in agreements</h2>
           <form method="post" action="/admin/agreements/company" class="form-grid">${csrfField(req)}
-            ${[['legal_name', 'Legal name'], ['trade_name', 'Trade name'], ['cr_number', 'Commercial registration (CR)'], ['vat_number', 'VAT registration number (leave empty while not charging VAT)'], ['address', 'Address'], ['phone', 'Telephone'], ['email', 'Email'], ['signatory_name', 'Authorised signatory'], ['signatory_title', 'Signatory title']]
-              .map(([k, l]) => field({ name: k, label: l, type: k === 'phone' ? 'tel' : 'text', value: co[k] || '' }))}
+            ${[['legal_name', 'Legal name'], ['trade_name', 'Trade name'], ['cr_number', 'Commercial registration (CR)'], ['vat_number', 'VAT registration number (leave empty while not charging VAT)'], ['address', 'Address'], ['phone', 'Telephone'], ['email', 'Email'], ['signatory_salutation', 'Signatory title before the name'], ['signatory_name', 'Authorised signatory'], ['signatory_title', 'Signatory position']]
+              .map(([k, l]) => k === 'signatory_salutation' ? field({ name: k, label: l, value: co[k] || '', options: [['', 'None'], ...['Mr.', 'Mrs.', 'Ms.', 'Dr.', 'Eng.'].map(x => [x, x])], buttons: false }) : field({ name: k, label: l, type: k === 'phone' ? 'tel' : 'text', value: co[k] || '' }))}
             <div class="actions full"><button class="btn primary" type="submit">Save</button></div></form></section>
         <section class="panel grow1"><h2 class="h">Letterhead</h2>
           <div class="notice info">Generated PDFs and Word files use the SarayDar dark heading, with the company details above in the footer of every page (owner decision, 24 Oct 2026). An uploaded letterhead image is kept here but not printed.</div>
@@ -457,7 +457,7 @@ function mountAgreements(r, ctx) {
 
   r.post('/admin/agreements/company', async (req, res) => {
     adminOnly(req);
-    const keys = ['legal_name', 'trade_name', 'cr_number', 'vat_number', 'address', 'phone', 'email', 'signatory_name', 'signatory_title'];
+    const keys = ['legal_name', 'trade_name', 'cr_number', 'vat_number', 'address', 'phone', 'email', 'signatory_name', 'signatory_title', 'signatory_salutation'];
     const vals = keys.map(k => txt(req.body[k], 300));
     await core.inTx(async db => {
       await db.query(`update company_profile set ${keys.map((k, i) => `${k} = $${i + 1}`).join(', ')}, updated_by = $${keys.length + 1}, updated_at = now() where id = 1`, [...vals, req.user.id]);
