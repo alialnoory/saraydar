@@ -173,7 +173,7 @@ function drawSignBoxes(doc, boxes, X, W, limit, signs = {}) {
     const row = boxes.slice(r, r + perRow);
     const hasStamp = row.some(b => b.stamp);
     const rowsMax = Math.max(...row.map(b => b.rows.length));
-    const H = 30 + rowsMax * 22 + 58 + 22 + (hasStamp ? 62 : 0) + 10;
+    const H = 30 + rowsMax * 22 + 58 + 22 + (hasStamp ? 92 : 0) + 10;
     if (doc.y + H > limit) doc.addPage();
     const y0 = doc.y + 4;
     row.forEach((b, i) => {
@@ -192,13 +192,13 @@ function drawSignBoxes(doc, boxes, X, W, limit, signs = {}) {
       };
       for (const [k, v] of b.rows) line(k, v);
       for (let k = b.rows.length; k < rowsMax; k++) y += 22;
-      if (s && s.sig) { try { doc.image(s.sig, x + 82, y + 6, { fit: [bw - 96, 48], align: 'left', valign: 'bottom' }); } catch (e) { /* a picture that cannot be read is left out */ } }
+      if (s && s.sig) { try { doc.image(s.sig, x + 82, y + 14, { fit: [Math.min(150, (bw - 96) * 0.75), 38], align: 'left', valign: 'bottom' }); } catch (e) { /* a picture that cannot be read is left out */ } }
       line('Signature', '', 58);
       line('Date', s && s.date ? s.date : '');
       if (b.stamp) {
         doc.font('body').fontSize(8).fillColor('#6E5B50').text('Company stamp', x + 10, y + 6, { lineBreak: false });
-        if (s && s.stamp) { try { doc.image(s.stamp, x + 82, y + 2, { fit: [Math.min(130, bw - 96), 58], align: 'left', valign: 'center' }); } catch (e) { /* left out */ } }
-        y += 62;
+        if (s && s.stamp) { try { doc.image(s.stamp, x + 82, y + 2, { fit: [Math.min(180, bw - 96), 86], align: 'left', valign: 'center' }); } catch (e) { /* left out */ } }
+        y += 92;
       }      // space for the stamp, no frame
     });
     doc.x = X; doc.y = y0 + H + 14;
@@ -329,7 +329,7 @@ async function renderDocx({ text, ref, letterhead, letterheadType, company = {},
   const sharp = require('sharp');
   const pic = async (buf, maxW, maxH) => { if (!buf) return null; const m = await sharp(buf).metadata().catch(() => null); if (!m) return null; const k = Math.min(maxW / m.width, maxH / m.height, 1); return { data: buf, w: Math.round(m.width * k), h: Math.round(m.height * k) }; };
   const pics = {};
-  for (const who of ['company', 'party']) { const x = signs[who] || {}; pics[who] = { sig: await pic(x.sig, 200, 60), stamp: await pic(x.stamp, 130, 80), date: x.date || '' }; }
+  for (const who of ['company', 'party']) { const x = signs[who] || {}; pics[who] = { sig: await pic(x.sig, 150, 44), stamp: await pic(x.stamp, 180, 110), date: x.date || '' }; }
   letterhead = null; marginTop = 40; marginBottom = 20;     // dark SarayDar heading instead of a letterhead image
   const { Document, Packer, Paragraph, TextRun, ImageRun, Header, Footer, AlignmentType, PageNumber, ShadingType, TabStopType, Table, TableRow, TableCell, WidthType, BorderStyle, convertMillimetersToTwip } = docx;
   const runs = (t, opts = {}) => { const out = []; let first = true;
