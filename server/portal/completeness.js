@@ -5,7 +5,7 @@
 const { html, pill } = require('./views');
 
 function mountCompleteness(r, ctx) {
-  const { pool } = ctx;
+  const { pool, core } = ctx;
   const one = async (sql, v) => (await pool.query(sql, v)).rows[0] || {};
   const n = async (sql, v) => Number((await one(sql, v)).n || 0);
 
@@ -156,7 +156,19 @@ function mountCompleteness(r, ctx) {
   }
   ctx.syncStage = syncStage;
 
-  ctx.completenessPanel = async a => {
+  r.use(async (req, res, next) => {
+    try {
+      const m = req.method === 'GET' && req.user && !req.query.export && /^\/w\/([0-9a-f-]{36})\/[a-z-]+(\/[^.]*)?$/i.exec(req.path);
+      if (!m || core.isExternal(req.user)) return next();
+      const a = await core.workspaceAccess(req.user, m[1]);
+      if (!a || !a.internal) return next();
+      if (ctx.authority && !(await ctx.authority.allowed(req.user, `${a.ws.section}.record`, 'edit'))) return next();
+      req.topPanel = await ctx.completenessPanel(a, { compact: true });
+    } catch (e) { /* the requirements bar is a guide; a page never fails because of it */ }
+    next();
+  });
+
+  ctx.completenessPanel = async (a, { compact = false } = {}) => {
     if (!a.internal || ['completed', 'archived'].includes(a.ws.status)) return '';
     const j = await journey(a.ws);
     await syncStage(a.ws, j);
@@ -168,7 +180,12 @@ function mountCompleteness(r, ctx) {
     const bar = html`<ol class="jr" style="--n:${j.stations.length}">${j.stations.map((s, i) => html`<li class="${s.done ? 'done' : i === j.cur ? 'now' : 'todo'}"><a href="${s.href}" title="${s.done ? `${s.name}: done` : `${s.name}: ${s.items.filter(x => !x.done).map(x => x.label).join(', ')}`}">
         <span class="jr-dot" aria-hidden="true">${s.done ? '✓' : String(i + 1)}</span><span class="jr-label">${s.name}</span></a></li>`)}</ol>`;
     // titled "System Requirements", compact and placed at the top of the overview (owner request 2026-10-28)
-    if (!now) return html`<section class="panel journey jr-compact no-export"><div class="row-between"><h2 class="h">System Requirements <span class="muted small jr-sub">Everything this ${what} should have is recorded</span></h2>${pill(`${j.stations.length} of ${j.stations.length} complete`, 'ok')}</div>${bar}</section>`;
+    if (!now) return html`<section class="panel journey jr-compact ${compact ? 'jr-tab' : ''} no-export"><div class="row-between"><h2 class="h">System Requirements <span class="muted small jr-sub">Everything this ${what} should have is recorded</span></h2>${pill(`${j.stations.length} of ${j.stations.length} complete`, 'ok')}</div>${bar}</section>`;
+    if (compact) return html`<section class="panel journey jr-compact jr-tab no-export">
+      <div class="row-between"><h2 class="h">System Requirements</h2><span class="guide-count">Stage ${j.cur + 1} of ${j.stations.length} · ${now.name}</span></div>
+      ${bar}
+      <a class="jr-next jr-next-slim" href="${now.next.href}"><span class="jr-next-k">Next</span><span class="grow"><b>${now.next.todo}</b></span><span class="muted small">Record ${record.length - missing.length} of ${record.length} complete</span><span class="btn primary small">Do it ›</span></a>
+    </section>`;
     return html`<section class="panel journey jr-compact no-export">
       <div class="row-between"><h2 class="h">System Requirements</h2><span class="guide-count">Stage ${j.cur + 1} of ${j.stations.length} · ${now.name}</span></div>
       ${bar}
