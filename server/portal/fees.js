@@ -984,18 +984,24 @@ function mountFees(r, ctx, P) {
     res.send(page(req, a, 'Client Approvals', html`
       <p class="muted">Requests shared with the client appear in their portal, where they approve or reject them with a comment (they are emailed when a request is added). Approvals given outside the system (signed letters, emails, meeting minutes) are recorded here by staff with the evidence.${client && AG.approversOf(client).length ? html` Authorised approvers: <b>${AG.approversOf(client).join(', ')}</b>.` : ''}</p>
       <section class="panel"><h2 class="h">Approvals</h2>
-        ${rows.length ? html`<div class="table-wrap"><table><thead><tr><th>Subject</th><th>Item</th><th>Requested</th><th>Decision</th><th>Evidence</th><th></th></tr></thead><tbody>
-          ${rows.map(c => html`<tr><td>${SUBJECTS[c.subject]}</td><td><b>${c.title}</b>${c.linked_ref ? html`<div class="muted small">${c.linked_ref}</div>` : ''}${!c.client_visible ? html`<div class="small">${pill('Internal only', 'muted')}</div>` : ''}${c.client_note ? html`<div class="small pre-line">${c.client_note}</div>` : ''}${c.notes ? html`<div class="muted small">Internal: ${c.notes}</div>` : ''}</td>
-            <td class="small">${fmtDate(c.requested_on)}${c.requested_from ? html`<br>from ${c.requested_from}` : ''}</td>
-            <td>${pill(c.status[0].toUpperCase() + c.status.slice(1), APPROVAL_TONE[c.status])}${c.decided_on ? html`<div class="small">${fmtDate(c.decided_on)}${c.approver_name ? ` · ${c.approver_name}` : ''}${c.method ? ` · ${c.method}` : ''}</div><div class="muted small">${c.responded_by ? `Answered in the portal by ${c.responder}` : `Recorded by ${c.recorder}`}</div>` : ''}${c.client_comment ? html`<div class="small pre-line">“${c.client_comment}”</div>` : ''}</td>
-            <td class="small dp-cell">${[['request', 'Sent for review'], ['client_response', 'From the client'], [null, 'Evidence']].map(([tag, label]) => { const fs = (c.evidence || []).filter(f => tag ? f.tag === tag : !['request', 'client_response'].includes(f.tag)); return fs.length ? html`<div class="dp-label">${label}</div>${require('./views').docPreviews(fs)}` : ''; })}</td>
-            <td>${edit && c.status === 'requested' ? html`<details class="inline-form"><summary class="small">Record decision</summary>
+        ${rows.length ? html`<div class="ap-list">${rows.map(c => html`<article class="ap-card st-${c.status}" id="a-${c.id}">
+          <div class="ap-head"><div class="ap-title"><span class="ap-subj">${SUBJECTS[c.subject]}</span><h3>${c.title}</h3>
+              <div class="muted small">${[c.linked_ref, `Requested ${fmtDate(c.requested_on)}`, c.requested_from ? `from ${c.requested_from}` : null].filter(Boolean).join(' · ')}</div></div>
+            <div class="ap-state">${pill(c.status[0].toUpperCase() + c.status.slice(1), APPROVAL_TONE[c.status])}${!c.client_visible ? pill('Internal only', 'muted') : ''}</div></div>
+          ${c.client_note ? html`<p class="ap-note pre-line">${c.client_note}</p>` : ''}
+          ${[['request', 'Sent for review'], ['client_response', 'From the client'], [null, 'Evidence']].map(([tag, label]) => { const fs = (c.evidence || []).filter(f => tag ? f.tag === tag : !['request', 'client_response'].includes(f.tag)); return fs.length ? html`<div class="dp-label">${label}</div>${require('./views').docPreviews(fs)}` : ''; })}
+          ${c.decided_on ? html`<div class="ap-decision"><b>${c.status === 'approved' ? 'Approved' : c.status === 'rejected' ? 'Rejected' : 'Withdrawn'} ${fmtDate(c.decided_on)}</b>${c.approver_name ? ` by ${c.approver_name}` : ''}${c.method ? ` · ${c.method}` : ''}
+            <div class="muted small">${c.responded_by ? `Answered in the portal by ${c.responder}` : `Recorded by ${c.recorder}`}</div>${c.client_comment ? html`<div class="pre-line">“${c.client_comment}”</div>` : ''}</div>` : ''}
+          ${c.notes ? html`<p class="muted small">Internal: ${c.notes}</p>` : ''}
+          ${edit && c.status === 'requested' ? html`<details class="inline-form ap-decide"><summary>Record the decision</summary>
               <form method="post" action="/w/${id}/approvals/${c.id}/decision" enctype="multipart/form-data" class="form-grid"><input type="hidden" name="_csrf" value="${req.csrfToken}">
-                ${field({ name: 'status', label: 'Decision', options: [['approved', 'Approved'], ['rejected', 'Rejected'], ['withdrawn', 'Request withdrawn']] })}
-                ${field({ name: 'decided_on', label: 'Decision date', type: 'date', required: true, value: todayBH() })}${field({ name: 'approver_name', label: 'Decided by (client side)', required: true })}
-                ${field({ name: 'method', label: 'How it was given', options: [['Signed letter', 'Signed letter'], ['Email', 'Email'], ['Meeting minutes', 'Meeting minutes'], ['Message', 'Message'], ['Other', 'Other']] })}
+                ${field({ name: 'status', label: 'Decision', value: 'approved', options: [['approved', 'Approved'], ['rejected', 'Rejected'], ['withdrawn', 'Request withdrawn']] })}
+                ${field({ name: 'decided_on', label: 'Decision date', type: 'date', required: true, value: todayBH() })}${field({ name: 'approver_name', label: 'Decided by (client side)', required: true, value: c.requested_from || '' })}
+                ${field({ name: 'method', label: 'How it was given', options: [['Signed letter', 'Signed letter'], ['Email', 'Email'], ['Meeting minutes', 'Meeting minutes'], ['Message', 'Message'], ['In person', 'In person'], ['Other', 'Other']] })}
                 <label class="field full"><span>Evidence (PDF, image, email export)</span><input type="file" name="files" multiple></label>
-                ${field({ name: 'notes', label: 'Notes', full: true })}<div class="actions full"><button class="btn primary" type="submit">Save decision</button></div></form></details>` : ''}${c.status === 'requested' && c.client_visible ? html`<div class="muted small">Waiting for the client in the portal</div>` : ''}</td></tr>`)}</tbody></table></div>`
+                ${field({ name: 'notes', label: 'Notes', full: true })}<div class="actions full"><button class="btn primary" type="submit">Save decision</button></div></form></details>` : ''}
+          ${c.status === 'requested' && c.client_visible ? html`<p class="muted small">Waiting for the client's answer in the portal${edit ? ', or record it above' : ''}.</p>` : ''}
+        </article>`)}</div>`
           : html`<p class="muted">No approvals recorded yet.</p>`}
       </section>
       ${edit ? html`<section class="panel"><h2 class="h">Ask the client for an approval</h2><form method="post" action="/w/${id}/approvals" enctype="multipart/form-data" class="form-grid"><input type="hidden" name="_csrf" value="${req.csrfToken}">

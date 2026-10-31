@@ -245,10 +245,10 @@ const SHORT = 24;
 function docPreviews(list = []) {
   if (!list || !list.length) return '';
   const img = list.filter(d => /^image\//.test(d.mime || '')), pdf = list.filter(d => d.mime === 'application/pdf'), other = list.filter(d => !img.includes(d) && !pdf.includes(d));
-  const view = d => `/view?src=${encodeURIComponent(`/files/${d.id}/~/${encodeURIComponent(d.name)}`)}`;
+  const view = d => `/files/${d.id}/~/${encodeURIComponent(d.name)}`;    // the app opens PDFs in its own viewer (home-screen app) or a new tab
   return html`<div class="dp">
     ${img.length ? html`<div class="dp-photos">${img.map(d => html`<a href="/files/${d.id}" target="_blank" rel="noopener" title="${d.name}"><img src="/files/${d.id}/thumb" alt="${d.name}" loading="lazy" onerror="this.onerror=null;this.src='/files/${d.id}'"></a>`)}</div>` : ''}
-    ${pdf.length || other.length ? html`<ul class="dp-files">${pdf.map(d => html`<li><span class="dp-ic">PDF</span><span class="grow">${d.name}</span><a class="btn small primary" href="${view(d)}">Preview</a></li>`)}
+    ${pdf.length || other.length ? html`<ul class="dp-files">${pdf.map(d => html`<li><span class="dp-ic">PDF</span><span class="grow">${d.name}</span><a class="btn small primary" href="${view(d)}" target="_blank" rel="noopener">Preview</a></li>`)}
       ${other.map(d => html`<li><span class="dp-ic">${(String(d.name).split('.').pop() || 'FILE').slice(0, 4).toUpperCase()}</span><span class="grow">${d.name}</span><a class="btn small" href="/files/${d.id}">Download</a></li>`)}</ul>` : ''}
   </div>`;
 }
