@@ -1188,3 +1188,19 @@ form[data-am] > section:last-child { position: sticky; bottom: 0; z-index: 5; bo
 .ap-decide { margin-top: 10px; }
 .ap-decide summary { font-weight: 600; color: #8A5330; cursor: pointer; }
 @media (max-width: 640px) { .ap-head { flex-direction: column; } .ap-state { flex-direction: row; align-items: center; } .dp-files li { flex-wrap: wrap; } .dp-files .btn { margin-left: auto; } }
+/* signing on screen (owner request 2026-10-31) */
+.sign-steps { margin: 8px 0 14px; padding-left: 20px; display: flex; flex-direction: column; gap: 8px; }
+.sign-steps li { line-height: 1.5; } .sign-steps .btn { margin-left: 6px; }
+.sig-pad { position: relative; border: 2px dashed #CDB8A6; border-radius: 14px; background: #fff; height: 190px; touch-action: none; }
+.sig-pad canvas { width: 100%; height: 100%; display: block; border-radius: 12px; cursor: crosshair; touch-action: none; }
+.sig-pad::after { content: ""; position: absolute; left: 18px; right: 18px; bottom: 44px; border-bottom: 1px solid #E2D5C9; pointer-events: none; }
+.sig-hint { position: absolute; left: 20px; bottom: 50px; color: #B9A797; font-size: 13px; pointer-events: none; }
+.sig-pad.has-ink .sig-hint { display: none; }
+.sig-pad.sig-missing { border-color: #B5483D; }
+.sig-clear { position: absolute; right: 10px; top: 10px; }
+.sign-state { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 10px; }
+.sd-sign { display: inline-flex; align-items: center; gap: 6px; margin-right: 10px; font-weight: 600; }
+.sig-files { display: flex; gap: 14px; flex-wrap: wrap; margin: 10px 0; }
+.sig-file { flex: 1; min-width: 140px; border: 1px solid #E6D9CD; border-radius: 12px; padding: 10px; display: flex; flex-direction: column; gap: 8px; background: #fff; }
+.sig-file img { max-width: 100%; max-height: 110px; object-fit: contain; }
+@media (max-width: 640px) { .sig-pad { height: 170px; } }

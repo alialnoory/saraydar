@@ -242,7 +242,7 @@ function mountAgreements(r, ctx) {
         </div>
         ${edit && open ? html`<div class="actions"><a class="btn" href="/w/${a.ws.id}/agreements/${g.id}/edit">Edit details</a>
           ${missing.length || partyMissing ? html`<span class="err small">To generate: ${[partyMissing ? `${tpl.counterparty} name` : null, ...missing.map(f => f.label)].filter(Boolean).join(', ')}</span>`
-            : html`<form method="post" action="/w/${a.ws.id}/agreements/${g.id}/generate">${csrfField(req)}<button class="btn primary" type="submit">Generate document${versions.length ? ` (version ${versions.length + 1})` : ''}</button></form>`}</div>` : ''}
+            : html`<form method="post" action="/w/${a.ws.id}/agreements/${g.id}/generate" class="inline">${csrfField(req)}${await signTick(req)}<button class="btn primary" type="submit">Generate document${versions.length ? ` (version ${versions.length + 1})` : ''}</button></form>`}</div>` : ''}
       </section>
       <section class="panel"><h2 class="h">Generated versions</h2>
         ${versions.length ? html`<ul class="rows">${versions.map(v => html`<li><div class="grow"><b>Version ${v.version}</b><div class="muted small">${fmtDateTime(v.created_at)} · ${v.who || ''} · template v${v.template_version}</div></div>
@@ -261,6 +261,32 @@ function mountAgreements(r, ctx) {
         ${field({ name: 'reason', label: 'Reason', required: true })}<button class="btn" type="submit">Cancel agreement</button></form></details>` : ''}`));
   });
 
+  const SIG = require('../lib/signature-image');
+  const fmtLong = d => new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Bahrain' });
+  const fmtStamp = d => new Date(d).toLocaleString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit', timeZone: 'Asia/Bahrain' }) + ' (Bahrain time)';
+  // SarayDar's signature and stamp may be printed by a Super Admin once both pictures are uploaded (owner request 2026-10-31)
+  ctx.canSignForSaraydar = async user => core.isSuper(user) && !!(await pool.query('select 1 from company_profile where id = 1 and signature_img is not null and stamp_img is not null')).rowCount;
+  const signTick = async req => await ctx.canSignForSaraydar(req.user) ? html`<label class="check sd-sign"><input type="checkbox" name="sd_sign" value="1" checked> Sign and stamp for SarayDar</label>` : '';
+  ctx.sdSignTick = signTick;
+
+  // the signatures and record printed in a version (SarayDar's at generation, the client's when signed on screen)
+  async function signsFor(v, co) {
+    const signs = {}, record = [];
+    if (v.sd_signed_at) {
+      const u = v.sd_signed_by ? (await pool.query("select coalesce(nullif(name,''), email) as n from users where id = $1", [v.sd_signed_by])).rows[0] : null;
+      signs.company = { sig: co.signature_img, stamp: co.stamp_img, date: fmtLong(v.sd_signed_at) };
+      record.push({ title: co.signatory_name ? `For SarayDar — ${co.signatory_salutation ? co.signatory_salutation + ' ' : ''}${co.signatory_name}` : 'For SarayDar', rows: [['Signed', fmtStamp(v.sd_signed_at)], ['Applied by', u ? u.n : ''], ['Method', 'Signature and company stamp on file, applied by an authorised user']] });
+    }
+    if (v.client_signed_at) {
+      signs.party = { sig: v.client_sig, date: fmtLong(v.client_signed_at) };
+      const by = v.client_signed_by ? (await pool.query("select coalesce(nullif(name,''), email) as n, email from users where id = $1", [v.client_signed_by])).rows[0] : null;
+      record.push({ title: `For the ${v.party_term || 'client'} — ${v.client_signed_name}`, rows: [['Signed', fmtStamp(v.client_signed_at)], ['Method', v.client_signed_via === 'portal' ? `Drawn on screen in the SarayDar client portal${by ? `, signed in as ${by.email}` : ''}` : `Drawn on screen in person${by ? `, on a SarayDar device opened by ${by.n}` : ''}`], ['From address', v.client_signed_ip || '']] });
+    }
+    if (record.length && v.text) record.push({ title: 'Document', rows: [['Text fingerprint', crypto.createHash('sha256').update(v.text).digest('hex')]] });
+    return { signs, record };
+  }
+  ctx.agreementSignsFor = signsFor;
+
   async function generateVersion(req, a, g) {
     if (['signed', 'cancelled'].includes(g.status)) throw bad('Signed or cancelled agreements cannot be regenerated.');
     const tpl = await loadTemplate(g.template_id);
@@ -273,17 +299,22 @@ function mountAgreements(r, ctx) {
     if (miss.length) throw bad(`Fill in: ${miss.map(f => f.label).join(', ')}.`);
     const co = await company();
     const map = A.resolve(fields, g.values, A.builtins({ company: co, ws: a.ws, party, agreement: g, counterparty: tpl.counterparty }));
-    let pdf = null, docxBuf = null;
+    let pdf = null, docxBuf = null, text = null;
+    const sdSign = req.body && req.body.sd_sign === '1' && tpl.kind !== 'docx' && await ctx.canSignForSaraydar(req.user);
+    const now = new Date();
     if (tpl.kind === 'docx') docxBuf = A.fillDocx(tpl.docx, map);
     else {
-      const text = A.fill(tpl.body, map);
-      pdf = await A.renderPdf({ text, ref: g.ref, company: co, notice: false });   // no "starter draft" line in the document (owner request 2026-10-31); the form still says so on screen
-      docxBuf = await A.renderDocx({ text, ref: g.ref, company: co, notice: false });
+      text = A.fill(tpl.body, map);
+      const { signs, record } = await signsFor({ text, sd_signed_at: sdSign ? now : null, sd_signed_by: req.user.id }, co);
+      pdf = await A.renderPdf({ text, ref: g.ref, company: co, notice: false, signs, record });   // no "starter draft" line in the document (owner request 2026-10-31); the form still says so on screen
+      docxBuf = await A.renderDocx({ text, ref: g.ref, company: co, notice: false, signs });
     }
     return core.inTx(async db => {
       await db.query('select id from agreements where id = $1 for update', [g.id]);
       const n = (await db.query('select coalesce(max(version),0)+1 as n from agreement_versions where agreement_id = $1', [g.id])).rows[0].n;
-      await db.query('insert into agreement_versions (agreement_id, version, template_version, values, pdf, docx, created_by) values ($1,$2,$3,$4,$5,$6,$7)', [g.id, n, tpl.version, { ...g.values, _party: party }, pdf, docxBuf, req.user.id]);
+      await db.query('insert into agreement_versions (agreement_id, version, template_version, values, pdf, docx, created_by, text, sd_signed_by, sd_signed_at) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)',
+        [g.id, n, tpl.version, { ...g.values, _party: party, _term: map['party.capacity'] || tpl.counterparty }, pdf, docxBuf, req.user.id, text, sdSign ? req.user.id : null, sdSign ? now : null]);
+      if (sdSign) await core.audit(db, { actor: req.user, workspaceId: a.ws.id, action: 'agreement.sd_signed', entity: 'agreement', entityId: g.id, summary: `Agreement ${g.ref} version ${n} signed and stamped for SarayDar`, ip: req.ip });
       await db.query('update agreements set updated_at = now() where id = $1', [g.id]);
       await core.audit(db, { actor: req.user, workspaceId: a.ws.id, action: 'agreement.generated', entity: 'agreement', entityId: g.id, summary: `Agreement ${g.ref} version ${n} generated`, ip: req.ip });
       return n;
@@ -415,6 +446,100 @@ function mountAgreements(r, ctx) {
     res.redirect(`/w/${a.ws.id}/agreements/${g.id}?msg=saved`);
   });
 
+  // ---------- the client signs on screen (owner request 2026-10-31) ----------
+  // In person on a SarayDar device (staff page), or in the client portal. The drawing is printed in the client's box,
+  // the date filled in, and a Signature record page added; the agreement is then marked signed.
+  async function loadVersion(wsId, aid, n) {
+    if (!UUID.test(String(aid)) || !/^\d+$/.test(String(n))) throw new NotFound();
+    const g = (await pool.query('select * from agreements where id = $1 and workspace_id = $2', [aid, wsId])).rows[0];
+    if (!g) throw new NotFound();
+    const v = (await pool.query('select * from agreement_versions where agreement_id = $1 and version = $2', [g.id, Number(n)])).rows[0];
+    if (!v) throw new NotFound();
+    const party = g.party_id ? (await pool.query('select * from parties where id = $1', [g.party_id])).rows[0] : null;
+    return { g, v, party };
+  }
+  function signBody(req, { g, v, party, action, readHref, back }) {
+    const term = (v.values && v.values._term) || 'client';
+    const name = party ? (party.signs_personally || !party.representative ? party.name : party.representative) : '';
+    if (v.client_signed_at) return html`<section class="panel"><h2 class="h">${g.title}</h2><p>${pill('Signed', 'ok')} by <b>${v.client_signed_name}</b> on ${fmtDateTime(v.client_signed_at)}.</p>${back ? html`<p><a href="${back}">‹ Back</a></p>` : ''}</section>`;
+    if (!v.text) return html`<section class="panel"><h2 class="h">${g.title}</h2><p class="notice warn">This version was generated before signing on screen was available. Generate the agreement again, then sign the new version.</p></section>`;
+    return html`<section class="panel sign-panel"><div class="row-between"><div><div class="mono small">${g.ref} · version ${v.version}</div><h2 class="h">Sign: ${g.title}</h2></div>${v.sd_signed_at ? pill('Signed by SarayDar', 'ok') : ''}</div>
+      <ol class="sign-steps"><li><b>Read the agreement.</b> ${readHref ? html`<a class="btn small primary" href="${readHref}" target="_blank" rel="noopener">Read the agreement</a>` : ''}</li>
+        <li><b>Type your full name and draw your signature</b> in the box with your finger, a pen or the mouse.</li><li><b>Tick the box and press Sign.</b></li></ol>
+      <form method="post" action="${action}" class="form-grid" data-sign-form>${csrfField(req)}
+        ${field({ name: 'signed_name', label: `Full name of the person signing for the ${term}`, value: name, required: true, full: true, attrs: 'maxlength="120" autocomplete="name"' })}
+        <div class="field full"><span>Signature</span><div class="sig-pad"><canvas data-sig-pad aria-label="Signature box: draw your signature here"></canvas><span class="sig-hint">Sign here</span><button type="button" class="btn small sig-clear" data-sig-clear>Clear</button></div>
+          <input type="hidden" name="signature" data-sig-out></div>
+        <label class="check full"><input type="checkbox" name="consent" value="1" required> <span>I have read this agreement and I sign it electronically. My drawn signature has the same effect as my handwritten signature.</span></label>
+        <div class="actions full"><button class="btn primary" type="submit" data-sig-submit>Sign the agreement</button>${back ? html`<a class="btn" href="${back}">Not now</a>` : ''}</div>
+        <p class="muted small full">The signed PDF records your name, the date and time, and the address you signed from, on a Signature record page.</p>
+      </form></section>`;
+  }
+  async function saveSignature(req, { ws, g, v, party, via }) {
+    if (['signed', 'cancelled'].includes(g.status)) throw bad(`${g.ref} is already ${g.status}.`);
+    if (v.client_signed_at) throw bad('This version is already signed.');
+    if (!v.text) throw bad('Generate the agreement again before signing on screen.');
+    const latest = (await pool.query('select max(version) as n from agreement_versions where agreement_id = $1', [g.id])).rows[0].n;
+    if (Number(latest) !== v.version) throw bad(`Version ${latest} is newer. Sign the latest version.`);
+    const name = txt(req.body.signed_name, 120); if (!name) throw bad('Type the full name of the person signing.');
+    if (req.body.consent !== '1') throw bad('Tick the box to confirm you sign the agreement.');
+    const sig = await SIG.fromDataUrl(req.body.signature); if (!sig) throw bad('Please draw your signature in the box.');
+    const co = await company(), now = new Date();
+    const v2 = { ...v, client_sig: sig, client_signed_name: name, client_signed_at: now, client_signed_ip: String(req.ip || '').slice(0, 60), client_signed_by: req.user.id, client_signed_via: via, party_term: (v.values && v.values._term) || 'client' };
+    const { signs, record } = await signsFor(v2, co);
+    const pdf = await A.renderPdf({ text: v.text, ref: g.ref, company: co, notice: false, signs, record });
+    const docxBuf = await A.renderDocx({ text: v.text, ref: g.ref, company: co, notice: false, signs });
+    await core.inTx(async db => {
+      const n = (await db.query(`update agreement_versions set pdf = $2, docx = $3, client_sig = $4, client_signed_name = $5, client_signed_at = $6, client_signed_ip = $7, client_signed_by = $8, client_signed_via = $9
+        where id = $1 and client_signed_at is null`, [v.id, pdf, docxBuf, sig, name, now, v2.client_signed_ip, req.user.id, via])).rowCount;
+      if (!n) throw bad('This version is already signed.');
+      await db.query("update agreements set status = 'signed', signed_on = $2, updated_at = now() where id = $1", [g.id, now.toLocaleDateString('en-CA', { timeZone: 'Asia/Bahrain' })]);
+      // the approval request for this version, if any, is answered by the signature
+      await db.query(`update client_approvals set status = 'approved', decided_on = $3, approver_name = $4, method = 'Signed on screen', client_comment = null,
+          responded_by = case when $5 = 'portal' then $6::uuid else responded_by end, responded_at = case when $5 = 'portal' then now() else responded_at end,
+          decided_by = case when $5 = 'portal' then decided_by else $6::uuid end, decided_at = now()
+        where workspace_id = $1 and subject = 'agreement' and linked_ref = $2 and status = 'requested'`, [ws.id, `${g.ref} v${v.version}`, now.toLocaleDateString('en-CA', { timeZone: 'Asia/Bahrain' }), name, via, req.user.id]);
+      await core.audit(db, { actor: req.user, workspaceId: ws.id, action: 'agreement.signed', entity: 'agreement', entityId: g.id, summary: `Agreement ${g.ref} version ${v.version} signed on screen by ${name} (${via === 'portal' ? 'client portal' : 'in person'})`, ip: req.ip });
+      await db.query('update workspaces set updated_at = now() where id = $1', [ws.id]);
+    });
+  }
+  ctx.agreementSigning = { loadVersion, signBody, saveSignature };
+
+  r.get('/w/:id/agreements/:aid/v/:n/sign', async (req, res) => {
+    const a = await access(req, 'edit');
+    const { g, v, party } = await loadVersion(a.ws.id, req.params.aid, req.params.n);
+    const readHref = `/w/${a.ws.id}/agreements/${g.id}/v/${v.version}.pdf${DL.pretty(DL.fileName([g.ref, a.ws.name, `v${v.version}`], 'pdf'))}?view=1`;
+    res.send(page(req, a, html`<p><a href="/w/${a.ws.id}/agreements">‹ Agreements</a></p>
+      <div class="notice info">Signing in person: hand this device to the ${(v.values && v.values._term) || 'client'} to read and sign.</div>
+      ${signBody(req, { g, v, party, action: `/w/${a.ws.id}/agreements/${g.id}/v/${v.version}/sign`, readHref, back: `/w/${a.ws.id}/agreements` })}`));
+  });
+  r.post('/w/:id/agreements/:aid/v/:n/sign', async (req, res) => {
+    const a = await access(req, 'edit');
+    const { g, v, party } = await loadVersion(a.ws.id, req.params.aid, req.params.n);
+    await saveSignature(req, { ws: a.ws, g, v, party, via: 'in_person' });
+    res.redirect(`/w/${a.ws.id}/agreements?msg=saved#agreement`);
+  });
+
+  // SarayDar's signature and stamp pictures (Super Admin only)
+  r.post('/admin/agreements/sign-images', multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024, files: 2, fields: 10 } }).fields([{ name: 'signature', maxCount: 1 }, { name: 'stamp', maxCount: 1 }]), async (req, res) => {
+    if (!core.checkCsrf(req)) throw new Forbidden('Your form expired. Reload the page and try again.');
+    if (!core.isSuper(req.user)) throw new NotFound();
+    const f = req.files || {};
+    const set = {};
+    for (const k of ['signature', 'stamp']) {
+      if (req.body[`remove_${k}`] === '1') { set[k] = null; continue; }
+      const file = (f[k] || [])[0]; if (!file) continue;
+      const t = sniff(file.buffer, file.originalname); if (!t || !t.image) throw bad('Upload the signature and stamp as photos or scans (PNG or JPG).');
+      set[k] = await SIG.clean(file.buffer, { max: k === 'stamp' ? 600 : 800 });
+    }
+    if (!Object.keys(set).length) throw bad('Choose a picture to upload.');
+    await core.inTx(async db => {
+      for (const [k, v] of Object.entries(set)) await db.query(`update company_profile set ${k === 'signature' ? 'signature_img' : 'stamp_img'} = $1 where id = 1`, [v]);
+      await core.audit(db, { actor: req.user, action: 'company.sign_images', entity: 'company_profile', entityId: '1', summary: `SarayDar ${Object.keys(set).map(k => `${k} ${set[k] ? 'uploaded' : 'removed'}`).join(', ')}`, ip: req.ip });
+    });
+    res.redirect('/admin/agreements?msg=saved#sign-images');
+  });
+
   // ---------- administration: company details, letterhead, templates ----------
   const adminOnly = (req) => { if (!core.isSuper(req.user) && req.adminArea !== 'admin.templates') throw new NotFound(); };
   const adminTabs = [['Users', '/admin/users'], ['Roles', '/admin/roles'], ['Agreements', '/admin/agreements'], ['Master template', '/admin/master-plan'], ['Outbox', '/admin/outbox'], ['Audit log', '/admin/audit'], ['System', '/admin/system']];
@@ -432,6 +557,17 @@ function mountAgreements(r, ctx) {
             ${[['legal_name', 'Legal name'], ['trade_name', 'Trade name'], ['cr_number', 'Commercial registration (CR)'], ['vat_number', 'VAT registration number (leave empty while not charging VAT)'], ['address', 'Address'], ['phone', 'Telephone'], ['email', 'Email'], ['signatory_salutation', 'Signatory title before the name'], ['signatory_name', 'Authorised signatory'], ['signatory_title', 'Signatory position']]
               .map(([k, l]) => k === 'signatory_salutation' ? field({ name: k, label: l, value: co[k] || '', options: [['', 'None'], ...['Mr.', 'Mrs.', 'Ms.', 'Dr.', 'Eng.'].map(x => [x, x])], buttons: false }) : field({ name: k, label: l, type: k === 'phone' ? 'tel' : 'text', value: co[k] || '' }))}
             <div class="actions full"><button class="btn primary" type="submit">Save</button></div></form></section>
+        ${core.isSuper(req.user) ? html`<section class="panel grow1" id="sign-images"><h2 class="h">SarayDar signature and stamp</h2>
+          <p class="muted small">Printed in SarayDar's signature box when a Super Admin ticks “Sign and stamp for SarayDar” while generating an agreement. Scan or photograph them on white paper; the white background is removed.</p>
+          <div class="sig-files">${['signature', 'stamp'].map(k => { const img = co[k === 'signature' ? 'signature_img' : 'stamp_img']; return html`<div class="sig-file"><b>${k === 'signature' ? 'Signature' : 'Company stamp'}</b>
+            ${img ? html`<img src="data:image/png;base64,${img.toString('base64')}" alt="${k}">` : html`<span class="muted small">Not uploaded</span>`}</div>`; })}</div>
+          <form method="post" action="/admin/agreements/sign-images" enctype="multipart/form-data" class="form-grid"><input type="hidden" name="_csrf" value="${req.csrfToken}">
+            <label class="field"><span>Signature picture</span><input type="file" name="signature" accept="image/*"></label>
+            <label class="field"><span>Company stamp picture</span><input type="file" name="stamp" accept="image/*"></label>
+            <div class="actions full"><button class="btn primary" type="submit">Upload</button>
+              ${co.signature_img ? html`<button class="btn danger-link" type="submit" name="remove_signature" value="1" formnovalidate data-confirm="Remove the signature picture?">Remove signature</button>` : ''}
+              ${co.stamp_img ? html`<button class="btn danger-link" type="submit" name="remove_stamp" value="1" formnovalidate data-confirm="Remove the stamp picture?">Remove stamp</button>` : ''}</div></form>
+          <p class="muted small">Only Super Admins can apply them. Each use is recorded in the audit log and on the agreement's Signature record page.</p></section>` : ''}
         <section class="panel grow1"><h2 class="h">Letterhead</h2>
           <div class="notice info">Generated PDFs and Word files use the SarayDar dark heading, with the company details above in the footer of every page (owner decision, 24 Oct 2026). An uploaded letterhead image is kept here but not printed.</div>
           ${co.letterhead ? html`<img class="letterhead-preview" src="/admin/agreements/letterhead" alt="Current letterhead"><p class="muted small">${co.letterhead_name || ''}</p>` : html`<p class="muted">No letterhead yet. Documents are generated on plain paper.</p>`}

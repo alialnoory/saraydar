@@ -158,4 +158,39 @@ test('agreements', { skip: !URL_ && 'set TEST_DATABASE_URL to run' }, async t =>
     assert.ok(text.includes('Records and reports'));
     assert.ok(!text.includes('STARTER DRAFT'));
   });
+
+  await t.test('signing on screen: SarayDar signs and stamps (Super Admin only), the client draws a signature', async () => {
+    const tpl = (await pool.query("select id from agreement_templates where key = 'lease_residential'")).rows[0].id;
+    const r = await admin.post(`/w/${prop}/agreements`, { template: tpl, title: 'Lease — Apartment 14', party_id: '', party_kind: 'person', p_salutation: 'Mrs.', p_name: 'Mariam Ali', p_id_number: '900101234', p_address: 'Riffa', p_phone: '+973 3300 1111', p_email: 'mariam@example.com',
+      v_unit: 'Apartment 14', v_rent_amount: '300', v_landlord_name: 'Al Reem Real Estate', v_agreement_date: '2026-11-01', v_lease_start_date: '2026-11-01', v_lease_end_date: '2027-10-31', v_due_day: '1' }, `/w/${prop}/agreements/new?template=${tpl}`);
+    const g = r.location.split('/')[4].split('?')[0];
+    // a picture of the signature and the stamp, on white paper
+    const ink = await sharp({ create: { width: 600, height: 200, channels: 3, background: '#fff' } }).composite([{ input: Buffer.from('<svg width="600" height="200"><path d="M40 140 C 120 20, 200 180, 300 90 S 480 60, 560 120" stroke="#14205a" stroke-width="8" fill="none"/></svg>') }]).jpeg().toBuffer();
+    const pageA = await admin.get('/admin/agreements'); const fd = new FormData(); fd.append('_csrf', admin.csrfFrom(pageA.text));
+    fd.append('signature', new Blob([ink]), 'sig.jpg'); fd.append('stamp', new Blob([ink]), 'stamp.jpg');
+    assert.equal((await admin.raw('POST', '/admin/agreements/sign-images', { multipart: fd })).res.status, 302);
+    const imgs = (await pool.query('select signature_img, stamp_img from company_profile where id = 1')).rows[0];
+    const meta = await sharp(imgs.signature_img).metadata(); assert.equal(meta.format, 'png'); assert.ok(meta.hasAlpha);    // white paper removed
+    // only a Super Admin gets the tick; the project manager's generation is never signed
+    const gp = await pm.get(`/w/${prop}/agreements/${g}`); assert.doesNotMatch(gp.text, /Sign and stamp for SarayDar/);
+    await pm.post(`/w/${prop}/agreements/${g}/generate`, { sd_sign: '1' }, `/w/${prop}/agreements/${g}`);
+    assert.equal((await pool.query('select sd_signed_at from agreement_versions where agreement_id = $1 and version = 1', [g])).rows[0].sd_signed_at, null);
+    assert.match((await admin.get(`/w/${prop}/agreements/${g}`)).text, /Sign and stamp for SarayDar/);
+    await admin.post(`/w/${prop}/agreements/${g}/generate`, { sd_sign: '1' }, `/w/${prop}/agreements/${g}`);
+    const v2 = (await pool.query('select sd_signed_at, text from agreement_versions where agreement_id = $1 and version = 2', [g])).rows[0];
+    assert.ok(v2.sd_signed_at); assert.ok(v2.text.includes('Mrs. Mariam Ali'));
+    // the client signs version 2 in person; an old version cannot be signed, an empty drawing is refused
+    const sp = await pm.get(`/w/${prop}/agreements/${g}/v/2/sign`); assert.equal(sp.status, 200); assert.match(sp.text, /data-sig-pad/);
+    const png = 'data:image/png;base64,' + (await sharp({ create: { width: 400, height: 120, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } } }).composite([{ input: Buffer.from('<svg width="400" height="120"><path d="M20 90 C 100 10, 160 110, 380 40" stroke="#1A2A5A" stroke-width="5" fill="none"/></svg>') }]).png().toBuffer()).toString('base64');
+    const blank = 'data:image/png;base64,' + (await sharp({ create: { width: 400, height: 120, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } } }).png().toBuffer()).toString('base64');
+    assert.equal((await pm.post(`/w/${prop}/agreements/${g}/v/1/sign`, { signed_name: 'Mariam Ali', consent: '1', signature: png }, `/w/${prop}/agreements/${g}/v/1/sign`)).status, 400);
+    assert.equal((await pm.post(`/w/${prop}/agreements/${g}/v/2/sign`, { signed_name: 'Mariam Ali', consent: '1', signature: blank }, `/w/${prop}/agreements/${g}/v/2/sign`)).status, 400);
+    assert.equal((await pm.post(`/w/${prop}/agreements/${g}/v/2/sign`, { signed_name: 'Mariam Ali', signature: png }, `/w/${prop}/agreements/${g}/v/2/sign`)).status, 400);    // consent needed
+    assert.equal((await pm.post(`/w/${prop}/agreements/${g}/v/2/sign`, { signed_name: 'Mariam Ali', consent: '1', signature: png }, `/w/${prop}/agreements/${g}/v/2/sign`)).status, 302);
+    const done = (await pool.query('select g.status, v.client_signed_name, v.client_signed_via, v.pdf from agreements g join agreement_versions v on v.agreement_id = g.id and v.version = 2 where g.id = $1', [g])).rows[0];
+    assert.equal(done.status, 'signed'); assert.equal(done.client_signed_name, 'Mariam Ali'); assert.equal(done.client_signed_via, 'in_person');
+    assert.ok(done.pdf.length > 10000);
+    assert.equal((await pm.post(`/w/${prop}/agreements/${g}/v/2/sign`, { signed_name: 'Mariam Ali', consent: '1', signature: png }, `/w/${prop}/agreements/${g}/v/2/sign`)).status, 400);   // once only
+    assert.match((await admin.get('/admin/audit')).text, /signed on screen by Mariam Ali/);
+  });
 });

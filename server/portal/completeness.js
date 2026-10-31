@@ -35,7 +35,7 @@ function mountCompleteness(r, ctx) {
       if (cpm) {
         at('Agreement');
         add('Agreement generated', ag.status, W('/agreements'));
-        add('Signed agreement recorded', ag.status === 'signed', W('/agreements'), 'Upload the signed copy');
+        add('Signed agreement recorded', ag.status === 'signed', W('/agreements'), 'Sign it on screen or upload the signed copy');
       }
       at('Setup');
       add('Guided setup completed', (await one('select status from setup_drafts where workspace_id = $1', [id])).status === 'reviewed', W('/setup'));
@@ -119,7 +119,7 @@ function mountCompleteness(r, ctx) {
     'Owner telephone or email': 'Add the owner\'s telephone or email', 'Client telephone or email': 'Add the client\'s telephone or email',
     'Client representative recorded (or signs personally)': 'Record the client\'s representative (or that they sign personally)',
     'Management terms recorded (fee, period, scope)': 'Record the management terms (fee, period, scope)', 'Terms activated by Finance': 'Finance to activate the terms',
-    'Agreement generated': 'Generate the agreement', 'Signed agreement recorded': 'Upload the signed agreement', 'Phase weights set': 'Set the phase weights',
+    'Agreement generated': 'Generate the agreement', 'Signed agreement recorded': 'Get the agreement signed', 'Phase weights set': 'Set the phase weights',
     'Property setup recorded (rent collection, limits)': 'Record the property setup (rent collection, limits)',
     'Mandate active': 'Record and activate the mandate (authority, period, fee)', 'Authority to represent verified': 'Verify the client\'s authority to be represented',
     'Search brief recorded': 'Record what the client is looking for (brief)', 'Shortlist started': 'Search the market and shortlist matching properties',

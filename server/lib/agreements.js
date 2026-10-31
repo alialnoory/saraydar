@@ -166,7 +166,8 @@ function richText(doc, t, opts, size = 10) {
   return doc;
 }
 
-function drawSignBoxes(doc, boxes, X, W, limit) {
+// signs: { company: { sig, stamp, date }, party: { sig, date } } — pictures printed in the boxes when signed on screen
+function drawSignBoxes(doc, boxes, X, W, limit, signs = {}) {
   const gap = 16, perRow = 2, bw = (W - gap) / perRow;
   for (let r = 0; r < boxes.length; r += perRow) {
     const row = boxes.slice(r, r + perRow);
@@ -177,6 +178,7 @@ function drawSignBoxes(doc, boxes, X, W, limit) {
     const y0 = doc.y + 4;
     row.forEach((b, i) => {
       const x = X + i * (bw + gap);
+      const s = signs[/saraydar/i.test(b.title) ? 'company' : 'party'] || null;
       doc.save().roundedRect(x, y0, bw, H, 10).fill('#FFFDFB').restore();
       doc.save().lineWidth(0.8).strokeColor('#D9C9BB').roundedRect(x, y0, bw, H, 10).stroke().restore();
       doc.save().roundedRect(x, y0, bw, 24, 10).fill('#140D0A').rect(x, y0 + 12, bw, 12).fill('#140D0A').restore();
@@ -190,9 +192,14 @@ function drawSignBoxes(doc, boxes, X, W, limit) {
       };
       for (const [k, v] of b.rows) line(k, v);
       for (let k = b.rows.length; k < rowsMax; k++) y += 22;
+      if (s && s.sig) { try { doc.image(s.sig, x + 82, y + 6, { fit: [bw - 96, 48], align: 'left', valign: 'bottom' }); } catch (e) { /* a picture that cannot be read is left out */ } }
       line('Signature', '', 58);
-      line('Date', '');
-      if (b.stamp) { doc.font('body').fontSize(8).fillColor('#6E5B50').text('Company stamp', x + 10, y + 6, { lineBreak: false }); y += 62; }      // empty space for the stamp, no frame
+      line('Date', s && s.date ? s.date : '');
+      if (b.stamp) {
+        doc.font('body').fontSize(8).fillColor('#6E5B50').text('Company stamp', x + 10, y + 6, { lineBreak: false });
+        if (s && s.stamp) { try { doc.image(s.stamp, x + 82, y + 2, { fit: [Math.min(130, bw - 96), 58], align: 'left', valign: 'center' }); } catch (e) { /* left out */ } }
+        y += 62;
+      }      // space for the stamp, no frame
     });
     doc.x = X; doc.y = y0 + H + 14;
   }
@@ -202,7 +209,7 @@ const NOTICE = 'STARTER DRAFT — prepared from a generic template. Have it revi
 
 // The agreement on A4 in the SarayDar document style (owner request 2026-10-31: "modernized"): the dark band, a title
 // block, the parties as two cards, numbered clauses with copper markers, and rounded signature boxes.
-function renderPdf({ text, ref, letterhead, company = {}, marginTop = 45, marginBottom = 30, notice = false }) {
+function renderPdf({ text, ref, letterhead, company = {}, marginTop = 45, marginBottom = 30, notice = false, signs = {}, record = null }) {
   letterhead = null; marginTop = 14; marginBottom = 22;     // the SarayDar dark heading replaces any letterhead image (owner decision 2026-10-24)
   return new Promise((resolve, reject) => {
     const mm = v => v * 72 / 25.4;
@@ -290,15 +297,39 @@ function renderPdf({ text, ref, letterhead, company = {}, marginTop = 45, margin
         doc.x = X; doc.y += 3;
         continue;
       }
-      if (b.k === 'sign') { doc.y += 6; drawSignBoxes(doc, b.boxes, X, W, bottom()); continue; }
+      if (b.k === 'sign') { doc.y += 6; drawSignBoxes(doc, b.boxes, X, W, bottom(), signs); continue; }
       richText(doc, b.t, { width: W, align: 'justify', lineGap: 2 }, 9.8); doc.x = X; doc.y += 8;
+    }
+    // signed on screen: a last page records who signed, when, how and from where (owner request 2026-10-31)
+    if (record && record.length) {
+      doc.addPage(); doc.y = mm(18);
+      doc.font('display').fontSize(15).fillColor(INK).text('Signature record', X, doc.y, { width: W });
+      doc.save().roundedRect(X, doc.y + 5, 40, 3, 1.5).fill(COPPER).restore(); doc.y += 18;
+      doc.font('body').fontSize(9).fillColor(MUTED).text(`This page is part of ${ref}. It records the electronic signatures on this agreement.`, X, doc.y, { width: W }); doc.y += 10;
+      for (const r of record) {
+        const rows = r.rows.filter(([, v]) => v);
+        const h = 34 + rows.length * 15;
+        room(h + 10);
+        const y0 = doc.y;
+        doc.save().roundedRect(X, y0, W, h, 10).fill(TINT).restore();
+        doc.save().roundedRect(X, y0, W, h, 10).lineWidth(0.8).strokeColor(LINE).stroke().restore();
+        doc.font('bold').fontSize(10.5).fillColor(INK).text(r.title, X + 14, y0 + 11, { width: W - 28 });
+        let yy = y0 + 30;
+        for (const [k, v] of rows) { doc.font('body').fontSize(8.6).fillColor(MUTED).text(k, X + 14, yy, { width: 120 }); doc.font('medium').fontSize(8.6).fillColor(INK).text(v, X + 140, yy, { width: W - 154 }); yy += 15; }
+        doc.y = y0 + h + 10;
+      }
     }
     brand.footer(doc, { company: { ...company, address: oneLine(company.address) }, ref });
     doc.end();
   });
 }
 
-async function renderDocx({ text, ref, letterhead, letterheadType, company = {}, marginTop = 45, marginBottom = 30, notice = false }) {
+async function renderDocx({ text, ref, letterhead, letterheadType, company = {}, marginTop = 45, marginBottom = 30, notice = false, signs = {} }) {
+  // picture sizes for the signature and stamp (Word needs them up front)
+  const sharp = require('sharp');
+  const pic = async (buf, maxW, maxH) => { if (!buf) return null; const m = await sharp(buf).metadata().catch(() => null); if (!m) return null; const k = Math.min(maxW / m.width, maxH / m.height, 1); return { data: buf, w: Math.round(m.width * k), h: Math.round(m.height * k) }; };
+  const pics = {};
+  for (const who of ['company', 'party']) { const x = signs[who] || {}; pics[who] = { sig: await pic(x.sig, 200, 60), stamp: await pic(x.stamp, 130, 80), date: x.date || '' }; }
   letterhead = null; marginTop = 40; marginBottom = 20;     // dark SarayDar heading instead of a letterhead image
   const { Document, Packer, Paragraph, TextRun, ImageRun, Header, Footer, AlignmentType, PageNumber, ShadingType, TabStopType, Table, TableRow, TableCell, WidthType, BorderStyle, convertMillimetersToTwip } = docx;
   const runs = (t, opts = {}) => { const out = []; let first = true;
@@ -320,7 +351,16 @@ async function renderDocx({ text, ref, letterhead, letterheadType, company = {},
         children: [new TextRun({ text: `${label}  `, font: 'IBM Plex Sans', size: 16, color: '6E5B50' }), new TextRun({ text: value || '', font: 'IBM Plex Sans', size: 19, bold: true })] });
       const cell = bx => new TableCell({ width: { size: 50, type: WidthType.PERCENTAGE }, borders: { top: edge, bottom: edge, left: edge, right: edge }, margins: { top: 0, bottom: 160, left: 140, right: 140 },
         children: [new Paragraph({ shading: { type: ShadingType.CLEAR, color: 'auto', fill: '140D0A' }, spacing: { before: 0, after: 80 }, children: [new TextRun({ text: bx.title, font: 'IBM Plex Sans', bold: true, size: 18, color: 'F1E6DA' })] }),
-          ...bx.rows.map(([k, v]) => field(k, v)), field('Signature', '', true), field('Date', ''), ...(bx.stamp ? [new Paragraph({ spacing: { before: 160, after: 900 }, children: [new TextRun({ text: 'Company stamp', font: 'IBM Plex Sans', size: 16, color: '6E5B50' })] })] : [])] });
+          ...bx.rows.map(([k, v]) => field(k, v)), ...sigParts(bx)] });
+      // signature, date and stamp; with pictures when signed on screen
+      function sigParts(bx) {
+        const p = pics[/saraydar/i.test(bx.title) ? 'company' : 'party'];
+        const img = (x, opts = {}) => new ImageRun({ type: 'png', data: x.data, transformation: { width: x.w, height: x.h }, ...opts });
+        const sigLine = p.sig ? new Paragraph({ spacing: { before: 120, after: 0 }, border: { bottom: { style: BorderStyle.SINGLE, size: 4, color: 'D4C2B3', space: 2 } },
+            children: [new TextRun({ text: 'Signature  ', font: 'IBM Plex Sans', size: 16, color: '6E5B50' }), img(p.sig)] }) : field('Signature', '', true);
+        const stamp = bx.stamp ? [new Paragraph({ spacing: { before: 160, after: p.stamp ? 120 : 900 }, children: [new TextRun({ text: 'Company stamp  ', font: 'IBM Plex Sans', size: 16, color: '6E5B50' }), ...(p.stamp ? [img(p.stamp)] : [])] })] : [];
+        return [sigLine, field('Date', p.date), ...stamp];
+      }
       for (let r = 0; r < b.boxes.length; r += 2) {
         const row = b.boxes.slice(r, r + 2);
         children.push(new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, borders: { insideVertical: { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' } }, rows: [new TableRow({ cantSplit: true, children: row.map(cell).concat(row.length < 2 ? [new TableCell({ children: [new Paragraph('')], borders: { top: { style: BorderStyle.NONE }, bottom: { style: BorderStyle.NONE }, left: { style: BorderStyle.NONE }, right: { style: BorderStyle.NONE } } })] : []) })] }));

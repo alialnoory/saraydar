@@ -493,3 +493,28 @@ document.querySelectorAll('form[data-am]').forEach(f => {
 
 // installed app: the window strip already says "SarayDar Management System", so the page title drops the repeat
 try { if (matchMedia('(display-mode: standalone), (display-mode: window-controls-overlay)').matches) document.title = document.title.replace(/ · SarayDar Management System$/, ''); } catch (e) { /* older browsers */ }
+
+// Signing pad: draw a signature with a finger, pen or mouse (owner request 2026-10-31). The drawing is sent as a PNG.
+document.querySelectorAll('[data-sig-pad]').forEach(cv => {
+  const form = cv.closest('form'), out = form.querySelector('[data-sig-out]'), wrap = cv.parentElement;
+  const ctx = cv.getContext('2d');
+  let drawing = false, last = null, drawn = false;
+  const size = () => {
+    const r = cv.getBoundingClientRect(), k = window.devicePixelRatio || 1;
+    const keep = drawn ? cv.toDataURL() : null;
+    cv.width = Math.round(r.width * k); cv.height = Math.round(r.height * k);
+    ctx.setTransform(k, 0, 0, k, 0, 0); ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = '#1A2A5A'; ctx.lineWidth = 2.6;
+    if (keep) { const im = new Image(); im.onload = () => ctx.drawImage(im, 0, 0, r.width, r.height); im.src = keep; }
+  };
+  size(); window.addEventListener('resize', size);
+  const at = e => { const r = cv.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
+  cv.addEventListener('pointerdown', e => { e.preventDefault(); cv.setPointerCapture(e.pointerId); drawing = true; last = at(e); ctx.beginPath(); ctx.arc(last.x, last.y, 1.2, 0, Math.PI * 2); ctx.fillStyle = ctx.strokeStyle; ctx.fill(); drawn = true; wrap.classList.add('has-ink'); });
+  cv.addEventListener('pointermove', e => { if (!drawing) return; e.preventDefault(); const p = at(e); ctx.beginPath(); ctx.moveTo(last.x, last.y); ctx.lineTo(p.x, p.y); ctx.stroke(); last = p; });
+  const stop = () => { drawing = false; };
+  cv.addEventListener('pointerup', stop); cv.addEventListener('pointercancel', stop); cv.addEventListener('pointerleave', stop);
+  form.querySelector('[data-sig-clear]').addEventListener('click', () => { ctx.clearRect(0, 0, cv.width, cv.height); drawn = false; wrap.classList.remove('has-ink'); out.value = ''; });
+  form.addEventListener('submit', e => {
+    if (!drawn) { e.preventDefault(); wrap.classList.add('sig-missing'); wrap.scrollIntoView({ block: 'center' }); return; }
+    out.value = cv.toDataURL('image/png');
+  });
+});

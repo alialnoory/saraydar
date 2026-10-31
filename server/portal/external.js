@@ -182,11 +182,18 @@ function mountExternal(r, ctx) {
     const rows = (await pool.query(`select c.id, c.subject, c.title, c.linked_ref, c.client_note, c.requested_on, c.status, c.decided_on, c.approver_name, c.client_comment, c.responded_by,
         (select json_agg(json_build_object('id', f.id, 'name', f.original_name, 'mime', f.mime) order by f.uploaded_at) from files f where f.entity = 'client_approval' and f.entity_id = c.id::text and f.tag = 'request' and f.archived_at is null) as docs
       from client_approvals c where c.workspace_id = $1 and c.client_visible order by (c.status = 'requested') desc, c.requested_on desc`, [v.ws.id])).rows;
+    // an agreement sent for approval can be signed on screen (owner request 2026-10-31)
+    for (const x of rows) if (x.subject === 'agreement' && x.status === 'requested' && x.linked_ref) {
+      const [ref, n] = String(x.linked_ref).split(' v');
+      const g = (await pool.query('select g.id from agreements g join agreement_versions vv on vv.agreement_id = g.id and vv.version = $3 where g.workspace_id = $1 and g.ref = $2 and vv.text is not null and vv.client_signed_at is null', [v.ws.id, ref, Number(n) || 0])).rows[0];
+      if (g) x.sign_href = `/p/${v.ws.id}/agreements/${g.id}/v/${Number(n)}/sign`;
+    }
     const pending = rows.filter(x => x.status === 'requested'), done = rows.filter(x => x.status !== 'requested');
     const docs = x => require('./views').docPreviews(x.docs || []);
     const card = x => html`<section class="panel" id="a-${x.id}"><div class="row-between"><h2 class="h">${x.title}</h2>${pill('Waiting for your answer', 'warn')}</div>
         <p class="muted small">${human(x.subject)}${x.linked_ref ? ` · ${x.linked_ref}` : ''} · requested ${fmtDate(x.requested_on)}</p>
         ${x.client_note ? html`<p class="pre-line">${x.client_note}</p>` : ''}${docs(x)}
+        ${x.subject === 'agreement' && x.sign_href ? html`<div class="actions"><a class="btn primary" href="${x.sign_href}${v.qs}">Review and sign the agreement</a></div><p class="muted small">Or approve or reject it below without signing.</p>` : ''}
         ${canAnswer(v) ? html`<form method="post" action="/p/${v.ws.id}/approvals/${x.id}" enctype="multipart/form-data" class="form-grid">${csrf(req)}
           <label class="field full"><span>Comment (optional; needed if you reject)</span><textarea name="comment" maxlength="2000" rows="3"></textarea></label>
           <label class="field full"><span>Attach a file (optional)</span><input type="file" name="files" multiple accept=".pdf,image/*,.doc,.docx,.xls,.xlsx"></label>
@@ -418,6 +425,32 @@ function mountExternal(r, ctx) {
   }
   const answerer = async req => { const v = await viewer(req); if (v.preview) throw new Forbidden('A preview cannot answer. Only the invited viewer can.'); return v; };
   const who = req => req.user.name || req.user.email;
+
+  // the client reads and signs an agreement on screen in the portal (owner request 2026-10-31)
+  async function portalAgreement(req, v) {
+    if (v.ws.kind !== 'client_project' || (v.role !== 'client_viewer' && !v.preview)) throw new NotFound();
+    const S = ctx.agreementSigning; if (!S) throw new NotFound();
+    const x = await S.loadVersion(v.ws.id, req.params.aid, req.params.n);
+    // only agreements sent to this client for approval
+    const sent = (await pool.query("select c.id, (select f.id from files f where f.entity = 'client_approval' and f.entity_id = c.id::text and f.tag = 'request' and f.archived_at is null order by f.uploaded_at limit 1) as file_id, (select f.original_name from files f where f.entity = 'client_approval' and f.entity_id = c.id::text and f.tag = 'request' and f.archived_at is null order by f.uploaded_at limit 1) as file_name from client_approvals c where c.workspace_id = $1 and c.subject = 'agreement' and c.linked_ref = $2 and c.client_visible order by c.created_at desc limit 1", [v.ws.id, `${x.g.ref} v${x.v.version}`])).rows[0];
+    if (!sent) throw new NotFound();
+    return { ...x, sent };
+  }
+  r.get('/p/:id/agreements/:aid/v/:n/sign', async (req, res) => {
+    const v = await viewer(req);
+    const x = await portalAgreement(req, v);
+    const readHref = x.sent.file_id ? `/files/${x.sent.file_id}/~/${encodeURIComponent(x.sent.file_name || 'agreement.pdf')}` : null;
+    res.send(page(req, v, 'approvals', html`<p><a href="/p/${v.ws.id}/approvals${v.qs}">‹ Approvals</a></p>
+      ${v.preview ? html`<p class="notice info">Preview: the client signs here. A preview cannot sign.</p>` : ''}
+      ${ctx.agreementSigning.signBody(req, { ...x, action: `/p/${v.ws.id}/agreements/${x.g.id}/v/${x.v.version}/sign`, readHref, back: `/p/${v.ws.id}/approvals${v.qs}` })}`));
+  });
+  r.post('/p/:id/agreements/:aid/v/:n/sign', async (req, res) => {
+    const v = await answerer(req);
+    const x = await portalAgreement(req, v);
+    await ctx.agreementSigning.saveSignature(req, { ws: v.ws, g: x.g, v: x.v, party: x.party, via: 'portal' });
+    await tellStaff(v.ws, [], `Agreement signed: ${x.g.ref} — ${v.ws.name}`, `${who(req)} signed ${x.g.title} (${x.g.ref}, version ${x.v.version}) on screen in the client portal on ${fmtDateTime(new Date())}.`);
+    res.redirect(`/p/${v.ws.id}/approvals?msg=answered`);
+  });
 
   r.post('/p/:id/approvals/:cid', upload.array('files', 4), async (req, res) => {
     if (!core.checkCsrf(req)) throw new Forbidden('Your form expired. Reload the page and try again.');

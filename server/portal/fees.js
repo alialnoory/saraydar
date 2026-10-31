@@ -254,7 +254,10 @@ function mountFees(r, ctx, P) {
       : last.status === 'approved' ? html`${pill(`Version ${lastV} approved${last.approver_name ? ` by ${last.approver_name}` : ''} ${fmtDate(last.decided_on)}`, 'ok')}`
       : last.status === 'rejected' ? html`${pill(`Version ${lastV} rejected ${fmtDate(last.decided_on)}`, 'bad')}${last.client_comment ? html` <span class="small">“${last.client_comment}”</span>` : ''}` : html`${pill(`Version ${lastV} request withdrawn`, 'muted')}`;
     const pending = last && last.status === 'requested' && lastV === v.version;
+    const vs = (await pool.query('select sd_signed_at, client_signed_at, client_signed_name, text is not null as signable from agreement_versions where agreement_id = $1 and version = $2', [g.id, v.version])).rows[0] || {};
     return html`<div class="send-approval">
+      <div class="sign-state">${vs.sd_signed_at ? pill('Signed and stamped by SarayDar', 'ok') : pill('Not yet signed by SarayDar', 'muted')}
+        ${vs.client_signed_at ? pill(`Signed by ${vs.client_signed_name}`, 'ok') : edit && vs.signable ? html`<a class="btn small" href="/w/${a.ws.id}/agreements/${g.id}/v/${v.version}/sign">Client signs here, on this device</a>` : ''}</div>
       <div class="row-between"><h3 class="h3">Client approval</h3><span>${state}${last ? html` <a class="small" href="/w/${a.ws.id}/approvals#a-${last.id}">Open</a>` : ''}</span></div>
       ${edit && !pending ? html`<form method="post" action="/w/${a.ws.id}/client/agreement/send" class="form-grid">${csrfField(req)}<input type="hidden" name="version" value="${v.version}">
         ${field({ name: 'client_note', label: 'Message to the client (optional)', type: 'textarea', full: true, value: 'Please review the agreement and approve it, or reject it with your comments.', attrs: 'rows="2" maxlength="2000"' })}
@@ -303,7 +306,7 @@ function mountFees(r, ctx, P) {
           ${v.has_pdf ? html`<a class="btn small primary" href="/w/${id}/agreements/${g.id}/v/${v.version}.pdf${DL.pretty(DL.fileName([g.ref, a.ws.name, `v${v.version}`], 'pdf'))}?view=1" target="_blank" rel="noopener">Preview</a><a class="btn small" href="/w/${id}/agreements/${g.id}/v/${v.version}.pdf">PDF</a>` : ''}${v.has_docx ? html`<a class="btn small" href="/w/${id}/agreements/${g.id}/v/${v.version}.docx">Word</a>` : ''}${edit && g.status === 'draft' && v.version !== g.versions[0].version ? html`<form method="post" action="/w/${id}/agreements/${g.id}/v/${v.version}/delete" class="inline">${csrfField(req)}<input type="hidden" name="back" value="/w/${id}/agreements"><button class="btn small danger-link" type="submit" data-confirm="Delete version ${v.version}? This cannot be undone.">Delete</button></form>` : ''}</li>`)}</ul>` : html`<p class="muted">No agreement generated yet.</p>`}
       <div class="actions">
         ${missing.length ? html`<div class="notice warn full">To write the agreement, add: <b>${missing.join(', ')}</b>.</div>` : ''}
-        ${edit && hasTerms && a.ws.party_id && !missing.length ? html`<form method="post" action="/w/${id}/client/agreement" class="inline">${csrfField(req)}<button class="btn primary" type="submit">${locked ? 'Prepare a new agreement from these terms' : g && g.versions.length ? 'Generate again from the terms' : 'Generate the agreement'}</button></form>` : ''}
+        ${edit && hasTerms && a.ws.party_id && !missing.length ? html`<form method="post" action="/w/${id}/client/agreement" class="inline">${csrfField(req)}${ctx.sdSignTick ? await ctx.sdSignTick(req) : ''}<button class="btn primary" type="submit">${locked ? 'Prepare a new agreement from these terms' : g && g.versions.length ? 'Generate again from the terms' : 'Generate the agreement'}</button></form>` : ''}
         ${g ? html`<a class="btn" href="/w/${id}/agreements/${g.id}">Issue for signature / upload the signed copy</a>` : ''}
       </div>
       ${a.ws.section === 'cpm' && g && g.versions.length && !locked ? await sendForApproval(req, a, g, edit) : ''}
