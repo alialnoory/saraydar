@@ -13,12 +13,14 @@ const COMMON = {
 // (owner request 2026-10-31). "M/s." / "Mr." / "Mrs." come with the names.
 const PARTIES = cp => `This Agreement is made on {{agreement_date}} (reference {{agreement.ref}}) between:
 
-1. **{{company.legal_name}}** ("SarayDar")
+1. **{{company.legal_name}}**
+("SarayDar")
 CR No. {{company.cr_number}}
 {{company.address}}
 Represented by {{company.signatory_name}}, {{company.signatory_title}}
 
-2. **{{party.name}}** (the "${cp}")
+2. **{{party.name}}**
+(the "${cp}")
 {{party.id_label}} {{party.id_number}}
 {{party.address}}
 Telephone {{party.phone}} · Email {{party.email}}{{party.represented_line}}`;

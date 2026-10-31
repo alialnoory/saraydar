@@ -259,7 +259,8 @@ function renderPdf({ text, ref, letterhead, company = {}, marginTop = 45, margin
             doc.x = x + 14; doc.y = y0 + 26;
             richText(doc, r.name, { width: cw - 28 }, 10.5);
             doc.y += 4;
-            for (const l of r.rest) { doc.font('body').fontSize(8.8).fillColor(MUTED).text(l, x + 14, doc.y, { width: cw - 28 }); doc.y += 2; }
+            for (const l of r.rest) { const term = /^\(.*\)$/.test(l.trim());   // the defined term, on its own line under the name
+              doc.font(term ? 'medium' : 'body').fontSize(term ? 9.5 : 8.8).fillColor(term ? ACC : MUTED).text(l, x + 14, doc.y, { width: cw - 28 }); doc.y += term ? 5 : 2; }
           });
           doc.x = X; doc.y = y0 + H + 14;
         }
