@@ -69,6 +69,11 @@ function approversOf(p = {}) {
   return [...new Set(names.filter(Boolean))];
 }
 
+// Names as printed in agreements (owner request 2026-10-31): "M/s." before SarayDar and companies, "Mr." / "Mrs." /
+// … before an individual whose title is recorded. Addresses typed on several lines print on one line.
+const MSLASH = n => n && !/^m\/s\.?\s/i.test(n) ? `M/s. ${n}` : n;
+const titled = p => !p.name ? p.name : p.kind === 'company' ? MSLASH(p.name) : p.salutation && !new RegExp(`^${p.salutation.replace('.', '\\.')}\\s`, 'i').test(p.name) ? `${p.salutation} ${p.name}` : p.name;
+const oneLine = a => a ? String(a).replace(/\r/g, '').split('\n').map(l => l.trim().replace(/[,;]+$/, '')).filter(Boolean).join(', ').replace(/\s{2,}/g, ' ') : a;
 function builtins({ company = {}, ws = {}, party = {}, agreement = {}, counterparty = 'Client' }) {
   // the other party is "represented by" whoever signs for them: the representative recorded on their profile,
   // otherwise their main contact (an individual with neither signs for themselves)
@@ -77,16 +82,16 @@ function builtins({ company = {}, ws = {}, party = {}, agreement = {}, counterpa
   const repCpr = party.representative ? party.representative_cpr : '';
   const rep = repName ? `, represented by ${repName}${repCpr ? ` (CPR No. ${repCpr})` : ''}${repTitle ? `, ${repTitle}` : ''}` : '';
   return {
-    'company.legal_name': company.legal_name || company.trade_name, 'company.trade_name': company.trade_name, 'company.cr_number': company.cr_number,
-    'company.address': company.address, 'company.phone': company.phone, 'company.email': company.email,
+    'company.legal_name': MSLASH(company.legal_name || company.trade_name), 'company.trade_name': company.trade_name, 'company.cr_number': company.cr_number,
+    'company.address': oneLine(company.address), 'company.phone': company.phone, 'company.email': company.email,
     'company.signatory_name': company.signatory_name, 'company.signatory_title': company.signatory_title,
     'workspace.name': ws.name, 'workspace.ref': ws.ref, 'workspace.location': ws.location,
     'workspace.budget_control_text': ws.budget_control === 'client'
-      ? 'The Client controls the project budget and pays contractors, suppliers, consultants and all other third parties directly. SarayDar has no responsibility for the budget, those payments or their control, and does not approve, process or certify them.'
-      : 'SarayDar will manage and control the project budget on the Client\'s behalf: it will track commitments, review invoices and payment applications, and process payments to contractors, suppliers, consultants and other third parties only within the approved budget and with the Client\'s approval. The funds remain the Client\'s.',
-    'party.name': party.name, 'party.id_number': party.id_number, 'party.id_label': party.kind === 'company' ? 'CR No.' : 'CPR No.', 'party.address': party.address, 'party.phone': party.phone, 'party.email': party.email,
+      ? `The ${counterparty} controls the project budget and pays contractors, suppliers, consultants and all other third parties directly. SarayDar has no responsibility for the budget, those payments or their control, and does not approve, process or certify them.`
+      : `SarayDar will manage and control the project budget on the ${counterparty}'s behalf: it will track commitments, review invoices and payment applications, and process payments to contractors, suppliers, consultants and other third parties only within the approved budget and with the ${counterparty}'s approval. The funds remain the ${counterparty}'s.`,
+    'party.name': titled(party), 'party.id_number': party.id_number, 'party.id_label': party.kind === 'company' ? 'CR No.' : 'CPR No.', 'party.address': oneLine(party.address), 'party.phone': party.phone, 'party.email': party.email,
     'party.representative': party.representative, 'party.representative_title': party.representative_title,
-    'party.represented_by': party.name ? rep : '', 'party.signatory': repName || party.name, 'party.signatory_title': repName ? repTitle || `${counterparty}'s Representative` : '',    // someone signing for the party without a recorded title
+    'party.represented_by': party.name ? rep : '', 'party.represented_line': party.name && repName ? `\nRepresented by ${repName}${repCpr ? ` (CPR No. ${repCpr})` : ''}${repTitle ? `, ${repTitle}` : ''}` : '', 'party.signatory': repName || party.name, 'party.signatory_title': repName ? repTitle || `${counterparty}'s Representative` : '',    // someone signing for the party without a recorded title
     'agreement.ref': agreement.ref, 'agreement.title': agreement.title, 'agreement.date': fmtDate(new Date().toISOString().slice(0, 10))
   };
 }
@@ -105,7 +110,7 @@ function resolve(fields, values, base) {
   for (const f of fields) out[f.key] = display(f, values[f.key]);
   for (const k of LIST_KEYS) if (typeof out[k] === 'string' && out[k]) out[k] = asList(out[k]);
   if ('exclusions' in out && (out.exclusions === null || out.exclusions === undefined || out.exclusions === '')) out.exclusions = 'None.';
-  for (const k of Object.keys(out)) if (out[k] === null || out[k] === undefined || out[k] === '') out[k] = k === 'party.represented_by' ? '' : BLANK;
+  for (const k of Object.keys(out)) if (out[k] === null || out[k] === undefined || out[k] === '') out[k] = ['party.represented_by', 'party.represented_line'].includes(k) ? '' : BLANK;
   return out;
 }
 const missingRequired = (fields, values) => fields.filter(f => f.required && (values[f.key] === undefined || values[f.key] === null || values[f.key] === ''));
@@ -129,6 +134,7 @@ function blocks(text) {
       const n = NUM.exec(l), b = !n && BUL.exec(l);
       if (n) { flush(); out.push({ k: 'li', n: `${n[1]}.`, t: n[2].trim() }); }
       else if (b) { flush(); out.push({ k: 'li', n: null, t: b[1].trim() }); }
+      else if (!buf.length && out.length && out[out.length - 1].k === 'li' && out[out.length - 1].n && l.trim()) out[out.length - 1].t += '\n' + l.trim();   // a numbered item's next lines (a party's details)
       else buf.push(l);
     }
     flush();
@@ -144,7 +150,7 @@ function signBox(line) {
   for (const p of parts.slice(1)) {
     if (/^company stamp$/i.test(p)) { box.stamp = true; continue; }
     const i = p.indexOf(':');
-    if (i > 0) box.rows.push([p.slice(0, i).trim(), p.slice(i + 1).trim().replace(/^_+$/, '')]);
+    if (i > 0) { const v = p.slice(i + 1).trim().replace(/^_+$/, ''); if (!(v === '' && /^title$/i.test(p.slice(0, i).trim()))) box.rows.push([p.slice(0, i).trim(), v]); }
   }
   return box;
 }
@@ -169,8 +175,9 @@ function drawSignBoxes(doc, boxes, X, W, limit) {
     const y0 = doc.y + 4;
     row.forEach((b, i) => {
       const x = X + i * (bw + gap);
-      doc.save().lineWidth(0.8).strokeColor('#BFAE9F').rect(x, y0, bw, H).stroke().restore();
-      doc.save().rect(x, y0, bw, 24).fill('#140D0A').restore();
+      doc.save().roundedRect(x, y0, bw, H, 10).fill('#FFFDFB').restore();
+      doc.save().lineWidth(0.8).strokeColor('#D9C9BB').roundedRect(x, y0, bw, H, 10).stroke().restore();
+      doc.save().roundedRect(x, y0, bw, 24, 10).fill('#140D0A').rect(x, y0 + 12, bw, 12).fill('#140D0A').restore();
       doc.font('bold').fontSize(9).fillColor('#F1E6DA').text(b.title, x + 10, y0 + 7, { width: bw - 20, height: 12, ellipsis: true });
       let y = y0 + 34;
       const line = (label, value, h = 22) => {
@@ -191,38 +198,99 @@ function drawSignBoxes(doc, boxes, X, W, limit) {
 
 const NOTICE = 'STARTER DRAFT — prepared from a generic template. Have it reviewed by your legal adviser before signing.';
 
+// The agreement on A4 in the SarayDar document style (owner request 2026-10-31: "modernized"): the dark band, a title
+// block, the parties as two cards, numbered clauses with copper markers, and rounded signature boxes.
 function renderPdf({ text, ref, letterhead, company = {}, marginTop = 45, marginBottom = 30, notice = false }) {
-  letterhead = null; marginTop = 14; marginBottom = 20;     // the SarayDar dark heading replaces any letterhead image (owner decision 2026-10-24)
+  letterhead = null; marginTop = 14; marginBottom = 22;     // the SarayDar dark heading replaces any letterhead image (owner decision 2026-10-24)
   return new Promise((resolve, reject) => {
     const mm = v => v * 72 / 25.4;
-    const doc = new PDFDocument({ size: 'A4', bufferPages: true, margins: { top: mm(marginTop), bottom: mm(marginBottom), left: mm(22), right: mm(22) }, info: { Title: ref, Author: 'SarayDar' } });
+    const doc = new PDFDocument({ size: 'A4', bufferPages: true, margins: { top: mm(marginTop), bottom: mm(marginBottom), left: mm(20), right: mm(20) }, info: { Title: ref, Author: 'SarayDar' } });
     const chunks = []; doc.on('data', c => chunks.push(c)); doc.on('end', () => resolve(Buffer.concat(chunks))); doc.on('error', reject);
     doc.registerFont('body', path.join(FONT_DIR, 'ibm-plex-sans-latin-400-normal.ttf'));
+    doc.registerFont('medium', path.join(FONT_DIR, 'ibm-plex-sans-latin-500-normal.ttf'));
     doc.registerFont('bold', path.join(FONT_DIR, 'ibm-plex-sans-latin-600-normal.ttf'));
     doc.registerFont('display', path.join(FONT_DIR, 'ibm-plex-sans-latin-600-normal.ttf'));
-    const W = doc.page.width - mm(44);
-    brand.band(doc, { title: 'Agreement', sub: [company.legal_name || company.trade_name, company.cr_number ? `C.R. ${company.cr_number}` : null].filter(Boolean).join(' · '), right: [[ref, { bold: true, size: 11 }]], x: mm(22), width: W });
-    let prev = null;
+    const INK = '#2A1C15', MUTED = '#6E5B50', COPPER = '#C47A3E', ACC = '#8E4F2B', LINE = '#E6D9CD', TINT = '#FBF7F3';
+    const X = mm(20), W = doc.page.width - mm(40), bottom = () => doc.page.height - mm(marginBottom);
+    const room = h => { if (doc.y + h > bottom()) { doc.addPage(); doc.y = mm(16); } };
+    brand.band(doc, { title: 'Agreement', sub: [company.legal_name || company.trade_name, company.cr_number ? `C.R. ${company.cr_number}` : null].filter(Boolean).join(' · '), right: [[ref, { bold: true, size: 11 }]], x: X, width: W });
+    doc.y = 128;
+    // group the parties (numbered items before the first clause that start with a bold name) into cards
+    const bl = []; let seenH = false;
     for (const b of blocks(text)) {
-      if (prev === 'li' && b.k !== 'li') doc.moveDown(0.45);     // space after a list
+      if (b.k === 'h') seenH = true;
+      if (!seenH && b.k === 'li' && b.n && /^\*\*/.test(b.t)) { const last = bl[bl.length - 1]; if (last && last.k === 'parties') last.items.push(b); else bl.push({ k: 'parties', items: [b] }); continue; }
+      bl.push(b);
+    }
+    let clause = 0, prev = null;
+    for (const b of bl) {
+      if (prev === 'li' && b.k !== 'li') doc.y += 6;
       prev = b.k;
       if (b.k === 'title') {
-        doc.font('display').fontSize(18).fillColor('#2A1C15').text(b.t, { align: 'center', width: W }).moveDown(0.6);
-        if (notice) doc.font('bold').fontSize(8.5).fillColor('#7A4F0C').text(NOTICE, { align: 'center', width: W }).moveDown(0.8);
-      } else if (b.k === 'h') { if (doc.y > doc.page.height - mm(marginBottom) - 60) doc.addPage(); doc.moveDown(0.4).font('bold').fontSize(11).fillColor('#2A1C15').text(b.t, { width: W }).moveDown(0.25); }
-      else if (b.k === 'li') {
-        const X = mm(22), y = doc.y, hang = b.n && b.n.length > 2 ? 22 : 18;
-        if (y > doc.page.height - mm(marginBottom) - 30) doc.addPage();
-        const y0 = doc.y;
-        doc.font('body').fontSize(10).fillColor('#2A1C15').text(b.n || '•', X + 4, y0, { width: hang - 4, lineBreak: false });
-        doc.x = X + hang + 4; doc.y = y0;
-        richText(doc, b.t, { width: W - hang - 4, lineGap: 1.5 });
-        doc.x = X; doc.moveDown(0.2);
+        doc.font('display').fontSize(20).fillColor(INK).text(b.t, X, doc.y, { width: W });
+        doc.save().roundedRect(X, doc.y + 6, 46, 3, 1.5).fill(COPPER).restore();
+        doc.y += 20;
+        if (notice) {
+          const h = doc.font('bold').fontSize(8.5).heightOfString(NOTICE, { width: W - 28 }) + 14;
+          doc.save().roundedRect(X, doc.y, W, h, 8).fill('#F6EBD6').restore();
+          doc.font('bold').fontSize(8.5).fillColor('#7A4F0C').text(NOTICE, X + 14, doc.y + 7, { width: W - 28 });
+          doc.y += 12;
+        }
+        continue;
       }
-      else if (b.k === 'sign') drawSignBoxes(doc, b.boxes, mm(22), W, doc.page.height - mm(marginBottom));
-      else richText(doc, b.t, { width: W, align: 'justify', lineGap: 1.5 }).moveDown(0.55);
+      if (b.k === 'parties') {
+        const gap = 12, cw = b.items.length > 1 ? (W - gap) / 2 : W;
+        const lay = b.items.map(it => { const lines = it.t.split('\n'); const name = lines[0], rest = lines.slice(1).map(l => l.replace(/\*\*/g, '')).filter(l => l.trim() && !/^_{3,}$/.test(l.trim()));
+          const hName = doc.font('bold').fontSize(10.5).heightOfString(name.replace(/\*\*/g, ''), { width: cw - 28 });
+          const hRest = rest.reduce((n, l) => n + doc.font('body').fontSize(8.8).heightOfString(l, { width: cw - 28 }) + 2, 0);
+          return { n: it.n, name, rest, h: 30 + hName + 6 + hRest + 12 }; });
+        for (let i = 0; i < lay.length; i += 2) {
+          const row = lay.slice(i, i + 2), H = Math.max(...row.map(r => r.h));
+          room(H + 8);
+          const y0 = doc.y;
+          row.forEach((r, j) => {
+            const x = X + j * (cw + gap);
+            doc.save().roundedRect(x, y0, cw, H, 10).fill(TINT).restore();
+            doc.save().roundedRect(x, y0, cw, H, 10).lineWidth(0.8).strokeColor(LINE).stroke().restore();
+            doc.save().roundedRect(x, y0, 4, H, 2).fill(COPPER).restore();
+            doc.font('bold').fontSize(7.5).fillColor(ACC).text(`PARTY ${r.n.replace('.', '')}`, x + 14, y0 + 12, { width: cw - 28, characterSpacing: 1 });
+            doc.x = x + 14; doc.y = y0 + 26;
+            richText(doc, r.name, { width: cw - 28 }, 10.5);
+            doc.y += 4;
+            for (const l of r.rest) { doc.font('body').fontSize(8.8).fillColor(MUTED).text(l, x + 14, doc.y, { width: cw - 28 }); doc.y += 2; }
+          });
+          doc.x = X; doc.y = y0 + H + 14;
+        }
+        continue;
+      }
+      if (b.k === 'h') {
+        const sig = /^signatures?$/i.test(b.t.trim());
+        if (!sig) clause++;
+        room(64);
+        doc.y += 8;
+        const y0 = doc.y;
+        if (sig) doc.save().roundedRect(X + 6, y0 + 5, 10, 10, 3).fill(COPPER).restore();
+        else { doc.save().roundedRect(X, y0, 22, 18, 5).fill('#F3E6DA').restore(); doc.font('bold').fontSize(9).fillColor(ACC).text(String(clause), X, y0 + 4, { width: 22, align: 'center' }); }
+        doc.font('bold').fontSize(11.5).fillColor(INK).text(b.t, X + 30, y0 + 1.5, { width: W - 30 });
+        doc.save().moveTo(X + 30, doc.y + 3).lineTo(X + W, doc.y + 3).lineWidth(0.6).strokeColor(LINE).stroke().restore();
+        doc.x = X; doc.y += 9;
+        continue;
+      }
+      if (b.k === 'li') {
+        const hang = b.n && b.n.length > 2 ? 22 : 16;
+        room(30);
+        const y0 = doc.y;
+        if (b.n) doc.font('bold').fontSize(9.8).fillColor(ACC).text(b.n, X + 4, y0, { width: hang, lineBreak: false });
+        else doc.save().circle(X + 8, y0 + 6.2, 2.2).fill(COPPER).restore();
+        doc.x = X + hang + 6; doc.y = y0;
+        richText(doc, b.t, { width: W - hang - 6, lineGap: 2 }, 9.8);
+        doc.x = X; doc.y += 3;
+        continue;
+      }
+      if (b.k === 'sign') { doc.y += 6; drawSignBoxes(doc, b.boxes, X, W, bottom()); continue; }
+      richText(doc, b.t, { width: W, align: 'justify', lineGap: 2 }, 9.8); doc.x = X; doc.y += 8;
     }
-    brand.footer(doc, { company, ref });
+    brand.footer(doc, { company: { ...company, address: oneLine(company.address) }, ref });
     doc.end();
   });
 }
@@ -234,11 +302,14 @@ async function renderDocx({ text, ref, letterhead, letterheadType, company = {},
     for (const g of segments(t)) g.t.split('\n').forEach((line, i) => { out.push(new TextRun({ text: line, break: i ? 1 : 0, font: 'IBM Plex Sans', size: 20, bold: g.b, ...opts })); first = false; });
     return out; };
   const children = [];
+  let clauseNo = 0;
   for (const b of blocks(text)) {
     if (b.k === 'title') {
       children.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 200 }, children: [new TextRun({ text: b.t, font: 'IBM Plex Sans', size: 36, bold: true })] }));
       if (notice) children.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 240 }, children: [new TextRun({ text: NOTICE, bold: true, size: 16, color: '7A4F0C' })] }));
-    } else if (b.k === 'h') children.push(new Paragraph({ spacing: { before: 200, after: 80 }, keepNext: true, children: [new TextRun({ text: b.t, bold: true, font: 'IBM Plex Sans', size: 22 })] }));
+    } else if (b.k === 'h') { const sig = /^signatures?$/i.test(b.t.trim()); if (!sig) clauseNo++;
+      children.push(new Paragraph({ spacing: { before: 240, after: 100 }, keepNext: true, border: { bottom: { style: BorderStyle.SINGLE, size: 4, color: 'E6D9CD', space: 4 } },
+        children: [...(sig ? [] : [new TextRun({ text: `${clauseNo}   `, bold: true, font: 'IBM Plex Sans', size: 22, color: '8E4F2B' })]), new TextRun({ text: b.t, bold: true, font: 'IBM Plex Sans', size: 23 })] })); }
     else if (b.k === 'li') children.push(b.n ? new Paragraph({ indent: { left: 440, hanging: 440 }, spacing: { after: 60 }, children: [new TextRun({ text: `${b.n}  `, font: 'IBM Plex Sans', size: 20 }), ...runs(b.t)] }) : new Paragraph({ bullet: { level: 0 }, spacing: { after: 60 }, children: runs(b.t) }));
     else if (b.k === 'sign') {
       const edge = { style: BorderStyle.SINGLE, size: 6, color: 'BFAE9F' };

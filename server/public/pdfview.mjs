@@ -37,6 +37,16 @@ async function load() {
   }
 }
 
+// save the file on this computer or phone, under its proper name
+document.getElementById('pv-download').addEventListener('click', async () => {
+  try {
+    if (!blob) blob = await (await fetch(src, { credentials: 'same-origin' })).blob();
+    const url = URL.createObjectURL(new Blob([blob], { type: 'application/pdf' }));
+    const a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 30000);
+  } catch (e) { window.open(src.replace(/([?&])view=1(&|$)/, '$1').replace(/[?&]$/, ''), '_blank', 'noopener'); }
+});
+
 document.getElementById('pv-share').addEventListener('click', async () => {
   try {
     if (!blob) blob = await (await fetch(src, { credentials: 'same-origin' })).blob();

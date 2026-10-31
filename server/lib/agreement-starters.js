@@ -9,11 +9,19 @@ const COMMON = {
   notices_days: { label: 'Notice period for termination (days)', type: 'number' }
 };
 
+// Parties as cards: name and defined term first, then registration, address and contact on their own lines
+// (owner request 2026-10-31). "M/s." / "Mr." / "Mrs." come with the names.
 const PARTIES = cp => `This Agreement is made on {{agreement_date}} (reference {{agreement.ref}}) between:
 
-1. **{{company.legal_name}}**, commercial registration {{company.cr_number}}, of {{company.address}}, represented by {{company.signatory_name}}, {{company.signatory_title}} ("SarayDar"); and
+1. **{{company.legal_name}}** ("SarayDar")
+Commercial Registration No. {{company.cr_number}}
+{{company.address}}
+Represented by {{company.signatory_name}}, {{company.signatory_title}}
 
-2. **{{party.name}}**, {{party.id_label}} {{party.id_number}}, of {{party.address}}, telephone {{party.phone}}, email {{party.email}}{{party.represented_by}} (the "${cp}").`;
+2. **{{party.name}}** (the "${cp}")
+{{party.id_label}} {{party.id_number}}
+{{party.address}}
+Telephone {{party.phone}} · Email {{party.email}}{{party.represented_line}}`;
 
 const SIGN = cp => `## Signatures
 
@@ -163,17 +171,17 @@ ${GENERAL}
 ${SIGN('Buyer')}`
   },
   {
-    key: 'pm_services', name: 'Project Management Services Agreement', sections: ['cpm'], category: 'Management agreement', counterparty: 'Client',
+    key: 'pm_services', name: 'Project Management Services Agreement', sections: ['cpm'], category: 'Management agreement', counterparty: 'Project Owner',
     fields: { ...COMMON, services: { label: 'Management services', type: 'textarea', required: true }, exclusions: { label: 'Exclusions', type: 'textarea' },
       monthly_fee_amount: { label: 'Monthly management fee', type: 'money', required: true }, start_date: { label: 'Start date', type: 'date', required: true }, duration_months: { label: 'Duration (months)', type: 'number' },
-      billing_timing: { label: 'When the monthly fee is invoiced', type: 'text', default: 'in arrears, after the end of each month' }, payment_days: { label: 'Payment due within (days)', type: 'number' }, approvers: { label: 'Client approvers', type: 'textarea' } },
+      billing_timing: { label: 'When the monthly fee is invoiced', type: 'text', default: 'in arrears, after the end of each month' }, payment_days: { label: 'Payment due within (days)', type: 'number' }, approvers: { label: 'Project Owner approvers', type: 'textarea' } },
     body: `# Project Management Services Agreement
 
-${PARTIES('Client')}
+${PARTIES('Project Owner')}
 
 ## Project
 
-The Client owns and funds the project {{workspace.name}} ({{workspace.ref}}) at {{workspace.location}}. SarayDar manages its execution on the Client's behalf. SarayDar is not the developer, funder or construction contractor unless separately agreed in writing.
+The Project Owner owns and funds the project {{workspace.name}} ({{workspace.ref}}) at {{workspace.location}}. SarayDar manages its execution on the Project Owner's behalf. SarayDar is not the developer, funder or construction contractor unless separately agreed in writing.
 
 ## Services
 
@@ -185,7 +193,7 @@ Not included in SarayDar's services:
 
 ## Fees
 
-The Client will pay SarayDar a monthly management fee of {{monthly_fee_amount}}, invoiced {{billing_timing}} and payable within {{payment_days}} days of the invoice. The Client's construction budget, contractor payments and consultant fees are the Client's own costs and are not part of SarayDar's fee.
+The Project Owner will pay SarayDar a monthly management fee of {{monthly_fee_amount}}, invoiced {{billing_timing}} and payable within {{payment_days}} days of the invoice. The Project Owner's construction budget, contractor payments and consultant fees are the Project Owner's own costs and are not part of SarayDar's fee.
 
 ## Project budget and payments
 
@@ -195,9 +203,9 @@ The Client will pay SarayDar a monthly management fee of {{monthly_fee_amount}},
 
 This Agreement starts on {{start_date}} for {{duration_months}} months, unless extended in writing.
 
-## Client approvals
+## Project Owner approvals
 
-The following people may approve budgets, appointments, materials, variations and payments for the Client: {{approvers}}. SarayDar will record approvals received and will not commit the Client to costs without them.
+The following people may approve budgets, appointments, materials, variations and payments for the Project Owner: {{approvers}}. SarayDar will record approvals received and will not commit the Project Owner to costs without them.
 
 ## Termination
 
@@ -205,7 +213,7 @@ Either party may terminate on {{notices_days}} days' written notice. Fees are pa
 
 ${GENERAL}
 
-${SIGN('Client')}`
+${SIGN('Project Owner')}`
   },
   {
     key: 'lease_residential', name: 'Residential Lease Agreement', sections: ['props'], category: 'Lease', counterparty: 'Tenant',
