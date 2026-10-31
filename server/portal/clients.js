@@ -51,7 +51,7 @@ function mountClients(r, ctx, F) {
     return v;
   }
   const one = (c, k, l) => k === 'kind' ? field({ name: k, label: l, value: c.kind || 'person', options: [['person', 'Individual'], ['company', 'Company']] })
-    : k === 'salutation' ? field({ name: k, label: l, value: c.salutation || '', options: [['', 'None'], ...SALUTATIONS.map(x => [x, x])], buttons: true, hint: 'Printed before the name in agreements. Companies always get “M/s.”' })
+    : k === 'salutation' ? field({ name: k, label: l, value: c.salutation || '', options: [['', 'None'], ...SALUTATIONS.map(x => [x, x])], buttons: false, hint: 'Printed before the name in agreements. Companies always get “M/s.”' })
     : k === 'preferred_contact' ? field({ name: k, label: l, value: c[k] || '', options: [['', 'Not stated'], ...(c[k] && !CH.CONTACT_CHANNELS.includes(c[k]) ? [[c[k], c[k]]] : []), ...CH.CONTACT_CHANNELS.map(x => [x, x])] })
     : field({ name: k, label: l, value: k === 'billing_name' ? (c.billing_name || c.name || '') : c[k] || '', required: k === 'name', type: LONG.has(k) ? 'textarea' : k.includes('email') ? 'email' : /phone/.test(k) ? 'tel' : 'text', full: LONG.has(k),
         hint: k === 'id_number' ? 'CPR for an individual, CR for a company. Printed in agreements.' : k === 'representative' ? 'Printed in agreements as "represented by …" and in the signature box.'
