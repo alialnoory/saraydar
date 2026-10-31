@@ -926,7 +926,7 @@ function mountFees(r, ctx, P) {
   r.get('/w/:id/approvals', async (req, res) => {
     const a = cpmOnly(await access(req));
     const rows = (await pool.query(`select c.*, coalesce(nullif(u.name,''), u.email) as recorder,
-        (select array_agg(json_build_object('id', f.id, 'name', f.original_name, 'tag', f.tag) order by f.uploaded_at) from files f where f.entity = 'client_approval' and f.entity_id = c.id::text and f.archived_at is null) as evidence,
+        (select array_agg(json_build_object('id', f.id, 'name', f.original_name, 'tag', f.tag, 'mime', f.mime) order by f.uploaded_at) from files f where f.entity = 'client_approval' and f.entity_id = c.id::text and f.archived_at is null) as evidence,
         coalesce(nullif(ru.name,''), ru.email) as responder
       from client_approvals c left join users u on u.id = coalesce(c.decided_by, c.created_by) left join users ru on ru.id = c.responded_by where c.workspace_id = $1 order by (c.status = 'requested') desc, c.requested_on desc, c.created_at desc`, [a.ws.id])).rows;
     const edit = core.canContribute(a);
@@ -940,7 +940,7 @@ function mountFees(r, ctx, P) {
           ${rows.map(c => html`<tr><td>${SUBJECTS[c.subject]}</td><td><b>${c.title}</b>${c.linked_ref ? html`<div class="muted small">${c.linked_ref}</div>` : ''}${!c.client_visible ? html`<div class="small">${pill('Internal only', 'muted')}</div>` : ''}${c.client_note ? html`<div class="small pre-line">${c.client_note}</div>` : ''}${c.notes ? html`<div class="muted small">Internal: ${c.notes}</div>` : ''}</td>
             <td class="small">${fmtDate(c.requested_on)}${c.requested_from ? html`<br>from ${c.requested_from}` : ''}</td>
             <td>${pill(c.status[0].toUpperCase() + c.status.slice(1), APPROVAL_TONE[c.status])}${c.decided_on ? html`<div class="small">${fmtDate(c.decided_on)}${c.approver_name ? ` · ${c.approver_name}` : ''}${c.method ? ` · ${c.method}` : ''}</div><div class="muted small">${c.responded_by ? `Answered in the portal by ${c.responder}` : `Recorded by ${c.recorder}`}</div>` : ''}${c.client_comment ? html`<div class="small pre-line">“${c.client_comment}”</div>` : ''}</td>
-            <td class="small">${(c.evidence || []).map(f => html`<a href="/files/${f.id}">${f.name}</a>${f.tag === 'request' ? html` <span class="muted">(sent for review)</span>` : f.tag === 'client_response' ? html` <span class="muted">(from the client)</span>` : ''}<br>`)}</td>
+            <td class="small dp-cell">${[['request', 'Sent for review'], ['client_response', 'From the client'], [null, 'Evidence']].map(([tag, label]) => { const fs = (c.evidence || []).filter(f => tag ? f.tag === tag : !['request', 'client_response'].includes(f.tag)); return fs.length ? html`<div class="dp-label">${label}</div>${require('./views').docPreviews(fs)}` : ''; })}</td>
             <td>${edit && c.status === 'requested' ? html`<details class="inline-form"><summary class="small">Record decision</summary>
               <form method="post" action="/w/${id}/approvals/${c.id}/decision" enctype="multipart/form-data" class="form-grid"><input type="hidden" name="_csrf" value="${req.csrfToken}">
                 ${field({ name: 'status', label: 'Decision', options: [['approved', 'Approved'], ['rejected', 'Rejected'], ['withdrawn', 'Request withdrawn']] })}
@@ -955,7 +955,7 @@ function mountFees(r, ctx, P) {
         ${field({ name: 'linked_ref', label: 'Linked item / version', hint: 'For example Budget v2, VO-03, drawing A-101 rev C.' })}${field({ name: 'requested_on', label: 'Requested on', type: 'date', required: true, value: todayBH() })}
         ${field({ name: 'requested_from', label: 'Requested from (client approver)', list: client ? AG.approversOf(client) : [], value: client ? AG.approversOf(client)[0] || '' : '', hint: 'The client or their representative.' })}
         ${field({ name: 'client_note', label: 'Details for the client', type: 'textarea', full: true, hint: 'Shown in the client portal with the request: what they are approving, cost, deadline.' })}
-        <label class="field full"><span>Documents for the client to review (optional)</span><input type="file" name="files" multiple accept=".pdf,image/*,.doc,.docx,.xls,.xlsx"></label>
+        <label class="field full"><span>Photos and documents for the client to review before approving (optional, up to 6)</span><input type="file" name="files" multiple accept=".pdf,image/*,.doc,.docx,.xls,.xlsx"><small>Photos show as pictures and PDFs open in a viewer, so the client can look at them before answering.</small></label>
         <label class="field check full"><input type="checkbox" name="client_visible" value="1" checked> <span>Show in the client portal so the client can approve or reject it (and email them)</span></label>
         ${field({ name: 'notes', label: 'Internal notes (not shown to the client)', full: true })}<div class="actions full"><button class="btn primary" type="submit">Send request</button></div></form></section>` : ''}`));
   });

@@ -443,7 +443,7 @@ function mountWorkspaces(r, ctx) {
     return { f, a: { ws: a ? a.ws : null, internal: false, role: a ? a.role : null, grants } };
   }
   const INLINE = /^(image\/(jpeg|png|webp)|application\/pdf)$/;
-  r.get('/files/:fid', async (req, res) => {
+  r.get(['/files/:fid', '/files/:fid/~/:name'], async (req, res) => {   // the second form carries the file name for the PDF viewer
     const { f, a } = await fileAccess(req);
     const inline = INLINE.test(f.mime);
     if (!a.internal && !inline && !(a.grants && a.grants.download_files)) throw new Forbidden('Downloading this file has not been enabled for your account.');
