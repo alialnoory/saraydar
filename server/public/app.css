@@ -1142,3 +1142,10 @@ form[data-am] > section:last-child { position: sticky; bottom: 0; z-index: 5; bo
 
 .am-l { display: none; }
 .am-save { padding-top: 12px; padding-bottom: 12px; }
+/* System Requirements on every tab page: one slim panel (owner request 2026-10-31) */
+.jr-tab { padding: 10px 16px 10px; }
+.jr-tab .jr { margin: 6px 0 6px; }
+.jr-next-slim { padding: 6px 10px; gap: 10px; align-items: center; }
+.jr-next-slim .grow { flex-direction: row; }
+.jr-next-slim .muted { white-space: nowrap; }
+@media (max-width: 640px) { .jr-next-slim .muted { display: none; } }
