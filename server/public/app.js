@@ -490,3 +490,6 @@ document.querySelectorAll('form[data-am]').forEach(f => {
     else if (b.dataset.amAll) { f.querySelectorAll('input[type=checkbox][name=m]').forEach(x => { x.checked = b.dataset.amAll === '1'; }); }
   });
 });
+
+// installed app: the window strip already says "SarayDar Management System", so the page title drops the repeat
+try { if (matchMedia('(display-mode: standalone), (display-mode: window-controls-overlay)').matches) document.title = document.title.replace(/ · SarayDar Management System$/, ''); } catch (e) { /* older browsers */ }
