@@ -28,6 +28,8 @@ const COMMON_RISKS = {
     'Slower sales than planned', 'Design changes after approval', 'Utility connection delays']
 };
 
+// the client's title in a project (owner request 2026-10-31); printed in agreements as the defined term
+const CLIENT_CAPACITIES = ['Project Owner', 'Project Developer', 'Project Partner', 'Project Investor', 'Landowner', 'Project Sponsor', 'Joint Venture Partner', 'Employer'];
 const MGMT_SCOPE = ['Project management and coordination', 'Design management and review', 'Approvals and permits follow-up', 'Contractor quotations and selection',
   'Construction supervision', 'Cost control and payment certification', 'Monthly progress reports', 'Handover, snagging and close-out'];
 const MGMT_EXCLUSIONS = ['Design and engineering services', 'Construction works and materials', 'Government and authority fees', 'Utility connection charges',
@@ -116,5 +118,5 @@ function withChoices(m) {
   return { array: (...a) => wrap(m.array(...a)), single: (...a) => wrap(m.single(...a)), fields: (...a) => wrap(m.fields(...a)), none: (...a) => wrap(m.none(...a)), any: (...a) => wrap(m.any(...a)) };
 }
 
-module.exports = { withChoices, SITE_ISSUES, WORK_AREAS, FEATURES, PURPOSES, TIMING, FUNDING, PROC_ITEMS, LOST_REASONS, VIEWING_OUTCOMES, NEXT_ACTIONS, REASONS, combineOther, BH_AREAS, STAGES, BUDGET_CATEGORIES, PAY_METHODS, BH_APPROVALS, COMMON_RISKS, MGMT_SCOPE, MGMT_EXCLUSIONS, PROP_SCOPE, PROP_EXCLUSIONS, MARKETING_CHANNELS,
+module.exports = { CLIENT_CAPACITIES, withChoices, SITE_ISSUES, WORK_AREAS, FEATURES, PURPOSES, TIMING, FUNDING, PROC_ITEMS, LOST_REASONS, VIEWING_OUTCOMES, NEXT_ACTIONS, REASONS, combineOther, BH_AREAS, STAGES, BUDGET_CATEGORIES, PAY_METHODS, BH_APPROVALS, COMMON_RISKS, MGMT_SCOPE, MGMT_EXCLUSIONS, PROP_SCOPE, PROP_EXCLUSIONS, MARKETING_CHANNELS,
   SALES_EXPENSE_CATEGORIES, CONTACT_CHANNELS, LANGUAGES, LEAD_SOURCES, UNIT_TYPES, CONDITIONS, today, knownNames, lines, combineChecks };
