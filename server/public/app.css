@@ -1209,3 +1209,11 @@ form[data-am] > section:last-child { position: sticky; bottom: 0; z-index: 5; bo
 @media (pointer: coarse) {
   input:not([type="file"]):not([type="checkbox"]):not([type="radio"]), select, textarea, .band-search input { font-size: 16px !important; }
 }
+/* Share the receipt with the client (owner request 2026-11-03) */
+.share-opts { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.share-opt { border: 1px solid var(--line, #e6d9cc); border-radius: 14px; padding: 16px; display: flex; flex-direction: column; gap: 10px; align-items: flex-start; }
+.share-opt .h3 { margin: 0; }
+.share-opt p { margin: 0; }
+.share-opt form { width: 100%; }
+.share-log { margin: 0; padding-left: 18px; }
+@media (max-width: 760px) { .share-opts { grid-template-columns: 1fr; } }

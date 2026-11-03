@@ -194,6 +194,13 @@ test('client projects', { skip: !URL_ && 'set TEST_DATABASE_URL to run' }, async
     assert.match((await q1(`select receipt_no from fee_payments where id = '${pay1}'`)).receipt_no, /^RCT-\d{4}-0001$/);
     assert.equal((await admin.post(`/w/${p1}/fees/payments/${pay1}/receipt`, {}, `/w/${p1}/fees/payments/${pay1}`)).status, 400);
     assert.equal((await pdf(admin, `/w/${p1}/fees/payments/${pay1}/receipt.pdf`)).head, '%PDF-');
+    // sharing the receipt with the client: the panel, and emailing it with the PDF attached
+    { const pg = await admin.get(`/w/${p1}/fees/payments/${pay1}`); assert.match(pg.text, /Share the receipt with the client/); assert.match(pg.text, /data-share-pdf=/);
+      const r2 = await admin.post(`/w/${p1}/fees/payments/${pay1}/receipt/send`, { to: 'client@example.com' }, `/w/${p1}/fees/payments/${pay1}`);
+      assert.equal(r2.status, 302);
+      const m = await q1(`select to_address, subject from outbox_messages where ref_kind = 'fee_receipt' and ref_id = '${pay1}'`);
+      assert.equal(m.to_address, 'client@example.com'); assert.match(m.subject, /^Receipt RCT-/);
+      assert.equal((await admin.post(`/w/${p1}/fees/payments/${pay1}/receipt/send`, { to: 'not-an-email' }, `/w/${p1}/fees/payments/${pay1}`)).status, 400); }
     // void refused while payments are allocated
     assert.equal((await admin.post(`/w/${p1}/fees/invoices/${inv1}/void`, { reason: 'test' }, `/w/${p1}/fees/invoices/${inv1}`)).status, 400);
     // reversing the cheque puts its 600 back on the invoice; history is kept

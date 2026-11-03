@@ -518,3 +518,21 @@ document.querySelectorAll('[data-sig-pad]').forEach(cv => {
     out.value = cv.toDataURL('image/png');
   });
 });
+// "Share receipt": the PDF goes to the phone's share sheet (WhatsApp, Messages, Mail…) (owner request 2026-11-03).
+// The file is fetched when the page opens, so the share starts straight from the tap (phones require that).
+document.querySelectorAll('[data-share-pdf]').forEach(btn => {
+  let file = null;
+  fetch(btn.dataset.sharePdf, { credentials: 'same-origin' }).then(r => r.ok ? r.blob() : null)
+    .then(b => { if (b) file = new File([b], btn.dataset.shareName || 'receipt.pdf', { type: 'application/pdf' }); }).catch(() => {});
+  btn.addEventListener('click', async () => {
+    const text = btn.dataset.shareText || '';
+    if (file && navigator.canShare && navigator.canShare({ files: [file] })) {
+      try { await navigator.share({ files: [file], text, title: btn.dataset.shareName }); } catch (e) { /* closed without sharing */ }
+      return;
+    }
+    // no share sheet here (most computers): download the PDF so it can be attached to a message
+    const a = document.createElement('a'); a.href = btn.dataset.sharePdf; a.download = btn.dataset.shareName || ''; document.body.appendChild(a); a.click(); a.remove();
+    const note = btn.closest('.share-opt').querySelector('.share-note') || Object.assign(document.createElement('p'), { className: 'muted small share-note' });
+    note.textContent = 'The receipt PDF has been downloaded. Attach it to your WhatsApp or email message to the client.'; btn.closest(".share-opt").appendChild(note);
+  });
+});
