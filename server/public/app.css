@@ -1204,3 +1204,8 @@ form[data-am] > section:last-child { position: sticky; bottom: 0; z-index: 5; bo
 .sig-file { flex: 1; min-width: 140px; border: 1px solid #E6D9CD; border-radius: 12px; padding: 10px; display: flex; flex-direction: column; gap: 8px; background: #fff; }
 .sig-file img { max-width: 100%; max-height: 110px; object-fit: contain; }
 @media (max-width: 640px) { .sig-pad { height: 170px; } }
+/* iPhone zooms the page in when a box with text under 16px is tapped, and the home-screen app then stays zoomed and
+   shifted (owner report 2026-11-04). On touch screens every box uses 16px text, so the page never zooms. */
+@media (pointer: coarse) {
+  input:not([type="file"]):not([type="checkbox"]):not([type="radio"]), select, textarea, .band-search input { font-size: 16px !important; }
+}
