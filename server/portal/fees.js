@@ -736,7 +736,14 @@ function mountFees(r, ctx, P) {
         await touch(db, a.ws.id);
         return id;
       });
-    } catch (e) { if (e.code === '23505') throw bad('A payment with that method and reference is already recorded for this project.'); throw e; }
+    } catch (e) {
+      if (e.code !== '23505') throw e;
+      // the same form sent twice (a double tap): the first one recorded it, so show that payment (owner report 2026-11-03)
+      if (idem) { const ex = (await pool.query('select id from fee_payments where idem_key = $1 and workspace_id = $2', [idem, a.ws.id])).rows[0]; if (ex) return res.redirect(`/w/${a.ws.id}/fees/payments/${ex.id}?msg=saved`); }
+      const ex = (await pool.query("select received_on, amount_minor, receipt_no from fee_payments where workspace_id = $1 and lower(method) = lower($2) and lower(reference) = lower($3) and status = 'confirmed' limit 1", [a.ws.id, method, txt(req.body.reference, 80) || ''])).rows[0];
+      if (ex) throw bad(`A ${method.toLowerCase()} payment with reference “${txt(req.body.reference, 80)}” is already recorded for this project: ${formatMoney(num(ex.amount_minor))} received ${fmtDate(ex.received_on)}${ex.receipt_no ? `, receipt ${ex.receipt_no}` : ''}. If this is a different payment, change the reference (for example add the date) or leave it empty.`);
+      throw bad('This payment could not be recorded because it looks like one already recorded. Check the payments list under Fee Billing.');
+    }
     res.redirect(`/w/${a.ws.id}/fees/payments/${pid}?msg=saved`);
   });
 

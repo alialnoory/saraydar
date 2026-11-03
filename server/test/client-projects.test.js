@@ -169,6 +169,7 @@ test('client projects', { skip: !URL_ && 'set TEST_DATABASE_URL to run' }, async
     assert.equal((await q1(`select count(*)::int as n from fee_payments where workspace_id = '${p1}'`)).n, 1);
     r = await admin.post(`/w/${p1}/fees/payments`, { received_on: today, amount: '50', method: 'Bank transfer', reference: 'trx-778' }, `/w/${p1}/fees`);
     assert.equal(r.status, 400);                                               // same bank reference
+    assert.match(r.text, /reference “trx-778” is already recorded for this project: BHD 1,000 received/);   // says which payment it clashes with
     const outstanding = async () => { const x = await q1(`select total_minor - coalesce((select sum(amount_minor) from fee_allocations where invoice_id = '${inv1}' and status='active'),0) - coalesce((select sum(amount_minor) from fee_credit_notes where invoice_id = '${inv1}'),0) as o from fee_invoices where id = '${inv1}'`); return Number(x.o); };
     assert.equal(await outstanding(), 600000);
     // a second payment larger than what is left: allocating more than outstanding is refused, the rest stays unapplied
