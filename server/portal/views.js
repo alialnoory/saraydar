@@ -10,7 +10,7 @@ const ROLE_LABELS = {
 };
 
 const MESSAGES = {
-  saved: 'Saved.', undone: 'Your last change was undone.', redone: 'Your change was redone.', nothing_to_undo: 'There is nothing to undo.', nothing_to_redo: 'There is nothing to redo.', created: 'Created.', deleted: 'Deleted.', uploaded: 'Uploaded.', archived: 'Archived.', added: 'Added.', revoked: 'Access removed.',
+  saved: 'Saved.', undone: 'Your last change was undone.', redone: 'Your change was redone.', nothing_to_undo: 'There is nothing to undo.', nothing_to_redo: 'There is nothing to redo.', created: 'Created.', deleted: 'Deleted.', uploaded: 'Uploaded.', receipt_sent: 'The receipt has been emailed to the client.', receipt_not_sent: 'The receipt could not be emailed. See the note under Email it, or share it from your phone instead.', archived: 'Archived.', added: 'Added.', revoked: 'Access removed.',
   password: 'Your password has been changed.', mfa_on: 'Two-step verification is on.', mfa_off: 'Two-step verification is off.',
   reset_sent: 'If that account exists and email is configured, a reset link has been sent. Otherwise ask your administrator.',
   reset_done: 'Your password has been reset. Sign in with the new password.', signed_out: 'You have signed out.',

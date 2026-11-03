@@ -1204,3 +1204,11 @@ form[data-am] > section:last-child { position: sticky; bottom: 0; z-index: 5; bo
 .sig-file { flex: 1; min-width: 140px; border: 1px solid #E6D9CD; border-radius: 12px; padding: 10px; display: flex; flex-direction: column; gap: 8px; background: #fff; }
 .sig-file img { max-width: 100%; max-height: 110px; object-fit: contain; }
 @media (max-width: 640px) { .sig-pad { height: 170px; } }
+/* Share the receipt with the client (owner request 2026-11-03) */
+.share-opts { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.share-opt { border: 1px solid var(--line, #e6d9cc); border-radius: 14px; padding: 16px; display: flex; flex-direction: column; gap: 10px; align-items: flex-start; }
+.share-opt .h3 { margin: 0; }
+.share-opt p { margin: 0; }
+.share-opt form { width: 100%; }
+.share-log { margin: 0; padding-left: 18px; }
+@media (max-width: 760px) { .share-opts { grid-template-columns: 1fr; } }

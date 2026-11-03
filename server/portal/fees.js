@@ -770,6 +770,25 @@ function mountFees(r, ctx, P) {
     const id = a.ws.id;
     const open = L.invoices.filter(i => i.status === 'issued' && i.outstanding > 0);
     const advice = (await pool.query("select id, original_name as name, mime, tag from files where entity = 'fee_payment' and entity_id = $1 and workspace_id = $2 and archived_at is null order by uploaded_at", [p.id, id])).rows;
+    // sharing the receipt with the client (owner request 2026-11-03): by email with the PDF attached, through the phone's
+    // share sheet (WhatsApp and others), and it is always in the client's portal
+    const cl = p.receipt_no && p.status === 'confirmed' ? await clientOf(a.ws) : null;
+    const portalViewers = p.receipt_no ? (await pool.query("select count(*)::int as n from workspace_members m join users u on u.id = m.user_id where m.workspace_id = $1 and m.revoked_at is null and m.role = 'client_viewer' and u.active", [id])).rows[0].n : 0;
+    const sentLog = p.receipt_no ? (await pool.query("select to_address, status, created_at from outbox_messages where ref_kind = 'fee_receipt' and ref_id = $1 order by created_at desc limit 5", [p.id])).rows : [];
+    const rName = p.receipt_no ? DL.fileName([p.receipt_no, a.ws.name], 'pdf') : '';
+    const rHref = p.receipt_no ? `/w/${id}/fees/payments/${p.id}/receipt.pdf` : '';
+    const shareText = p.receipt_no ? `${cl && cl.name ? `Dear ${cl.name},\n\n` : ''}Please find attached receipt ${p.receipt_no} for your payment of ${fm(p.amount, p.currency)} received on ${fmtDate(p.received_on)} for ${a.ws.name}.\n\nThank you,\nSarayDar Real Estate` : '';
+    const sharePanel = !(p.receipt_no && p.status === 'confirmed') ? '' : html`<section class="panel share-receipt"><h2 class="h">Share the receipt with the client</h2>
+      <div class="share-opts">
+        <div class="share-opt"><h3 class="h3">Share by WhatsApp or another app</h3><p class="muted small">On a phone this opens the share options with the receipt PDF ready to send. On a computer it downloads the PDF to attach to your message.</p>
+          <div class="actions"><button class="btn primary" type="button" data-share-pdf="${rHref}" data-share-name="${rName}" data-share-text="${shareText}">Share receipt ${p.receipt_no}</button>
+          <a class="btn" href="${rHref}${DL.pretty ? DL.pretty(rName) : ''}?view=1" target="_blank" rel="noopener">Preview</a></div></div>
+        ${a.canPost ? html`<div class="share-opt"><h3 class="h3">Email it</h3><form method="post" action="/w/${id}/fees/payments/${p.id}/receipt/send" class="form-grid">${csrfField(req)}
+          ${field({ name: 'to', label: 'Client email', type: 'email', required: true, value: (cl && (cl.billing_email || cl.email || cl.representative_email)) || '', full: true, hint: 'The receipt PDF is attached. Separate several addresses with commas.' })}
+          <div class="actions full"><button class="btn" type="submit">Email the receipt</button></div></form>
+          ${sentLog.length ? html`<ul class="muted small share-log">${sentLog.map(m => html`<li>${m.status === 'sent' ? 'Sent' : m.status === 'failed' ? 'Could not be sent' : m.status === 'unconfigured' ? 'Not sent (email not set up)' : 'Queued'} to ${m.to_address} · ${fmtDateTime(m.created_at)}</li>`)}</ul>` : ''}</div>` : ''}
+      </div>
+      <p class="muted small">${portalViewers ? `The client can also open and download this receipt any time in their SarayDar portal (${portalViewers} portal user${portalViewers === 1 ? '' : 's'}).` : 'The client has no portal access yet; invite them under Access & Invitations to see their receipts online.'}</p></section>`;
     res.send(page(req, a, 'Fee Billing', html`<p><a href="/w/${id}/fees">‹ Fee Billing</a></p>
       <section class="panel"><div class="row-between"><h2 class="h">Client payment ${pill(p.status === 'confirmed' ? 'Confirmed' : 'Reversed', p.status === 'confirmed' ? 'ok' : 'muted')}</h2>
         ${p.receipt_no ? html`<a class="btn small" href="/w/${id}/fees/payments/${p.id}/receipt.pdf">Receipt ${p.receipt_no} (PDF)</a>` : ''}</div>
@@ -782,6 +801,7 @@ function mountFees(r, ctx, P) {
           ${p.notes ? html`<div><dt>Notes</dt><dd>${p.notes}</dd></div>` : ''}</dl>
         <h3 class="h3">Payment advice</h3>${advice.length ? require('./views').docPreviews(advice) : html`<p class="muted small">No payment advice attached.</p>`}
         ${a.canPost ? html`<form method="post" action="/w/${id}/fees/payments/${p.id}/advice" enctype="multipart/form-data" class="form-grid"><input type="hidden" name="_csrf" value="${req.csrfToken}">${adviceInput(advice.length ? 'Add another file' : 'Upload the payment advice')}<div class="actions full"><button class="btn" type="submit">Upload</button></div></form>` : ''}</section>
+      ${sharePanel}
       <section class="panel"><h2 class="h">Allocations</h2>
         ${p.allocs.length ? html`<div class="table-wrap"><table><thead><tr><th>Invoice</th><th>Period</th><th class="n">Amount</th><th>Status</th><th></th></tr></thead><tbody>
           ${p.allocs.map(x => html`<tr><td><a href="/w/${id}/fees/invoices/${x.invoice_id}">${x.number}</a></td><td class="small">${x.period_start ? `${fmtDate(x.period_start)} – ${fmtDate(x.period_end)}` : '—'}</td><td class="n">${fm(num(x.amount_minor))}</td>
@@ -799,6 +819,25 @@ function mountFees(r, ctx, P) {
         <details class="inline-form"><summary>Reverse this payment</summary><form method="post" action="/w/${id}/fees/payments/${p.id}/reverse" class="form-grid">${csrfField(req)}
           ${field({ name: 'reason', label: 'Reason (for example cheque returned)', required: true, full: true })}<div class="actions full"><button class="btn" type="submit">Reverse payment</button></div>
           <p class="muted small full">The payment, its allocations and any receipt are kept and marked reversed; the invoices become outstanding again.</p></form></details></section>` : ''}`));
+  });
+
+  r.post('/w/:id/fees/payments/:pid/receipt/send', async (req, res) => {
+    const a = await finAccess(req, 'post');
+    const p = await own('fee_payments', req.params.pid, a.ws.id);
+    const to = String(req.body.to || '').split(/[,;\s]+/).map(x => x.trim()).filter(Boolean);
+    if (!to.length || to.length > 5 || to.some(x => !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(x))) throw bad('Enter the client\'s email address (up to 5, separated by commas).');
+    const { buf, doc, parts } = await receiptPdf(a, p.id);
+    if (doc.status !== 'confirmed') throw bad('A reversed payment\'s receipt cannot be sent.');
+    const cl = await clientOf(a.ws);
+    const subject = `Receipt ${doc.receipt_no} — ${a.ws.name}`;
+    const text = `${cl && cl.name ? `Dear ${cl.name},` : 'Dear Sir/Madam,'}\n\nThank you for your payment of ${formatMoney(num(doc.amount_minor))} received on ${fmtDate(doc.received_on)} for ${a.ws.name}.\n\nPlease find receipt ${doc.receipt_no} attached.\n\nKind regards,\nSarayDar Real Estate`;
+    let ok = 0;
+    for (const addr of to) {
+      const r2 = await ctx.mailer.send({ to: addr, kind: 'fee_receipt', workspaceId: a.ws.id, refKind: 'fee_receipt', refId: p.id, subject, text, attachments: [{ filename: DL.fileName(parts, 'pdf'), content: buf, contentType: 'application/pdf' }] });
+      if (r2.status === 'sent') ok++;
+    }
+    await core.audit(null, { actor: req.user, workspaceId: a.ws.id, action: 'fee.receipt_sent', entity: 'fee_payment', entityId: p.id, summary: `Receipt ${doc.receipt_no} emailed to ${to.join(', ')}`, ip: req.ip });
+    res.redirect(`/w/${a.ws.id}/fees/payments/${p.id}?msg=${ok === to.length ? 'receipt_sent' : 'receipt_not_sent'}`);
   });
 
   r.post('/w/:id/fees/payments/:pid/advice', upload.array('advice', 6), async (req, res) => {
