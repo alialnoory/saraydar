@@ -29,6 +29,8 @@ const fm = (m, c = 'BHD') => m === null || m === undefined ? '—' : formatMoney
 const METHODS = ['Bank transfer', 'Cheque', 'Cash', 'Card', 'BenefitPay', 'Other'];
 // banks in Bahrain, for the Bank dropdown on payments (owner request 2026-11-03); "Other" lets any bank be typed
 const BANKS = ['ila Bank', 'NBB (National Bank of Bahrain)', 'BBK (Bank of Bahrain and Kuwait)', 'BisB (Bahrain Islamic Bank)', 'KFH Bahrain', 'Al Salam Bank', 'Khaleeji Bank', 'Ithmaar Bank', 'Bank ABC', 'Arab Bank', 'Al Baraka Bank', 'HSBC', 'Standard Chartered', 'Citibank'];
+// the bank's payment advice (transfer slip, cheque photo, screenshot), attached to the payment (owner request 2026-11-03)
+const adviceInput = (label = 'Payment advice (optional)') => html`<label class="field full" for="f-advice"><span>${label}</span><input id="f-advice" type="file" name="advice" multiple accept=".pdf,image/*"><small>The bank's transfer advice, a photo of the cheque or a screenshot from the banking app. PDF or photos.</small></label>`;
 const withBank = p => `${p.method}${p.bank ? ` · ${p.bank}` : ''}${p.reference ? ` · ${p.reference}` : ''}`;
 const SUBJECTS = { budget: 'Budget', appointment: 'Appointment', material: 'Material / sample', variation: 'Variation', payment: 'Payment', design: 'Design', agreement: 'Agreement', other: 'Other' };
 const APPROVAL_TONE = { requested: 'warn', approved: 'ok', rejected: 'bad', withdrawn: 'muted' };
@@ -472,10 +474,11 @@ function mountFees(r, ctx, P) {
             <td class="small">${p.receipt_no ? html`<a href="/w/${id}/fees/payments/${p.id}/receipt.pdf">${p.receipt_no}</a>` : html`<span class="muted">Not issued</span>`}</td>
             <td>${pill(p.status === 'confirmed' ? 'Confirmed' : 'Reversed', p.status === 'confirmed' ? 'ok' : 'muted')}</td></tr>`)}</tbody></table></div>` : html`<p class="muted">No payments recorded.</p>`}
         ${a.canPost ? html`<details class="inline-form" ${req.query.pay ? raw('open') : ''}><summary>Record a confirmed client payment</summary>
-          <form method="post" action="/w/${id}/fees/payments" class="form-grid">${csrfField(req)}<input type="hidden" name="idem" value="${idem}">
+          <form method="post" action="/w/${id}/fees/payments" enctype="multipart/form-data" class="form-grid"><input type="hidden" name="_csrf" value="${req.csrfToken}"><input type="hidden" name="idem" value="${idem}">
             ${field({ name: 'received_on', label: 'Received on', type: 'date', required: true, value: todayBH() })}${field({ name: 'amount', label: 'Amount (BHD)', required: true, attrs: 'inputmode="decimal"' })}
             ${field({ name: 'method', label: 'Method', options: METHODS.map(m => [m, m]) })}<div data-show-when="method=Bank transfer|Cheque|Card|BenefitPay">${field({ name: 'bank', label: 'Bank', list: BANKS })}</div>${field({ name: 'reference', label: 'Transfer / cheque number', hint: 'The number on the bank slip or cheque (not the bank name). The same number cannot be recorded twice.' })}
             ${field({ name: 'notes', label: 'Notes' })}
+            ${adviceInput()}
             ${open.length ? html`<fieldset class="full"><legend class="small">Allocate to invoices now (optional)</legend><div class="form-grid">
               ${open.map(i => field({ name: `alloc_${i.id}`, label: `${i.number} · outstanding ${fm(i.outstanding)}`, attrs: 'inputmode="decimal" placeholder="0"' }))}</div></fieldset>` : ''}
             <div class="actions full"><button class="btn primary" type="submit">Record payment</button></div>
@@ -718,8 +721,10 @@ function mountFees(r, ctx, P) {
     await core.audit(db, { actor: req.user, workspaceId: a.ws.id, action: 'fee.payment_allocated', entity: 'fee_allocation', entityId: id, summary: `${formatMoney(amount)} allocated to ${inv.number}`, ip: req.ip });
   }
 
-  r.post('/w/:id/fees/payments', async (req, res) => {
+  r.post('/w/:id/fees/payments', upload.array('advice', 6), async (req, res) => {
+    if (!core.checkCsrf(req)) throw new Forbidden('Your form expired. Reload the page and try again.');
     const a = await finAccess(req, 'post');
+    const advice = await uploads.prepare(req.files, sniff);
     const received = dateOrNull(req.body.received_on); if (!received) throw bad('Enter the date the payment was received.');
     if (received > todayBH()) throw bad('The received date cannot be in the future.');
     const amount = parseMoney(req.body.amount, 'BHD'); if (!amount || amount <= 0) throw bad('Enter the amount received.');
@@ -734,7 +739,8 @@ function mountFees(r, ctx, P) {
         if (idem) { const ex = (await db.query('select id from fee_payments where idem_key = $1', [idem])).rows[0]; if (ex) return ex.id; }
         const id = (await db.query('insert into fee_payments (workspace_id, party_id, received_on, amount_minor, method, reference, notes, idem_key, recorded_by, bank) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) returning id',
           [a.ws.id, a.ws.party_id, received, amount, method, txt(req.body.reference, 80), txt(req.body.notes, 300), idem, req.user.id, method === 'Cash' ? null : txt(req.body.bank, 80)])).rows[0].id;
-        await core.audit(db, { actor: req.user, workspaceId: a.ws.id, action: 'fee.payment_recorded', entity: 'fee_payment', entityId: id, summary: `Client fee payment recorded: ${formatMoney(amount)} received ${received} (${method})`, ip: req.ip });
+        await uploads.insert(db, { workspaceId: a.ws.id, entity: 'fee_payment', entityId: id, files: advice, userId: req.user.id, tag: 'advice', observedOn: received });
+        await core.audit(db, { actor: req.user, workspaceId: a.ws.id, action: 'fee.payment_recorded', entity: 'fee_payment', entityId: id, summary: `Client fee payment recorded: ${formatMoney(amount)} received ${received} (${method})${advice.length ? ' with the payment advice' : ''}`, ip: req.ip });
         for (const [inv, v] of allocs) if (v > 0) await allocate(db, a, req, id, inv, v);
         await touch(db, a.ws.id);
         return id;
@@ -763,6 +769,7 @@ function mountFees(r, ctx, P) {
     const { p, L } = await paymentFull(a, req.params.pid);
     const id = a.ws.id;
     const open = L.invoices.filter(i => i.status === 'issued' && i.outstanding > 0);
+    const advice = (await pool.query("select id, original_name as name, mime, tag from files where entity = 'fee_payment' and entity_id = $1 and workspace_id = $2 and archived_at is null order by uploaded_at", [p.id, id])).rows;
     res.send(page(req, a, 'Fee Billing', html`<p><a href="/w/${id}/fees">‹ Fee Billing</a></p>
       <section class="panel"><div class="row-between"><h2 class="h">Client payment ${pill(p.status === 'confirmed' ? 'Confirmed' : 'Reversed', p.status === 'confirmed' ? 'ok' : 'muted')}</h2>
         ${p.receipt_no ? html`<a class="btn small" href="/w/${id}/fees/payments/${p.id}/receipt.pdf">Receipt ${p.receipt_no} (PDF)</a>` : ''}</div>
@@ -772,7 +779,9 @@ function mountFees(r, ctx, P) {
           <div><dt>Recorded</dt><dd>${fmtDateTime(p.recorded_at)}</dd></div>
           <div><dt>Receipt</dt><dd>${p.receipt_no ? `${p.receipt_no} · issued ${fmtDateTime(p.receipt_issued_at)}` : 'Not issued yet'}</dd></div>
           ${p.status === 'reversed' ? html`<div><dt>Reversed</dt><dd>${fmtDateTime(p.reversed_at)} · ${p.reverse_reason}</dd></div>` : ''}
-          ${p.notes ? html`<div><dt>Notes</dt><dd>${p.notes}</dd></div>` : ''}</dl></section>
+          ${p.notes ? html`<div><dt>Notes</dt><dd>${p.notes}</dd></div>` : ''}</dl>
+        <h3 class="h3">Payment advice</h3>${advice.length ? require('./views').docPreviews(advice) : html`<p class="muted small">No payment advice attached.</p>`}
+        ${a.canPost ? html`<form method="post" action="/w/${id}/fees/payments/${p.id}/advice" enctype="multipart/form-data" class="form-grid"><input type="hidden" name="_csrf" value="${req.csrfToken}">${adviceInput(advice.length ? 'Add another file' : 'Upload the payment advice')}<div class="actions full"><button class="btn" type="submit">Upload</button></div></form>` : ''}</section>
       <section class="panel"><h2 class="h">Allocations</h2>
         ${p.allocs.length ? html`<div class="table-wrap"><table><thead><tr><th>Invoice</th><th>Period</th><th class="n">Amount</th><th>Status</th><th></th></tr></thead><tbody>
           ${p.allocs.map(x => html`<tr><td><a href="/w/${id}/fees/invoices/${x.invoice_id}">${x.number}</a></td><td class="small">${x.period_start ? `${fmtDate(x.period_start)} – ${fmtDate(x.period_end)}` : '—'}</td><td class="n">${fm(num(x.amount_minor))}</td>
@@ -790,6 +799,19 @@ function mountFees(r, ctx, P) {
         <details class="inline-form"><summary>Reverse this payment</summary><form method="post" action="/w/${id}/fees/payments/${p.id}/reverse" class="form-grid">${csrfField(req)}
           ${field({ name: 'reason', label: 'Reason (for example cheque returned)', required: true, full: true })}<div class="actions full"><button class="btn" type="submit">Reverse payment</button></div>
           <p class="muted small full">The payment, its allocations and any receipt are kept and marked reversed; the invoices become outstanding again.</p></form></details></section>` : ''}`));
+  });
+
+  r.post('/w/:id/fees/payments/:pid/advice', upload.array('advice', 6), async (req, res) => {
+    if (!core.checkCsrf(req)) throw new Forbidden('Your form expired. Reload the page and try again.');
+    const a = await finAccess(req, 'post');
+    const p = await own('fee_payments', req.params.pid, a.ws.id);
+    const advice = await uploads.prepare(req.files, sniff);
+    if (!advice.length) throw bad('Choose the payment advice file to upload.');
+    await core.inTx(async db => {
+      await uploads.insert(db, { workspaceId: a.ws.id, entity: 'fee_payment', entityId: p.id, files: advice, userId: req.user.id, tag: 'advice', observedOn: todayBH() });
+      await core.audit(db, { actor: req.user, workspaceId: a.ws.id, action: 'fee.payment_advice', entity: 'fee_payment', entityId: p.id, summary: `Payment advice attached (${advice.map(f => f.name).join(', ')})`, ip: req.ip });
+    });
+    res.redirect(`/w/${a.ws.id}/fees/payments/${p.id}?msg=uploaded`);
   });
 
   r.post('/w/:id/fees/payments/:pid/allocate', async (req, res) => {

@@ -169,6 +169,12 @@ test('client projects', { skip: !URL_ && 'set TEST_DATABASE_URL to run' }, async
     assert.equal((await q1(`select count(*)::int as n from fee_payments where workspace_id = '${p1}'`)).n, 1);
     assert.equal((await q1(`select bank from fee_payments where id = '${pay1}'`)).bank, 'ila Bank');   // the bank is kept apart from the reference
     assert.match((await admin.get(`/w/${p1}/fees`)).text, /Bank transfer · ila Bank · TRX-778/);
+    // the payment advice can be attached when recording, or later from the payment page
+    { const pg = await admin.get(`/w/${p1}/fees/payments/${pay1}`); assert.match(pg.text, /No payment advice attached/);
+      const fd = new FormData(); fd.append('_csrf', admin.csrfFrom(pg.text)); fd.append('advice', new Blob([Buffer.from('%PDF-1.4\n%\n')]), 'ila-advice.pdf');
+      assert.equal((await admin.raw('POST', `/w/${p1}/fees/payments/${pay1}/advice`, { multipart: fd })).status, 302);
+      assert.equal((await q1(`select count(*)::int as n from files where entity = 'fee_payment' and entity_id = '${pay1}' and tag = 'advice'`)).n, 1);
+      assert.match((await admin.get(`/w/${p1}/fees/payments/${pay1}`)).text, /ila-advice\.pdf/); }
     r = await admin.post(`/w/${p1}/fees/payments`, { received_on: today, amount: '50', method: 'Bank transfer', reference: 'trx-778' }, `/w/${p1}/fees`);
     assert.equal(r.status, 400);                                               // same bank reference
     assert.match(r.text, /reference “trx-778” is already recorded for this project: BHD 1,000 received/);   // says which payment it clashes with
