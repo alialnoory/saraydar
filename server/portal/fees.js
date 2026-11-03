@@ -27,6 +27,9 @@ const iso = v => v ? fees.isoOf(v) : null;
 const bhDay = ts => ts ? new Date(ts).toLocaleDateString('en-CA', { timeZone: 'Asia/Bahrain' }) : null;   // timestamp → Bahrain calendar day
 const fm = (m, c = 'BHD') => m === null || m === undefined ? '—' : formatMoney(m, c);
 const METHODS = ['Bank transfer', 'Cheque', 'Cash', 'Card', 'BenefitPay', 'Other'];
+// banks in Bahrain, for the Bank dropdown on payments (owner request 2026-11-03); "Other" lets any bank be typed
+const BANKS = ['ila Bank', 'NBB (National Bank of Bahrain)', 'BBK (Bank of Bahrain and Kuwait)', 'BisB (Bahrain Islamic Bank)', 'KFH Bahrain', 'Al Salam Bank', 'Khaleeji Bank', 'Ithmaar Bank', 'Bank ABC', 'Arab Bank', 'Al Baraka Bank', 'HSBC', 'Standard Chartered', 'Citibank'];
+const withBank = p => `${p.method}${p.bank ? ` · ${p.bank}` : ''}${p.reference ? ` · ${p.reference}` : ''}`;
 const SUBJECTS = { budget: 'Budget', appointment: 'Appointment', material: 'Material / sample', variation: 'Variation', payment: 'Payment', design: 'Design', agreement: 'Agreement', other: 'Other' };
 const APPROVAL_TONE = { requested: 'warn', approved: 'ok', rejected: 'bad', withdrawn: 'muted' };
 const INV_TONE = { draft: 'muted', issued: 'info', void: 'bad' };
@@ -464,14 +467,14 @@ function mountFees(r, ctx, P) {
       </section>
       <section class="panel"><h2 class="h">Client payments &amp; receipts</h2>
         ${L.payments.length ? html`<div class="table-wrap"><table><thead><tr><th>Received</th><th>Method / reference</th><th class="n">Amount</th><th class="n">Allocated</th><th class="n">Unapplied</th><th>Receipt</th><th>Status</th></tr></thead><tbody>
-          ${L.payments.map(p => html`<tr><td><a href="/w/${id}/fees/payments/${p.id}">${fmtDate(p.received_on)}</a></td><td class="small">${p.method}${p.reference ? ` · ${p.reference}` : ''}</td>
+          ${L.payments.map(p => html`<tr><td><a href="/w/${id}/fees/payments/${p.id}">${fmtDate(p.received_on)}</a></td><td class="small">${withBank(p)}</td>
             <td class="n">${fm(p.amount, p.currency)}</td><td class="n">${fm(p.allocated)}</td><td class="n">${p.unapplied ? fm(p.unapplied) : '—'}</td>
             <td class="small">${p.receipt_no ? html`<a href="/w/${id}/fees/payments/${p.id}/receipt.pdf">${p.receipt_no}</a>` : html`<span class="muted">Not issued</span>`}</td>
             <td>${pill(p.status === 'confirmed' ? 'Confirmed' : 'Reversed', p.status === 'confirmed' ? 'ok' : 'muted')}</td></tr>`)}</tbody></table></div>` : html`<p class="muted">No payments recorded.</p>`}
         ${a.canPost ? html`<details class="inline-form" ${req.query.pay ? raw('open') : ''}><summary>Record a confirmed client payment</summary>
           <form method="post" action="/w/${id}/fees/payments" class="form-grid">${csrfField(req)}<input type="hidden" name="idem" value="${idem}">
             ${field({ name: 'received_on', label: 'Received on', type: 'date', required: true, value: todayBH() })}${field({ name: 'amount', label: 'Amount (BHD)', required: true, attrs: 'inputmode="decimal"' })}
-            ${field({ name: 'method', label: 'Method', options: METHODS.map(m => [m, m]) })}${field({ name: 'reference', label: 'Bank / cheque reference', hint: 'The same reference cannot be recorded twice.' })}
+            ${field({ name: 'method', label: 'Method', options: METHODS.map(m => [m, m]) })}<div data-show-when="method=Bank transfer|Cheque|Card|BenefitPay">${field({ name: 'bank', label: 'Bank', list: BANKS })}</div>${field({ name: 'reference', label: 'Transfer / cheque number', hint: 'The number on the bank slip or cheque (not the bank name). The same number cannot be recorded twice.' })}
             ${field({ name: 'notes', label: 'Notes' })}
             ${open.length ? html`<fieldset class="full"><legend class="small">Allocate to invoices now (optional)</legend><div class="form-grid">
               ${open.map(i => field({ name: `alloc_${i.id}`, label: `${i.number} · outstanding ${fm(i.outstanding)}`, attrs: 'inputmode="decimal" placeholder="0"' }))}</div></fieldset>` : ''}
@@ -528,7 +531,7 @@ function mountFees(r, ctx, P) {
     if (!i) throw new NotFound();
     i.lines = (await db.query('select * from fee_invoice_lines where invoice_id = $1 order by sort, id', [i.id])).rows.map(l => ({ ...l, amount: num(l.amount_minor) }));
     i.credits = (await db.query('select c.*, coalesce(nullif(u.name,\'\'), u.email) as by from fee_credit_notes c left join users u on u.id = c.created_by where c.invoice_id = $1 order by c.issued_on, c.created_at', [i.id])).rows;
-    i.allocs = (await db.query('select x.*, p.received_on, p.receipt_no, p.method, p.reference from fee_allocations x join fee_payments p on p.id = x.payment_id where x.invoice_id = $1 order by x.created_at', [i.id])).rows;
+    i.allocs = (await db.query('select x.*, p.received_on, p.receipt_no, p.method, p.bank, p.reference from fee_allocations x join fee_payments p on p.id = x.payment_id where x.invoice_id = $1 order by x.created_at', [i.id])).rows;
     i.terms = i.terms_id ? (await db.query('select * from mgmt_terms where id = $1', [i.terms_id])).rows[0] : null;
     return { i, L };
   }
@@ -576,7 +579,7 @@ function mountFees(r, ctx, P) {
         ${edit ? html`<form method="post" action="/w/${id}/fees/invoices/${i.id}/discard" class="actions">${csrfField(req)}<button class="btn small" type="submit">Discard draft</button></form>` : ''}</section>` : ''}
       ${i.status === 'issued' ? html`<section class="panel"><h2 class="h">Payments allocated</h2>
           ${i.allocs.length ? html`<div class="table-wrap"><table><thead><tr><th>Payment received</th><th>Receipt</th><th class="n">Amount</th><th>Status</th></tr></thead><tbody>
-            ${i.allocs.map(x => html`<tr><td><a href="/w/${id}/fees/payments/${x.payment_id}">${fmtDate(x.received_on)} · ${x.method}${x.reference ? ` ${x.reference}` : ''}</a></td><td>${x.receipt_no || '—'}</td><td class="n">${fm(num(x.amount_minor))}</td><td>${x.status === 'active' ? 'Applied' : html`<span class="muted">Reversed: ${x.reverse_reason}</span>`}</td></tr>`)}</tbody></table></div>`
+            ${i.allocs.map(x => html`<tr><td><a href="/w/${id}/fees/payments/${x.payment_id}">${fmtDate(x.received_on)} · ${x.method}${x.bank ? ` · ${x.bank}` : ''}${x.reference ? ` ${x.reference}` : ''}</a></td><td>${x.receipt_no || '—'}</td><td class="n">${fm(num(x.amount_minor))}</td><td>${x.status === 'active' ? 'Applied' : html`<span class="muted">Reversed: ${x.reverse_reason}</span>`}</td></tr>`)}</tbody></table></div>`
             : html`<p class="muted">No payments allocated yet.</p>`}
           ${a.canPost && i.outstanding > 0 ? html`<p><a class="btn" href="/w/${id}/fees?pay=1">Record a payment</a></p>` : ''}</section>
         <section class="panel"><h2 class="h">Credit notes</h2>
@@ -729,8 +732,8 @@ function mountFees(r, ctx, P) {
     try {
       pid = await core.inTx(async db => {
         if (idem) { const ex = (await db.query('select id from fee_payments where idem_key = $1', [idem])).rows[0]; if (ex) return ex.id; }
-        const id = (await db.query('insert into fee_payments (workspace_id, party_id, received_on, amount_minor, method, reference, notes, idem_key, recorded_by) values ($1,$2,$3,$4,$5,$6,$7,$8,$9) returning id',
-          [a.ws.id, a.ws.party_id, received, amount, method, txt(req.body.reference, 80), txt(req.body.notes, 300), idem, req.user.id])).rows[0].id;
+        const id = (await db.query('insert into fee_payments (workspace_id, party_id, received_on, amount_minor, method, reference, notes, idem_key, recorded_by, bank) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) returning id',
+          [a.ws.id, a.ws.party_id, received, amount, method, txt(req.body.reference, 80), txt(req.body.notes, 300), idem, req.user.id, method === 'Cash' ? null : txt(req.body.bank, 80)])).rows[0].id;
         await core.audit(db, { actor: req.user, workspaceId: a.ws.id, action: 'fee.payment_recorded', entity: 'fee_payment', entityId: id, summary: `Client fee payment recorded: ${formatMoney(amount)} received ${received} (${method})`, ip: req.ip });
         for (const [inv, v] of allocs) if (v > 0) await allocate(db, a, req, id, inv, v);
         await touch(db, a.ws.id);
@@ -764,7 +767,7 @@ function mountFees(r, ctx, P) {
       <section class="panel"><div class="row-between"><h2 class="h">Client payment ${pill(p.status === 'confirmed' ? 'Confirmed' : 'Reversed', p.status === 'confirmed' ? 'ok' : 'muted')}</h2>
         ${p.receipt_no ? html`<a class="btn small" href="/w/${id}/fees/payments/${p.id}/receipt.pdf">Receipt ${p.receipt_no} (PDF)</a>` : ''}</div>
         <dl class="details"><div><dt>Received on</dt><dd>${fmtDate(p.received_on)}</dd></div><div><dt>Amount</dt><dd>${fm(p.amount, p.currency)}</dd></div>
-          <div><dt>Method</dt><dd>${p.method}</dd></div><div><dt>Reference</dt><dd>${p.reference || '—'}</dd></div>
+          <div><dt>Method</dt><dd>${p.method}</dd></div>${p.bank ? html`<div><dt>Bank</dt><dd>${p.bank}</dd></div>` : ''}<div><dt>Reference</dt><dd>${p.reference || '—'}</dd></div>
           <div><dt>Allocated</dt><dd>${fm(p.allocated)}</dd></div><div><dt>Unapplied credit</dt><dd>${fm(p.unapplied)}</dd></div>
           <div><dt>Recorded</dt><dd>${fmtDateTime(p.recorded_at)}</dd></div>
           <div><dt>Receipt</dt><dd>${p.receipt_no ? `${p.receipt_no} · issued ${fmtDateTime(p.receipt_issued_at)}` : 'Not issued yet'}</dd></div>
@@ -853,7 +856,7 @@ function mountFees(r, ctx, P) {
       for (const c of (await pool.query('select c.*, i.number as inv from fee_credit_notes c join fee_invoices i on i.id = c.invoice_id where c.workspace_id = $1', [wsId])).rows)
         ev.push({ date: iso(c.issued_on), at: c.created_at, ws, doc: c.number, text: `Credit note on ${c.inv}: ${c.reason}`, debit: 0, credit: num(c.amount_minor) });
       for (const p of (await pool.query('select * from fee_payments where workspace_id = $1', [wsId])).rows) {
-        ev.push({ date: iso(p.received_on), at: p.recorded_at, ws, doc: p.receipt_no || 'Payment', text: `Payment received — ${p.method}${p.reference ? ` ${p.reference}` : ''}`, debit: 0, credit: num(p.amount_minor) });
+        ev.push({ date: iso(p.received_on), at: p.recorded_at, ws, doc: p.receipt_no || 'Payment', text: `Payment received — ${p.method}${p.bank ? ` · ${p.bank}` : ''}${p.reference ? ` ${p.reference}` : ''}`, debit: 0, credit: num(p.amount_minor) });
         if (p.status === 'reversed') ev.push({ date: bhDay(p.reversed_at), at: p.reversed_at, ws, doc: p.receipt_no || 'Payment', text: `Payment reversed: ${p.reverse_reason}`, debit: num(p.amount_minor), credit: 0 });
       }
     }
@@ -923,7 +926,7 @@ function mountFees(r, ctx, P) {
     const b = await docBase(a);
     const allocs = p.allocs.filter(x => x.status === 'active');
     const buf = await docs.render({ ...b, title: 'Payment receipt', number: p.receipt_no, stamp: p.status === 'reversed' ? 'REVERSED' : null,
-      meta: [['Payment date', fmtDate(p.received_on)], ['Receipt issued', fmtDate(p.receipt_issued_at)], ['Method', p.method], ['Reference', p.reference || '—'], ['Project', a.ws.ref], ['', a.ws.name]],
+      meta: [['Payment date', fmtDate(p.received_on)], ['Receipt issued', fmtDate(p.receipt_issued_at)], ['Method', p.method], ...(p.bank ? [['Bank', p.bank]] : []), ['Reference', p.reference || '—'], ['Project', a.ws.ref], ['', a.ws.name]],
       tables: [{ caption: 'Applied to', head: ['Invoice', 'Period', 'Amount'], widths: [0.3, 0.45, 0.25], align: ['left', 'left', 'right'], empty: 'Not yet applied to an invoice',
         rows: allocs.map(x => [x.number, x.period_start ? `${fmtDate(x.period_start)} – ${fmtDate(x.period_end)}` : 'Additional charges', docs.money(num(x.amount_minor))]) }],
       totals: [['Amount received', docs.money(p.amount, p.currency), true], ['Applied to invoices', docs.money(allocs.reduce((s, x) => s + num(x.amount_minor), 0))], ['Unapplied credit', docs.money(p.status === 'confirmed' ? p.unapplied : 0)]],
