@@ -161,12 +161,14 @@ test('client projects', { skip: !URL_ && 'set TEST_DATABASE_URL to run' }, async
   await t.test('partial payment, allocation, receipt, remaining balance; no over-allocation or duplicates', async () => {
     const page = await admin.get(`/w/${p1}/fees`);
     const idem = /name="idem" value="([0-9a-f]+)"/.exec(page.text)[1];
-    const form = { idem, received_on: today, amount: '1000', method: 'Bank transfer', reference: 'TRX-778', [`alloc_${inv1}`]: '1000' };
+    const form = { idem, received_on: today, amount: '1000', method: 'Bank transfer', bank: 'ila Bank', reference: 'TRX-778', [`alloc_${inv1}`]: '1000' };
     let r = await admin.post(`/w/${p1}/fees/payments`, form, `/w/${p1}/fees`);
     assert.equal(r.status, 302); pay1 = r.location.split('/')[5].slice(0, 36);
     r = await admin.post(`/w/${p1}/fees/payments`, form, `/w/${p1}/fees`);       // retried submission
     assert.equal(r.location.split('/')[5].slice(0, 36), pay1);
     assert.equal((await q1(`select count(*)::int as n from fee_payments where workspace_id = '${p1}'`)).n, 1);
+    assert.equal((await q1(`select bank from fee_payments where id = '${pay1}'`)).bank, 'ila Bank');   // the bank is kept apart from the reference
+    assert.match((await admin.get(`/w/${p1}/fees`)).text, /Bank transfer · ila Bank · TRX-778/);
     r = await admin.post(`/w/${p1}/fees/payments`, { received_on: today, amount: '50', method: 'Bank transfer', reference: 'trx-778' }, `/w/${p1}/fees`);
     assert.equal(r.status, 400);                                               // same bank reference
     assert.match(r.text, /reference “trx-778” is already recorded for this project: BHD 1,000 received/);   // says which payment it clashes with
