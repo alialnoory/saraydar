@@ -148,6 +148,8 @@ function layout(req, { title, crumbs = [], heading = null, sub = null, tabs = nu
   const SHORT_SECTION = { 'Clients Projects Management': 'Clients Projects', 'SarayDar Real Estate Development': 'Development', 'Property Management': 'Properties', 'Property Sales & Acquisition': 'Sales' };
   const sc = modern ? crumbs.find(c => c[1] && /^\/s\//.test(c[1])) : null;
   const sectionCrumb = sc ? [SHORT_SECTION[sc[0]] || String(sc[0]).replace(/^Clients? /, '').replace(/ Management$/, ''), sc[1]] : null;
+  // a Back button beside Home in the controls of every page (owner request 2026-11-03); it goes to the previous page when there is one
+  const backBtn = href => html`<a class="mbtn mhome mbackbtn" href="${href}" data-back aria-label="Back">${I.back}<span>Back</span></a>`;
   const modernHead = () => html`<div class="wrap mhead">
       <div class="mcrumb"><a class="mback" href="${curTab === 'Overview' ? (sectionCrumb ? sectionCrumb[1] : '/') : wsBase}" aria-label="Back">${I.back}</a>
         ${sectionCrumb ? html`<a href="${sectionCrumb[1]}">${sectionCrumb[0]}</a><span aria-hidden="true">/</span>` : ''}${curTab !== 'Overview' ? html`<a href="${wsBase}">${heading}</a><span aria-hidden="true">/</span><span>${curTab}</span>` : html`<span>${heading}</span>`}</div>
@@ -155,7 +157,7 @@ function layout(req, { title, crumbs = [], heading = null, sub = null, tabs = nu
         ${sub && sub.above ? html`<div class="meyebrow">${sub.above}</div>` : ''}<span class="pdf-tab" hidden>${curTab}</span>
         <h1>${heading}</h1>
         <div class="mchips">${chips.map(([ic, t]) => html`<span class="mchip">${ic}${t}</span>`)}${sub && sub.badge ? html`<span class="mchip mstatus">${sub.badge}</span>` : ''}</div></div>
-        <div class="mactions">${req.path !== home ? html`<a class="mbtn mhome" href="${home}" aria-label="Home">${PI.home}<span>Home</span></a>` : ''}${undoNav ? html`<div class="mseg">${undoNav}</div>` : ''}${exportable ? exportMenu() : ''}${P.update ? html`<a class="mbtn mprimary" href="${P.update}">${PI.plus}Update</a>` : ''}</div></div>
+        <div class="mactions">${backBtn(curTab === 'Overview' ? (sectionCrumb ? sectionCrumb[1] : '/') : wsBase)}${req.path !== home ? html`<a class="mbtn mhome" href="${home}" aria-label="Home">${PI.home}<span>Home</span></a>` : ''}${undoNav ? html`<div class="mseg">${undoNav}</div>` : ''}${exportable ? exportMenu() : ''}${P.update ? html`<a class="mbtn mprimary" href="${P.update}">${PI.plus}Update</a>` : ''}</div></div>
       ${curTab !== 'Overview' ? html`<nav class="mgroups mgroups-cards" aria-label="Sections">${groups.map(([g, ts]) => html`<div class="mgroup${ts.some(t => t[2]) ? ' on' : ''}"><span class="mglabel">${g}</span><div class="mglinks">${ts.map(([l, h, on]) => html`<a href="${h}" ${on ? raw('aria-current="page"') : ''}><span class="mg-ic">${TAB_ICON[l] || PI.dot}</span>${l}</a>`)}</div></div>`)}</nav>` : ''}
     </div>`;
   // every other staff page with a heading gets the same modern header (owner request 2026-10-28: "here also")
@@ -167,7 +169,7 @@ function layout(req, { title, crumbs = [], heading = null, sub = null, tabs = nu
         ${sub && sub.above ? html`<div class="meyebrow">${sub.above}</div>` : ''}${tabs ? html`<span class="pdf-tab" hidden>${(tabs.find(t => t[2]) || [])[0] || ''}</span>` : ''}
         <h1>${heading}</h1>
         ${sub && (sub.below || sub.badge) ? html`<div class="mchips">${sub.below ? html`<span class="mmeta">${sub.below}</span>` : ''}${sub.badge ? html`<span class="mchip mstatus">${sub.badge}</span>` : ''}</div>` : ''}</div>
-        <div class="mactions">${req.path !== home ? html`<a class="mbtn mhome" href="${home}" aria-label="Home">${PI.home}<span>Home</span></a>` : ''}${undoNav ? html`<div class="mseg">${undoNav}</div>` : ''}${exportable ? exportMenu() : ''}${actions ? html`<div class="mpage-actions">${actions}</div>` : ''}</div></div>
+        <div class="mactions">${req.path !== home ? backBtn(parent) : ''}${req.path !== home ? html`<a class="mbtn mhome" href="${home}" aria-label="Home">${PI.home}<span>Home</span></a>` : ''}${undoNav ? html`<div class="mseg">${undoNav}</div>` : ''}${exportable ? exportMenu() : ''}${actions ? html`<div class="mpage-actions">${actions}</div>` : ''}</div></div>
       ${tabs ? html`<nav class="mgroups mgroups-flat" aria-label="Sections"><div class="mgroup">${tabs.map(([label, href, on]) => html`<a href="${href}" ${on ? raw('aria-current="page"') : ''}>${label}</a>`)}</div></nav>` : ''}
     </div>`;
   const overviewTop = () => !modern || curTab !== 'Overview' ? '' : html`
